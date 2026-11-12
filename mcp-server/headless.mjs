@@ -86,9 +86,10 @@ async function loadChromium() {
 /**
  * Launches Chromium on the app and keeps a page open: if the page crashes or closes it is
  * reopened (the run resumes from its autosave, like a reload). Returns a stop function.
- * `viewport` sizes the headless page (default 1100×900).
+ * `viewport` sizes the headless page (default 1100×900). `onPage(page)` (a watch-only observer,
+ * observers.mjs) is called with each page once it's loaded, and with null when it closes.
  */
-export async function launchHeadless({ url, log, viewport = { width: 1100, height: 900 } }) {
+export async function launchHeadless({ url, log, viewport = { width: 1100, height: 900 }, onPage = null }) {
   const chromium = await loadChromium();
   const headed = !!process.env.NUZLOCKE_HEADED;
   // Audio needs no user gesture; nothing plays anyway (volume starts at 0).
@@ -129,12 +130,14 @@ export async function launchHeadless({ url, log, viewport = { width: 1100, heigh
       void page.close().catch(() => {});
     });
     page.on("close", () => {
+      onPage?.(null);
       if (!stopped) setTimeout(() => void open().catch((e) => log("reopen failed:", e.message)), 1000);
     });
     // The app window already loads the page: don't load it a second time.
     if (page.url() === url) await page.waitForLoadState("load");
     else await page.goto(url, { waitUntil: "load" });
     log(`headless page open at ${url}`);
+    onPage?.(page);
   };
 
   (browser ?? context).on(browser ? "disconnected" : "close", () => {

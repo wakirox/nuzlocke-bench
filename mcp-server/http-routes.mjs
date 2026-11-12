@@ -1,7 +1,7 @@
 // The bridge's HTTP side: save backups on disk, the transcript route, the built
 // app (headless), and the guards that keep other sites out.
 //
-//   const handler = createRequestHandler({ savesDir, roms, transcript, dist, log });
+//   const handler = createRequestHandler({ savesDir, roms, transcript, dist, log, observer });
 //   createServer(handler)
 
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -20,7 +20,7 @@ import { isLocalHost, isLocalOrigin } from "./local-guards.mjs";
 export const saveFileOf = (savesDir) => (key) => join(savesDir, `${encodeURIComponent(key)}.json`);
 
 /** The request handler of the bridge's HTTP server. `dist` is the built app (null: not served), `transcript` the transcript file (or null). */
-export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log }) {
+export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer = null }) {
   const fileOf = saveFileOf(SAVES_DIR);
 
   function handleBackup(req, res) {
@@ -110,6 +110,8 @@ export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcri
         .end(JSON.stringify(path === "/transcript" ? { ...readFeed(TRANSCRIPT, from), usage: readUsage(TRANSCRIPT) } : { usage: readUsage(TRANSCRIPT) }));
       return;
     }
+    // A watch-only observer's own paths (observers.mjs): never the app's, the backups or the transcript.
+    if (observer?.handle(req, res)) return;
     if (DIST && path !== "/backup" && !path.startsWith("/backup/") && serveStatic(DIST, req, res)) return;
     handleBackup(req, res);
   }

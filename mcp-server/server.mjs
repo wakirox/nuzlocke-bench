@@ -19,6 +19,7 @@ import { distDir } from "./headless.mjs";
 import { createAutoStart, createHeadlessLauncher } from "./autostart.mjs";
 import { createBridgeLink } from "./bridge-link.mjs";
 import { createRequestHandler, saveFileOf } from "./http-routes.mjs";
+import { loadObserver } from "./observers.mjs";
 import { entriesOf, NOTES_MAX, notesStore, numbered, updateNotes } from "./notes.mjs";
 import { instrumentTools } from "./run-log.mjs";
 import { callBudget, limitCalls } from "./call-budget.mjs";
@@ -89,7 +90,17 @@ const ROMS = knownRoms({ rom: process.env.NUZLOCKE_ROM, dirs: process.env.NUZLOC
 const DIST = HEADLESS ? distDir(PROJECT_ROOT) : null;
 // The conversation panel: bench-run writes the model's transcript next to the run log.
 const TRANSCRIPT = process.env.NUZLOCKE_RUN_LOG && process.env.NUZLOCKE_RUN_LOG !== "off" ? join(dirname(process.env.NUZLOCKE_RUN_LOG), "transcript.jsonl") : null;
-const http = createServer(createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log }));
+// A watch-only observer (bench-run --observer): it may look at the run, never play it (observers.mjs).
+let observer = null;
+if (HEADLESS && process.env.NUZLOCKE_OBSERVER) {
+  try {
+    observer = await loadObserver(process.env.NUZLOCKE_OBSERVER, { savesDir: SAVES_DIR, transcript: TRANSCRIPT, log });
+    log(`observer: ${process.env.NUZLOCKE_OBSERVER}${observer.wantsFrames ? " (frames drawn)" : ""}`);
+  } catch (e) {
+    log("observer not loaded (the run goes on without it):", e.message);
+  }
+}
+const http = createServer(createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer }));
 const link = createBridgeLink({
   log,
   port: PORT,
@@ -107,7 +118,7 @@ const link = createBridgeLink({
 link.attach(http);
 const { call } = link;
 const autoStart = createAutoStart({ headless: HEADLESS, preset: PRESET, rulesetIds: RULESET_IDS, fileOf, call, log });
-const launcher = createHeadlessLauncher({ port: PORT, headed: HEADED, log });
+const launcher = createHeadlessLauncher({ port: PORT, headed: HEADED, log, observer });
 http.listen(PORT, "127.0.0.1", () => {
   log(`bridge listening on ws://127.0.0.1:${PORT} (saves: ${SAVES_DIR})`);
   if (!HEADLESS) return;

@@ -16,7 +16,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { COMPACT_WINDOW, HINTS, NUDGE, PLAYTEST, PROMPT, REPORT, RESUME_PROMPT, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, TokenMeter, loggedPreset, mTokens, userTurn, GIVE_UP_AFTER } from "../mcp-server/bench-runner.mjs";
@@ -60,6 +60,8 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --port <n>           the game's port; give runs side by side different ones (default 7880)
   --headed             show the game window, paced to watch
   --watch              show the game window at full speed (the run isn't slowed down)
+  --observer <module>  a watch-only observer: an outside module that may look at the run, never play it
+                       (mcp-server/observers.mjs); recorded with the run, which stays official
   --grid wide          map grids with two spaces between squares (the default has one: ~40% fewer map tokens)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
@@ -143,6 +145,14 @@ if (!Number.isFinite(compactWindow) || compactWindow < 0) {
 const port = numberOpt("port", 7880, { min: 1024, max: 65535, integer: true });
 const playtest = opt("playtest", false) === true;
 const report = opt("no-report", false) !== true;
+// A watch-only observer module (observers.mjs): it can look at the run, not play it.
+const observerOpt = opt("observer", undefined);
+if (observerOpt !== undefined && (typeof observerOpt !== "string" || !existsSync(observerOpt))) {
+  console.error("--observer takes the path of an observer module (see mcp-server/observers.mjs).");
+  process.exit(1);
+}
+const observer = observerOpt ? resolve(observerOpt) : null;
+const observers = observer ? [basename(observer)] : null;
 const grid = opt("grid", undefined);
 if (grid !== undefined && grid !== "narrow" && grid !== "wide") {
   console.error("--grid takes wide or narrow (the default).");
@@ -161,7 +171,7 @@ const run = runFiles(join(process.env.NUZLOCKE_RUNS_DIR ?? join(root, "runs"), i
 mkdirSync(run.saves, { recursive: true });
 // The page's model log names who plays while the run is live.
 // It also says what kind of run this is, for a run that stops before agent.json gets written.
-writeFileSync(run.player, JSON.stringify({ model, effort, preset, resumedFrom: resumed?.name ?? null, playtest, ...(experimental ? { experimental } : {}) }));
+writeFileSync(run.player, JSON.stringify({ model, effort, preset, resumedFrom: resumed?.name ?? null, playtest, ...(experimental ? { experimental } : {}), ...(observers ? { observers } : {}) }));
 if (resumed) cpSync(resumed.saves, run.saves, { recursive: true });
 const configFile = join(tmpdir(), `nuzlocke-bench-${id}.json`);
 const config = mcpConfig({
@@ -177,6 +187,7 @@ const config = mcpConfig({
   grid,
   effectiveness,
   report,
+  observer,
 });
 writeFileSync(configFile, JSON.stringify(config));
 
@@ -315,6 +326,7 @@ player.onExit((code) => {
     // The window Claude Code compacted at (null: the model's own).
     compactWindow: compactWindow || null,
     ...(grid ? { grid } : {}),
+    ...(observers ? { observers } : {}),
     // Maps on request (get_map, or show_map on a move): recorded so reports can tell runs from before apart.
     maps: "ask",
     // Whether results showed each move's effectiveness (shown before 2026-11-07, where it isn't recorded).

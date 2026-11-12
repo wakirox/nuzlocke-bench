@@ -22,6 +22,10 @@ describe("bench-run's options", () => {
     }
   });
 
+  it("refuses an --observer that isn't a file", () => {
+    expect(run("--observer", "/no/such/observer.mjs").stderr).toMatch(/--observer takes the path of an observer module/);
+  });
+
   it("refuses a bad --effectiveness", () => {
     expect(run("--effectiveness", "maybe").stderr).toMatch(/--effectiveness takes on or off/);
   });
