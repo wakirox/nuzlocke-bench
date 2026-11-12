@@ -74,13 +74,13 @@ describe("dashboardRuns", () => {
     const [run] = dashboardRuns([row("a", { outcome: "wipe: X", deaths: 2, screenshots: 3, objectives: { badge1: "x" } })]);
     expect(run.deaths).toBe(3);
     // The last Pokémon is the wipe itself (the run ends as "ended"); the two before it cost points.
-    expect(run.score).toMatchObject({ deaths: -30, ended: -45, total: 60 - 30 - 45 });
+    expect(run.score).toMatchObject({ deaths: -30, ended: -45, screenshots: -9, total: 60 - 30 - 45 - 9 });
   });
 
-  it("counts failed calls (run-log errors plus calls the server rejected) as a stat, not in the score", () => {
+  it("counts failed calls (run-log errors plus calls the server rejected), -1 each", () => {
     const [run] = dashboardRuns([row("a", { errors: 3, extras: { rejected: 2 }, objectives: { badge1: "x" } })]);
     expect(run.wrongCalls).toBe(5);
-    expect(run.score.total).toBe(60);
+    expect(run.score.total).toBe(60 - 5);
   });
 
   it("marks official runs: the official rules on Red, from a new game, ended by the rules", () => {

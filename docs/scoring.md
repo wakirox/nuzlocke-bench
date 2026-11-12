@@ -60,7 +60,7 @@ first). The deaths in a wipe's last battle, from the last call made outside a ba
 the score charges them once as the early end, not per Pokémon, so a big team that wipes doesn't cost more
 than a lone starter. Giving up costs the same as wiping out, so stopping is never the cheaper way out.
 
-Screenshots and failed tool calls are shown as each run's stats, not scored.
+Every screenshot the model asks for costs 3 points, and every failed tool call 1 (since 2026-11-12).
 
 ## A model's score
 
@@ -77,10 +77,12 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 - **Flash is rewarded** as the player's own answer to the dark tunnel: getting the HM and using it is a plan.
 - **One cost for any early end (2026-11-11).** Giving up used to cost nothing while a wipe cost 15 per
   Pokémon, so quitting was cheaper than fighting on.
-- **Screenshots and failed calls aren't scored** (until 2026-11-08 they were -2 and -1 each). Both
-  grow with how far a run gets, so they cost long runs the most: an 8-badge run lost 439 points to
-  them and fell below a 6-badge run, and among runs that stop at the same place they decided the
-  order by noise.
+- **Screenshots and failed calls are scored again (2026-11-12): -3 and -1 each, for every run.** With a
+  Champion reached, runs near the top were separated by little else: a model that reads the text and
+  calls its tools right should beat one that leans on screenshots and retries. The cost is known: both
+  grow with how far a run gets, so a long run pays the most (under the first version, -2 and -1 until
+  2026-11-08, an 8-badge run fell below a 6-badge one), and today a 3-badge run can rank below a
+  2-badge run that was cleaner.
 - **Tokens aren't scored.** They depend on the model and client more than on how well it plays.
 
 ## Open questions

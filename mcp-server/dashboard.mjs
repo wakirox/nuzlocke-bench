@@ -198,7 +198,7 @@ export function dashboardRuns(rows, { names = true } = {}) {
       screenshots,
       wrongCalls,
       realMs: legs.reduce((n, l) => n + (l.wallMs ?? 0), 0),
-      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths, dark }),
+      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths, dark, screenshots, wrongCalls }),
       // Unrecorded for a leg stopped by a reboot: then it's a floor, so the page marks it.
       tokens: tokens.length ? tokens.reduce((a, b) => a + b, 0) : null,
       tokensPartial: tokens.length < legs.length,
