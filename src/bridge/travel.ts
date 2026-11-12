@@ -246,6 +246,7 @@ export class Travel {
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
     const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => ok(c + dx, r + dy)) : undefined);
     let log = "";
+    const fled: string[] = [];
     const pairHere = () => {
       const here = this.core.host.position();
       const vv = this.core.view(true);
@@ -267,7 +268,12 @@ export class Travel {
         break;
       }
       if (!reached) throw new Error(this.core.sight().avoidSight ? "No grass (or cave floor) reachable without crossing a trainer's sight (trainers: avoid)." : "No grass (or cave floor) reachable.");
-      if (this.core.host.position().battle) return this.huntBattle(log, 0);
+      if (this.core.host.position().battle) {
+        // Ran from one that doesn't count on the way (flee_uncounted): keep going to the grass.
+        const out = await this.huntBattle(log, 0, fled);
+        if (out) return out;
+        continue;
+      }
       // Someone stopped you to talk (a trainer who saw you): that's the walk's result, not a failure.
       if (this.core.textBox(this.core.screenText()).open) return this.core.result({ walk: `on the way to the grass: ${log}`, map: this.core.mapText() });
     }
@@ -275,7 +281,6 @@ export class Travel {
     if (!first) throw new Error(`Couldn't reach the grass (${log || "no route"}).`);
     const opposite: Record<Dir, Dir> = { left: "right", right: "left", up: "down", down: "up" };
     let dir: Dir = first[0];
-    const fled: string[] = [];
     for (let step = 0; step < maxSteps; step++) {
       const r = await this.walkStraight(dir, 1);
       if (r.stopped === "a battle started") {
