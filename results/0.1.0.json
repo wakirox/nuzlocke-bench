@@ -6,7 +6,7 @@
   "game": "red",
   "since": "2026-11-08"
  },
- "updated": "2026-11-11T18:27:00.247Z",
+ "updated": "2026-11-12T20:41:20.139Z",
  "objectives": [
   {
    "id": "rival1",
@@ -127,6 +127,411 @@
  ],
  "runs": [
   {
+   "id": "2026-11-12T17-29-23-875Z",
+   "model": "opus-5-5",
+   "effort": "low",
+   "game": "red",
+   "preset": "hardcore-nuzlocke+firstrival+hardcap",
+   "date": "2026-11-12",
+   "harness": "0.1.0@acd18e8",
+   "outcome": "victory",
+   "badges": 8,
+   "deaths": 6,
+   "calls": 2096,
+   "screenshots": 12,
+   "wrongCalls": 130,
+   "realMs": 5296322,
+   "score": {
+    "total": 1606,
+    "progress": 1210,
+    "speed": 22,
+    "cottageSpeed": 18,
+    "tunnelSpeed": 26,
+    "flash": 30,
+    "efficiency": 390,
+    "deaths": -90,
+    "ended": 0,
+    "disqualified": 0
+   },
+   "tokens": 171260323,
+   "tokensPartial": false,
+   "playTime": "7:22:42",
+   "furthest": 28,
+   "reached": [
+    "rival1",
+    "badge1",
+    "cave1",
+    "badge2",
+    "rival2",
+    "cottage",
+    "cottageDone",
+    "ship",
+    "rival3",
+    "badge3",
+    "town7",
+    "badge4",
+    "rival4",
+    "tower",
+    "badge5",
+    "company",
+    "rival5",
+    "badge6",
+    "mansion",
+    "badge7",
+    "badge8",
+    "rival6",
+    "lastCave",
+    "league",
+    "elite1",
+    "elite2",
+    "elite3",
+    "elite4",
+    "champion"
+   ],
+   "times": {
+    "badge1": "0:37:30",
+    "badge2": "1:13:37",
+    "badge3": "1:58:09",
+    "badge4": "3:14:33",
+    "badge5": "4:35:26",
+    "badge6": "5:36:28",
+    "mansion": "6:10:05",
+    "badge7": "6:14:15",
+    "badge8": "6:25:30",
+    "rival6": "6:45:30",
+    "lastCave": "6:48:24",
+    "league": "7:00:57",
+    "elite1": "7:02:32",
+    "elite2": "7:04:51",
+    "elite3": "7:07:21",
+    "elite4": "7:10:01",
+    "champion": "7:22:42",
+    "rival1": "0:03:06",
+    "cave1": "1:09:20",
+    "rival2": "1:19:02",
+    "cottage": "1:33:32",
+    "cottageDone": "1:41:13",
+    "ship": "1:47:40",
+    "rival3": "1:50:06",
+    "town7": "2:53:47",
+    "rival4": "3:49:05",
+    "tower": "3:55:45",
+    "company": "5:13:07",
+    "rival5": "5:20:20"
+   },
+   "dark": {
+    "result": "crossed with light",
+    "calls": 159,
+    "deaths": 0,
+    "flashAt": 62
+   },
+   "objectiveCalls": {
+    "rival1": 23,
+    "badge1": 89,
+    "cave1": 199,
+    "badge2": 217,
+    "rival2": 234,
+    "cottage": 310,
+    "cottageDone": 365,
+    "ship": 399,
+    "rival3": 412,
+    "badge3": 456,
+    "town7": 683,
+    "badge4": 792,
+    "rival4": 960,
+    "tower": 994,
+    "badge5": 1204,
+    "company": 1405,
+    "rival5": 1449,
+    "badge6": 1537,
+    "mansion": 1731,
+    "badge7": 1762,
+    "badge8": 1826,
+    "rival6": 1886,
+    "lastCave": 1910,
+    "league": 1975,
+    "elite1": 1990,
+    "elite2": 2002,
+    "elite3": 2014,
+    "elite4": 2027,
+    "champion": 2096
+   },
+   "lastBattleDeaths": 0,
+   "hardAreas": [
+    {
+     "id": "cave",
+     "label": "First cave",
+     "done": true,
+     "calls": 53,
+     "entries": 1,
+     "deaths": 0,
+     "seconds": 962
+    },
+    {
+     "id": "tunnel",
+     "label": "Dark tunnel",
+     "done": true,
+     "calls": 159,
+     "entries": 2,
+     "deaths": 0,
+     "seconds": 2174
+    },
+    {
+     "id": "tower",
+     "label": "Tower",
+     "done": true,
+     "calls": 44,
+     "entries": 1,
+     "deaths": 0,
+     "seconds": 511
+    },
+    {
+     "id": "company",
+     "label": "Company building",
+     "done": true,
+     "calls": 34,
+     "entries": 1,
+     "deaths": 0,
+     "seconds": 236
+    },
+    {
+     "id": "mansion",
+     "label": "Burned mansion",
+     "done": true,
+     "calls": 144,
+     "entries": 2,
+     "deaths": 0,
+     "seconds": 1318
+    },
+    {
+     "id": "lastCave",
+     "label": "Last cave",
+     "done": true,
+     "calls": 65,
+     "entries": 1,
+     "deaths": 0,
+     "seconds": 750
+    }
+   ],
+   "playtest": false,
+   "notOfficial": null,
+   "continued": true,
+   "short": false
+  },
+  {
+   "id": "2026-11-11T20-16-12-084Z",
+   "model": "sonnet-5-5",
+   "effort": "low",
+   "game": "red",
+   "preset": "hardcore-nuzlocke+firstrival+hardcap",
+   "date": "2026-11-11",
+   "harness": "0.1.0@4cc66e3",
+   "outcome": "gave up",
+   "badges": 2,
+   "deaths": 1,
+   "calls": 672,
+   "screenshots": 9,
+   "wrongCalls": 90,
+   "realMs": 3211811,
+   "score": {
+    "total": 200,
+    "progress": 240,
+    "speed": 20,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
+    "efficiency": 0,
+    "deaths": -15,
+    "ended": -45,
+    "disqualified": 0
+   },
+   "tokens": 48564767,
+   "tokensPartial": false,
+   "playTime": "1:51:17",
+   "furthest": 5,
+   "reached": [
+    "rival1",
+    "badge1",
+    "cave1",
+    "badge2",
+    "rival2",
+    "cottage"
+   ],
+   "times": {
+    "rival1": "0:02:50",
+    "badge1": "0:22:41",
+    "cave1": "1:07:57",
+    "badge2": "1:14:07",
+    "rival2": "1:18:44",
+    "cottage": "1:37:49"
+   },
+   "dark": null,
+   "objectiveCalls": {
+    "rival1": 23,
+    "badge1": 139,
+    "cave1": 382,
+    "badge2": 414,
+    "rival2": 431,
+    "cottage": 550
+   },
+   "lastBattleDeaths": 0,
+   "hardAreas": [
+    {
+     "id": "cave",
+     "label": "First cave",
+     "done": true,
+     "calls": 193,
+     "entries": 4,
+     "deaths": 0,
+     "seconds": 2152
+    }
+   ],
+   "playtest": false,
+   "notOfficial": null,
+   "continued": false,
+   "short": false
+  },
+  {
+   "id": "2026-11-11T19-05-51-857Z",
+   "model": "sonnet-5-5",
+   "effort": "low",
+   "game": "red",
+   "preset": "hardcore-nuzlocke+firstrival+hardcap",
+   "date": "2026-11-11",
+   "harness": "0.1.0@4cc66e3",
+   "outcome": "gave up",
+   "badges": 2,
+   "deaths": 0,
+   "calls": 593,
+   "screenshots": 5,
+   "wrongCalls": 68,
+   "realMs": 3120411,
+   "score": {
+    "total": 217,
+    "progress": 240,
+    "speed": 22,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
+    "efficiency": 0,
+    "deaths": 0,
+    "ended": -45,
+    "disqualified": 0
+   },
+   "tokens": 42013915,
+   "tokensPartial": false,
+   "playTime": "1:39:21",
+   "furthest": 5,
+   "reached": [
+    "rival1",
+    "badge1",
+    "cave1",
+    "rival2",
+    "badge2",
+    "cottage"
+   ],
+   "times": {
+    "rival1": "0:02:45",
+    "badge1": "0:25:43",
+    "cave1": "0:48:01",
+    "rival2": "0:51:54",
+    "badge2": "1:07:58",
+    "cottage": "1:16:41"
+   },
+   "dark": null,
+   "objectiveCalls": {
+    "rival1": 22,
+    "badge1": 156,
+    "cave1": 274,
+    "rival2": 306,
+    "badge2": 392,
+    "cottage": 436
+   },
+   "lastBattleDeaths": 0,
+   "hardAreas": [
+    {
+     "id": "cave",
+     "label": "First cave",
+     "done": true,
+     "calls": 62,
+     "entries": 1,
+     "deaths": 0,
+     "seconds": 644
+    }
+   ],
+   "playtest": false,
+   "notOfficial": null,
+   "continued": false,
+   "short": false
+  },
+  {
+   "id": "2026-11-11T18-28-22-521Z",
+   "model": "haiku-5-5",
+   "effort": "high",
+   "game": "red",
+   "preset": "hardcore-nuzlocke+firstrival+hardcap",
+   "date": "2026-11-11",
+   "harness": "0.1.0@4cc66e3",
+   "outcome": "gave up",
+   "badges": 2,
+   "deaths": 1,
+   "calls": 554,
+   "screenshots": 5,
+   "wrongCalls": 51,
+   "realMs": 2040043,
+   "score": {
+    "total": 138,
+    "progress": 180,
+    "speed": 18,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
+    "efficiency": 0,
+    "deaths": -15,
+    "ended": -45,
+    "disqualified": 0
+   },
+   "tokens": 44844993,
+   "tokensPartial": false,
+   "playTime": "1:20:13",
+   "furthest": 4,
+   "reached": [
+    "badge1",
+    "cave1",
+    "badge2",
+    "rival2"
+   ],
+   "times": {
+    "badge1": "0:26:12",
+    "cave1": "0:55:55",
+    "badge2": "1:02:20",
+    "rival2": "1:08:35"
+   },
+   "dark": null,
+   "objectiveCalls": {
+    "badge1": 192,
+    "cave1": 347,
+    "badge2": 402,
+    "rival2": 454
+   },
+   "lastBattleDeaths": 0,
+   "hardAreas": [
+    {
+     "id": "cave",
+     "label": "First cave",
+     "done": true,
+     "calls": 92,
+     "entries": 3,
+     "deaths": 0,
+     "seconds": 851
+    }
+   ],
+   "playtest": false,
+   "notOfficial": null,
+   "continued": false,
+   "short": false
+  },
+  {
    "id": "2026-11-11T02-26-35-146Z",
    "model": "haiku-5-5",
    "effort": "high",
@@ -142,10 +547,15 @@
    "wrongCalls": 64,
    "realMs": 1763745,
    "score": {
-    "total": 225,
+    "total": 199,
     "progress": 240,
+    "speed": 19,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": -15,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 55532401,
@@ -169,6 +579,15 @@
     "cottage": "1:26:37"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 49,
+    "badge1": 237,
+    "cave1": 383,
+    "badge2": 445,
+    "rival2": 553,
+    "cottage": 629
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
@@ -201,10 +620,15 @@
    "wrongCalls": 65,
    "realMs": 1471731,
    "score": {
-    "total": 210,
+    "total": 184,
     "progress": 210,
+    "speed": 19,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": 0,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 51662495,
@@ -226,6 +650,14 @@
     "rival2": "1:14:39"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 71,
+    "badge1": 244,
+    "cave1": 437,
+    "badge2": 485,
+    "rival2": 537
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
@@ -258,10 +690,15 @@
    "wrongCalls": 66,
    "realMs": 1227625,
    "score": {
-    "total": 180,
+    "total": 154,
     "progress": 210,
+    "speed": 19,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": -30,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 48636654,
@@ -283,6 +720,14 @@
     "rival2": "1:14:51"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 58,
+    "badge1": 267,
+    "cave1": 431,
+    "badge2": 469,
+    "rival2": 537
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
@@ -315,10 +760,15 @@
    "wrongCalls": 50,
    "realMs": 627568,
    "score": {
-    "total": 60,
+    "total": 50,
     "progress": 90,
+    "speed": 5,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -30,
+    "deaths": 0,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 29388879,
@@ -334,6 +784,11 @@
     "badge1": "0:53:24"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 75,
+    "badge1": 504
+   },
+   "lastBattleDeaths": 2,
    "hardAreas": [],
    "playtest": false,
    "notOfficial": null,
@@ -356,10 +811,15 @@
    "wrongCalls": 5,
    "realMs": 290508,
    "score": {
-    "total": -30,
+    "total": -5,
     "progress": 30,
+    "speed": 25,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -60,
+    "deaths": -15,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 12498953,
@@ -373,6 +833,10 @@
     "rival1": "0:04:11"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 39
+   },
+   "lastBattleDeaths": 3,
    "hardAreas": [],
    "playtest": false,
    "notOfficial": null,
@@ -395,10 +859,15 @@
    "wrongCalls": 15,
    "realMs": 263818,
    "score": {
-    "total": 0,
+    "total": 7,
     "progress": 30,
+    "speed": 22,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -30,
+    "deaths": 0,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 9942481,
@@ -412,6 +881,10 @@
     "rival1": "0:05:46"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 68
+   },
+   "lastBattleDeaths": 2,
    "hardAreas": [],
    "playtest": false,
    "notOfficial": null,
@@ -434,10 +907,15 @@
    "wrongCalls": 15,
    "realMs": 378014,
    "score": {
-    "total": -15,
+    "total": -21,
     "progress": 30,
+    "speed": 24,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -45,
+    "deaths": -30,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 18996002,
@@ -451,6 +929,10 @@
     "rival1": "0:04:32"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 48
+   },
+   "lastBattleDeaths": 1,
    "hardAreas": [],
    "playtest": false,
    "notOfficial": null,
@@ -473,10 +955,15 @@
    "wrongCalls": 73,
    "realMs": 1540368,
    "score": {
-    "total": 75,
+    "total": 54,
     "progress": 120,
+    "speed": 9,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -45,
+    "deaths": -30,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 57348402,
@@ -494,6 +981,12 @@
     "cave1": "1:12:42"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 57,
+    "badge1": 308,
+    "cave1": 618
+   },
+   "lastBattleDeaths": 1,
    "hardAreas": [
     {
      "id": "cave",
@@ -526,10 +1019,15 @@
    "wrongCalls": 259,
    "realMs": 11707757,
    "score": {
-    "total": 945,
+    "total": 994,
     "progress": 1080,
+    "speed": 15,
+    "cottageSpeed": 22,
+    "tunnelSpeed": 12,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -135,
+    "deaths": -90,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 314543814,
@@ -602,6 +1100,37 @@
     "deaths": 0,
     "flashAt": null
    },
+   "objectiveCalls": {
+    "rival1": 28,
+    "badge1": 137,
+    "cave1": 292,
+    "rival2": 326,
+    "badge2": 441,
+    "cottage": 495,
+    "cottageDone": 532,
+    "ship": 578,
+    "rival3": 593,
+    "badge3": 810,
+    "town7": 1815,
+    "badge4": 1915,
+    "rival4": 2230,
+    "tower": 2275,
+    "company": 2331,
+    "rival5": 2408,
+    "badge5": 2522,
+    "badge6": 2810,
+    "mansion": 3438,
+    "badge7": 3496,
+    "badge8": 3560,
+    "rival6": 3603,
+    "lastCave": 3642,
+    "league": 4034,
+    "elite1": 4042,
+    "elite2": 4073,
+    "elite3": 4085,
+    "elite4": 4093
+   },
+   "lastBattleDeaths": 3,
    "hardAreas": [
     {
      "id": "cave",
@@ -679,10 +1208,15 @@
    "wrongCalls": 141,
    "realMs": 8352821,
    "score": {
-    "total": 390,
+    "total": 372,
     "progress": 390,
+    "speed": 19,
+    "cottageSpeed": 8,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": 0,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 278203519,
@@ -719,6 +1253,19 @@
     "deaths": 0,
     "flashAt": null
    },
+   "objectiveCalls": {
+    "rival1": 83,
+    "badge1": 238,
+    "cave1": 513,
+    "badge2": 553,
+    "rival2": 599,
+    "cottage": 818,
+    "cottageDone": 846,
+    "ship": 928,
+    "rival3": 951,
+    "badge3": 1086
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
@@ -760,10 +1307,15 @@
    "wrongCalls": 80,
    "realMs": 1280923,
    "score": {
-    "total": 165,
+    "total": 139,
     "progress": 210,
+    "speed": 19,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": -45,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 47920931,
@@ -785,6 +1337,14 @@
     "rival2": "1:05:33"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 71,
+    "badge1": 300,
+    "cave1": 454,
+    "badge2": 493,
+    "rival2": 530
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
@@ -817,10 +1377,15 @@
    "wrongCalls": 11,
    "realMs": 350262,
    "score": {
-    "total": -15,
+    "total": -7,
     "progress": 30,
+    "speed": 23,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
-    "deaths": -45,
+    "deaths": -15,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 17455819,
@@ -834,6 +1399,10 @@
     "rival1": "0:04:17"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 63
+   },
+   "lastBattleDeaths": 2,
    "hardAreas": [],
    "playtest": false,
    "notOfficial": null,
@@ -856,10 +1425,15 @@
    "wrongCalls": 98,
    "realMs": 2402900,
    "score": {
-    "total": 210,
+    "total": 185,
     "progress": 210,
+    "speed": 20,
+    "cottageSpeed": 0,
+    "tunnelSpeed": 0,
+    "flash": 0,
     "efficiency": 0,
     "deaths": 0,
+    "ended": -45,
     "disqualified": 0
    },
    "tokens": 58253883,
@@ -881,6 +1455,14 @@
     "rival2": "1:05:39"
    },
    "dark": null,
+   "objectiveCalls": {
+    "rival1": 49,
+    "badge1": 205,
+    "cave1": 367,
+    "badge2": 395,
+    "rival2": 467
+   },
+   "lastBattleDeaths": 0,
    "hardAreas": [
     {
      "id": "cave",
