@@ -81,7 +81,7 @@ export function nextStep({ ended, result, nudges, maxNudges, maxTokens = Infinit
 }
 
 /** The game server's MCP config: headless, under the preset, with its own port, saves and run log. */
-export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, headed, playtest, grid, effectiveness, report = true }) {
+export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, headed, playtest, grid, effectiveness, report = true, observer = null }) {
   return {
     mcpServers: {
       "nuzlocke-bench": {
@@ -94,6 +94,7 @@ export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, h
           ...(report || playtest ? {} : { NUZLOCKE_REPORT_ISSUE: "0" }),
           ...(grid ? { NUZLOCKE_GRID: grid } : {}),
           ...(effectiveness ? { NUZLOCKE_EFFECTIVENESS: effectiveness } : {}),
+          ...(observer ? { NUZLOCKE_OBSERVER: observer } : {}),
           NUZLOCKE_BENCHMARK: preset,
           NUZLOCKE_ROM: rom,
           NUZLOCKE_BRIDGE_PORT: String(port),

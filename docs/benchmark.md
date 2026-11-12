@@ -148,6 +148,9 @@ can't be checked for that, and the server being open doesn't change it. The rule
   to read the rules and play. The harness is a commit: no uncommitted changes, and the page built from that same
   commit (the report marks a run otherwise, e.g. `0.1.0@70c0619 (page built from 296b6da)`). Each run's `transcript.jsonl` proves it: its first event lists every tool the model
   had (all `mcp__nuzlocke-bench__…`), and every call it made is in it.
+- **A watch-only observer doesn't change that** (`--observer <module>`, see `mcp-server/observers.mjs`): it gets the
+  headless page to look at and paths of its own on the game's port, nothing that plays (no bridge, tools or input),
+  so the model sees exactly what it would without it. The run records its name (`observers` in `agent.json`).
 - **Anything else is self-reported**: a different runner, agent, prompt or set of tools. Such runs may be shown,
   marked as self-reported, never next to official ones as if comparable. A submitted run comes with its folder
   (transcript, run log, `agent.json`, saves); `npm run verify` checks that its recording is a real game played

@@ -9,14 +9,18 @@ import { launchHeadless } from "./headless.mjs";
  * The headless Chromium of this server: `start()` opens the page once the bridge listens,
  * `closeOnExit()` makes sure it doesn't outlive the MCP client.
  */
-export function createHeadlessLauncher({ port, headed, log }) {
+export function createHeadlessLauncher({ port, headed, log, observer = null }) {
   let stopHeadless = null;
   return {
     start() {
       // A visible window (NUZLOCKE_HEADED) is for watching: the page then paces frames like a normal tab.
       // NUZLOCKE_HEADED=fast: the window, but at full speed (it redraws every refresh instead of pacing).
-      const watch = headed ? `&watch${process.env.NUZLOCKE_HEADED === "fast" ? "=fast" : ""}` : "";
-      launchHeadless({ url: `http://127.0.0.1:${port}/?ai&headless${watch}`, log })
+      // A watch-only observer that wants frames (observers.mjs): no window, but drawn at full speed,
+      // wide enough for every panel.
+      const frames = !headed && !!observer?.wantsFrames;
+      const watch = headed ? `&watch${process.env.NUZLOCKE_HEADED === "fast" ? "=fast" : ""}` : frames ? "&watch=fast" : "";
+      launchHeadless({ url: `http://127.0.0.1:${port}/?ai&headless${watch}`, log, onPage: observer ? (p) => observer.page(p) : null,
+        ...(frames ? { viewport: { width: 1600, height: 900 } } : {}) })
         .then((stop) => { stopHeadless = stop; })
         .catch((e) => log("headless launch failed:", e.message));
     },
