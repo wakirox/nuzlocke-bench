@@ -1,0 +1,454 @@
+:root {
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --panel-2: #f1f1f3;
+  --text: #18181b;
+  --muted: #71717a;
+  --border: #e4e4e7;
+  --accent: #dc3e42;
+  --accent-text: #ffffff;
+  --good: #18a058;
+  --mid: #c27c0e;
+  --bad: #dc3e42;
+  --info: #3e63dd;
+  --screen-bg: #09090b;
+  --radius: 8px;
+  --mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0c0e; --panel: #141417; --panel-2: #1c1c21; --text: #ececef; --muted: #8e8e96;
+    --border: #27272d; --accent: #e5484d; --good: #3dd68c; --mid: #f5b544; --bad: #f2555a; --info: #7c9cff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0c0e; --panel: #141417; --panel-2: #1c1c21; --text: #ececef; --muted: #8e8e96;
+  --border: #27272d; --accent: #e5484d; --good: #3dd68c; --mid: #f5b544; --bad: #f2555a; --info: #7c9cff;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv11", "tnum";
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  height: 48px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+}
+.topbar h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.topbar h1::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.topbar h1 span { color: var(--muted); font-weight: 500; font-size: 13px; }
+.run-meta { color: var(--muted); font-size: 13px; text-align: right; }
+.run-meta b { color: var(--text); }
+
+button {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 11px; cursor: pointer; font-size: 13px; font-weight: 500; line-height: 18px;
+  transition: background 0.12s, border-color 0.12s;
+}
+button:hover:not(:disabled) { background: var(--panel-2); border-color: color-mix(in srgb, var(--muted) 45%, var(--border)); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; padding: 8px 18px; }
+button.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; }
+button.danger { color: var(--bad); }
+/* A switched-on toggle: inverted, not a second accent colour. */
+button.on, button.on:hover:not(:disabled) { background: var(--text); color: var(--bg); border-color: var(--text); }
+button svg { width: 15px; height: 15px; vertical-align: -3px; }
+
+/* ---- Setup ---- */
+.setup {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px;
+  max-width: 1000px; margin: 24px auto; padding: 0 16px;
+}
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+.panel h2 { margin: 0 0 8px; font-size: 18px; }
+.drop {
+  display: block; border: 1px dashed color-mix(in srgb, var(--muted) 50%, var(--border)); border-radius: var(--radius); padding: 28px 16px;
+  text-align: center; cursor: pointer; margin: 14px 0; color: var(--muted);
+}
+.drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+.drop.loaded { border-style: solid; border-color: var(--good); color: var(--text); }
+.row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.row label { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
+.row input, .row select { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; }
+.hint { color: var(--muted); font-size: 13px; }
+.status { min-height: 1.4em; color: var(--muted); }
+.status.error { color: var(--bad); }
+.rules ul { padding-left: 18px; margin: 8px 0; }
+.rules li { margin: 4px 0; }
+
+/* ---- Game ---- */
+.game {
+  display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px;
+  padding: 16px; max-width: 1400px; margin: 0 auto; align-items: start;
+}
+.screen-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.screen-wrap {
+  position: relative; background: var(--screen-bg); border-radius: var(--radius); padding: 10px; border: 1px solid var(--border);
+  display: flex; justify-content: center;
+}
+.screen-inner { position: relative; width: 100%; max-width: 800px; aspect-ratio: 160 / 144; }
+#screen {
+  width: 100%; height: 100%;
+  image-rendering: pixelated; image-rendering: crisp-edges; display: block;
+}
+.screen-wrap:fullscreen { align-items: center; border-radius: 0; }
+/* Watching a run in a small window: the whole game screen fits the window's height. */
+@media (max-width: 980px) { .watch .screen-inner { max-width: min(800px, calc((100vh - 120px) * 160 / 144)); } }
+/* Wide screens: the game screen as big as the window's height allows. 981-1499px: the screen on the
+   left, the two tracker panels stacked beside it. 1500px and up: the screen in the middle, the party
+   and foe on its left, the run on its right, and the model's conversation (when shown) after that. */
+@media (min-width: 981px) {
+  .game {
+    --side: 400px;
+    --screen-w: clamp(320px, min(calc((100vh - 190px) * 160 / 144), calc(100vw - 32px - 16px - 24px - var(--side))), 1600px);
+    max-width: none; grid-template-columns: calc(var(--screen-w) + 24px) minmax(var(--side), 1fr);
+  }
+  .screen-inner { max-width: none; width: var(--screen-w); }
+  .screen-col { grid-column: 1; grid-row: 1 / span 3; }
+  .tracker-a, .tracker-b { grid-column: 2; }
+  .game .tracker > [hidden], .game .tracker > :empty { display: none; }
+  /* Fixed slots, filled edge to edge: a battle starting or ending doesn't move anything. */
+  #t-lead { min-height: 520px; display: flex; flex-direction: column; }
+  #t-lead > .party { flex: 1; }
+  #t-lead .party > .card.mon { flex: 1; }
+  #t-enemy { min-height: 292px; display: flex; flex-direction: column; }
+  #t-enemy > .card { flex: 1; }
+  #btn-ff { min-width: 82px; }
+  #convo-collapse { min-width: 148px; }
+  #t-events { max-height: 45vh; overflow-y: auto; }
+  .toolbar button { padding: 6px 10px; }
+  .game.with-convo {
+    --screen-w: clamp(320px, min(calc((100vh - 190px) * 160 / 144), calc(100vw - 32px - 32px - 24px - var(--side) - 360px)), 1600px);
+    grid-template-columns: calc(var(--screen-w) + 24px) minmax(var(--side), 1fr) minmax(360px, 28vw);
+  }
+  .game.with-convo .convo { grid-column: 3; grid-row: 1 / span 3; }
+  .game .convo { position: sticky; top: 16px; height: calc(100vh - 80px); max-height: none; }
+}
+@media (min-width: 1500px) {
+  .game {
+    --screen-w: clamp(320px, min(calc((100vh - 190px) * 160 / 144), calc(100vw - 32px - 32px - 24px - 2 * var(--side))), 1600px);
+    grid-template-columns: minmax(var(--side), 1fr) calc(var(--screen-w) + 24px) minmax(var(--side), 1fr);
+  }
+  .screen-col { grid-column: 2; grid-row: 1 / span 3; }
+  .tracker-a { grid-column: 1; grid-row: 1 / span 3; }
+  .tracker-b { grid-column: 3; grid-row: 1 / span 3; }
+  /* With the conversation shown: both tracker panels stacked on the left, so the conversation gets
+     the whole right side. */
+  .game.with-convo {
+    --convo-w: max(520px, 30vw);
+    --screen-w: clamp(320px, min(calc((100vh - 190px) * 160 / 144), calc(100vw - 32px - 32px - 24px - var(--side) - var(--convo-w))), 1600px);
+    grid-template-columns: minmax(var(--side), 1fr) calc(var(--screen-w) + 24px) minmax(var(--convo-w), 1.4fr);
+    grid-template-rows: auto auto 1fr;
+  }
+  .game.with-convo .tracker-a { grid-row: 1; }
+  .game.with-convo .tracker-b { grid-column: 1; grid-row: 2 / span 2; }
+  .game.with-convo .convo { grid-column: 3; }
+}
+/* While an AI plays, the on-screen pad and the keyboard help aren't needed. */
+.ai-playing .touchpad, .ai-playing .keys { display: none !important; }
+.screen-wrap:fullscreen .screen-inner { max-width: none; width: auto; height: 100%; }
+.ai-badge {
+  position: absolute; top: 16px; right: 16px; display: flex; align-items: center; gap: 6px;
+  background: rgb(0 0 0 / 0.6); color: #fff; border: 1px solid rgb(255 255 255 / 0.14); backdrop-filter: blur(6px);
+  border-radius: 6px; padding: 3px 9px; font-size: 12px; font-weight: 500;
+}
+.ai-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3dd68c; box-shadow: 0 0 0 3px rgb(61 214 140 / 0.25); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar .vol { display: flex; align-items: center; gap: 4px; }
+.toolbar .vol input { width: 90px; }
+.toolbar .vol svg { width: 16px; height: 16px; color: var(--muted); display: block; }
+.keys { color: var(--muted); font-size: 12px; margin: 0; }
+
+.touchpad { display: none; justify-content: space-between; align-items: center; padding: 8px 4px; user-select: none; touch-action: none; }
+@media (pointer: coarse) { .touchpad { display: flex; } .keys { display: none; } }
+.touchpad button { touch-action: none; }
+.dpad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); }
+.dpad .up { grid-area: 1 / 2; } .dpad .left { grid-area: 2 / 1; } .dpad .right { grid-area: 2 / 3; } .dpad .down { grid-area: 3 / 2; }
+.mid { display: flex; gap: 8px; }
+.mid button { font-size: 11px; border-radius: 999px; padding: 6px 10px; }
+.ab { display: flex; gap: 12px; align-items: center; }
+.ab button { width: 58px; height: 58px; border-radius: 50%; font-weight: 700; background: var(--accent); color: #fff; border: none; }
+.ab .b { margin-top: 28px; }
+.touchpad .pressed { filter: brightness(0.8); }
+/* Narrow phones: SELECT/START stack and A/B shrink so the pad fits the width. */
+@media (max-width: 440px) {
+  .touchpad { gap: 6px; }
+  .dpad { grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); }
+  .mid { flex-direction: column; gap: 6px; }
+  .ab { gap: 8px; }
+  .ab button { width: 52px; height: 52px; }
+}
+
+/* ---- Tracker ---- */
+.tracker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.card h3 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.card.enemy { border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
+.title-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.lvl { color: var(--muted); font-weight: 500; font-size: 13px; }
+.hp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.hpbar { flex: 1; height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.hpfill { height: 100%; transition: width 0.25s; }
+.hpfill.good { background: var(--good); } .hpfill.mid { background: var(--mid); } .hpfill.low { background: var(--bad); }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 8px; font-size: 13px; margin-bottom: 8px; }
+.stats > div { display: flex; gap: 4px; align-items: baseline; }
+.k { color: var(--muted); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 4px; }
+.v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.v.small { font-weight: 500; font-size: 12px; }
+.stage { font-size: 11px; font-weight: 700; } .stage.up { color: var(--good); } .stage.down { color: var(--bad); }
+.type {
+  --c: #888; display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; border-radius: 4px;
+  padding: 0 5px; line-height: 16px; margin-right: 3px;
+  color: color-mix(in srgb, var(--c) 72%, var(--text)); background: color-mix(in srgb, var(--c) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent);
+}
+.t-normal { --c: #a8a878; } .t-fire { --c: #f0803a; } .t-water { --c: #5a8cf0; }
+.t-electric { --c: #e8b923; } .t-grass { --c: #5cb848; } .t-ice { --c: #5cc8c8; }
+.t-fighting { --c: #d4453c; } .t-poison { --c: #b45cbc; } .t-ground { --c: #d0a54c; }
+.t-flying { --c: #9a88e8; } .t-psychic { --c: #f05c8c; } .t-bug { --c: #a0b428; }
+.t-rock { --c: #b8a44c; } .t-ghost { --c: #8068b0; } .t-dragon { --c: #7458f0; }
+.badge {
+  --c: var(--muted); display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; border-radius: 4px;
+  padding: 0 6px; line-height: 16px; margin-left: 4px;
+  color: color-mix(in srgb, var(--c) 80%, var(--text)); background: color-mix(in srgb, var(--c) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.badge.bad { --c: var(--bad); } .badge.warn { --c: var(--mid); } .badge.ok { --c: var(--good); }
+table.moves { width: 100%; border-collapse: collapse; font-size: 13px; margin: 4px 0 6px; }
+table.moves th { text-align: left; color: var(--muted); font-weight: 500; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 4px; }
+table.moves td { padding: 3px 4px; border-top: 1px solid var(--border); }
+table.moves td.num, table.moves th:nth-child(n+3) { text-align: right; }
+table.moves td.cat { color: var(--muted); font-size: 11px; text-align: center; }
+.eff {
+  --c: var(--muted); display: inline-block; font-size: 10.5px; font-weight: 600; border-radius: 4px; padding: 0 6px; line-height: 16px; white-space: nowrap;
+  color: color-mix(in srgb, var(--c) 80%, var(--text)); background: color-mix(in srgb, var(--c) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.eff.se { --c: var(--good); } .eff.nve { --c: var(--mid); } .eff.immune { --c: var(--muted); }
+.eff.neutral { --c: var(--muted); background: transparent; }
+.moves td.vs { text-align: center; }
+.moves tr.eff-row-se td { background: color-mix(in srgb, var(--good) 8%, transparent); }
+.moves tr.eff-row-immune td { opacity: 0.55; }
+.sub { font-size: 13px; margin-top: 4px; }
+.lv { display: inline-block; margin-right: 6px; }
+.lv.done { color: var(--muted); text-decoration: line-through; }
+.muted { color: var(--muted); }
+.enemy-moves { list-style: none; padding: 0; margin: 4px 0; font-size: 13px; columns: 2; }
+.enemy-moves li { margin: 2px 0; break-inside: avoid; }
+.balls { display: flex; gap: 4px; margin-bottom: 6px; }
+.ball { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(var(--bad) 50%, #fff 50%); border: 1.5px solid #222; }
+.ball.fainted { background: var(--panel-2); opacity: 0.6; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
+.badges { display: flex; gap: 4px; margin-top: 8px; }
+.badge-icon {
+  width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.badge-icon.have { background: color-mix(in srgb, var(--mid) 20%, transparent); color: var(--mid); border-color: color-mix(in srgb, var(--mid) 55%, transparent); }
+.events { list-style: none; padding: 0; margin: 6px 0 0; max-height: 220px; overflow: auto; font-size: 13px; }
+.events li { padding: 3px 0; margin-bottom: 3px; }
+.events li::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--border); }
+.events time { color: var(--muted); font-size: 11px; margin-right: 6px; }
+.ev-violation::before { background: var(--bad) !important; }
+.ev-warning::before { background: var(--mid) !important; }
+.ev-info::before { background: var(--info) !important; }
+details summary { cursor: pointer; font-weight: 600; }
+.history { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 6px; }
+.history td, .history th { padding: 3px 4px; border-top: 1px solid var(--border); text-align: left; }
+
+/* ---- The model log (bench runs) ---- */
+/* A transcript view: the model's words as the headline, each tool call a card with its result inside
+   (one line when closed), quiet dividers for new places and turn ends, metadata small and muted. */
+.convo { display: flex; flex-direction: column; min-width: 0; height: min(72vh, 720px); overflow: hidden; padding: 0; }
+.convo[hidden] { display: none; }
+.convo-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 10px 14px 9px; border-bottom: 1px solid var(--border); }
+.convo-head button { margin-left: auto; padding: 3px 10px; font-size: 12px; }
+.convo-meta { flex-basis: 100%; display: flex; flex-wrap: wrap; column-gap: 12px; min-height: 18px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.convo-meta > span:empty { display: none; }
+.convo-model { font-family: var(--mono); font-size: 11.5px; }
+.convo-live { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--good); }
+.convo-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: convo-pulse 1.6s ease-in-out infinite; }
+@keyframes convo-pulse { 50% { opacity: 0.3; } }
+.convo-body { position: relative; display: flex; flex: 1; min-height: 0; }
+#convo-list {
+  list-style: none; margin: 0; padding: 12px 14px 48px; overflow-y: auto; flex: 1; min-height: 0; min-width: 0;
+  display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; scrollbar-width: thin;
+}
+#convo-list > li { flex-shrink: 0; min-width: 0; overflow-wrap: anywhere; }
+/* The model's own words: the headline of the log. */
+#convo-list .say {
+  white-space: pre-wrap; color: var(--text); font-size: 15px; font-weight: 600; line-height: 1.5; letter-spacing: -0.005em; margin: 12px 0 6px;
+  /* What the model says stands out from its thinking and the tool cards: a blue bubble (hints are amber). */
+  padding: 8px 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--info) 45%, transparent); background: color-mix(in srgb, var(--info) 12%, var(--panel));
+}
+#convo-list .say:first-child { margin-top: 0; }
+#convo-list .think { white-space: pre-wrap; color: var(--muted); font-style: italic; font-size: 13px; }
+/* A tool call: name, arguments and time on top; the result's key line while closed, all of it open. */
+#convo-list .call { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+#convo-list .call-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px 6px 10px; margin: 0;
+  border: 0; border-radius: 7px; background: none; text-align: left; font-size: 12.5px; cursor: pointer;
+}
+#convo-list .call-head:hover:not(:disabled) { background: color-mix(in srgb, var(--panel-2) 70%, transparent); border-color: transparent; }
+#convo-list .call-head:focus-visible { outline: 2px solid var(--info); outline-offset: -2px; }
+.call-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+.call.pending .call-dot { background: var(--muted); animation: convo-pulse 1.2s ease-in-out infinite; }
+.call.error .call-dot { background: var(--bad); }
+.call.summary .call-dot { background: var(--info); }
+#convo-list .call.hint { border-color: var(--mid); background: color-mix(in srgb, var(--mid) 10%, var(--panel)); }
+.call.hint .call-dot { background: var(--mid); }
+.call.hint .call-tool::before { content: "💡 "; }
+.call-tool { flex: none; font-family: var(--mono); font-weight: 600; color: var(--text); }
+.call.summary .call-tool { font-family: inherit; }
+.call-args { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call:not(.closed) .call-args { white-space: pre-wrap; overflow-wrap: anywhere; }
+.call-meta { flex: none; margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.call-head svg { flex: none; width: 14px; height: 14px; color: var(--muted); transition: transform 0.15s; }
+.call:not(.closed) .call-head svg { transform: rotate(90deg); }
+.call-sum { padding: 0 10px 7px 25px; margin-top: -2px; font-size: 12.5px; color: color-mix(in srgb, var(--muted) 65%, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.call-sum.key { color: var(--mid); }
+.call.error .call-sum { color: var(--bad); }
+.call.pending .call-sum { color: var(--muted); font-style: italic; }
+.call:not(.closed) .call-sum, .call.closed .call-body { display: none; }
+.call-body { border-top: 1px solid var(--border); background: var(--panel-2); border-radius: 0 0 7px 7px; padding: 8px 10px 10px; cursor: auto; }
+.call-body:empty { display: none; }
+.call.error { border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
+.call.error .call-body { background: color-mix(in srgb, var(--bad) 7%, var(--panel-2)); border-top-color: color-mix(in srgb, var(--bad) 30%, var(--border)); }
+.convo-text { font-family: var(--mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; color: color-mix(in srgb, var(--muted) 30%, var(--text)); }
+.call.error .convo-text { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
+.convo-prose { white-space: pre-wrap; font-size: 13px; line-height: 1.55; }
+/* A very long text: its start until "Show all". */
+.convo-text.clamped, .convo-prose.clamped { max-height: 30em; overflow: hidden; mask-image: linear-gradient(#000 80%, transparent); }
+#convo-list .convo-more { margin-top: 6px; padding: 2px 10px; font-size: 11.5px; }
+/* The runner's nudge: a note from outside the model, not its words. */
+#convo-list .user {
+  white-space: pre-wrap; font-size: 13px; padding: 8px 10px; border-radius: 8px; margin: 6px 0;
+  background: color-mix(in srgb, var(--mid) 9%, transparent); border: 1px solid color-mix(in srgb, var(--mid) 30%, transparent);
+}
+.convo-label { display: block; margin-bottom: 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--mid); }
+/* Dividers: a new place (left, as a section heading), a compaction and a turn's end (centred). */
+#convo-list .divider { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
+#convo-list .divider::before, #convo-list .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+/* The place heading sticks to the top while its calls scroll by, so the reader knows where they are. */
+#convo-list .divider.place {
+  position: sticky; top: -12px; z-index: 1; margin: 6px 0 0; padding: 6px 0; background: var(--panel);
+  font-weight: 600; color: color-mix(in srgb, var(--muted) 60%, var(--text));
+}
+#convo-list .divider.place::before { flex: none; width: 0; margin-right: -10px; }
+#convo-list .divider.compact { color: var(--info); }
+#convo-list .divider.end { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; margin: 12px 0; }
+.convo-img { display: block; width: 240px; height: auto; max-width: 100%; margin-top: 8px; image-rendering: pixelated; cursor: zoom-in; border-radius: 6px; border: 1px solid var(--border); }
+.convo-map { margin: 8px 0; }
+.convo-map canvas { display: block; max-width: 100%; height: auto !important; image-rendering: pixelated; border-radius: 4px; cursor: zoom-in; }
+.convo-map-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 11px; }
+#convo-list .convo-map-bar button { padding: 2px 9px; font-size: 11.5px; }
+.convo-map-legend { display: flex; flex-wrap: wrap; gap: 3px 10px; color: var(--muted); margin-left: 4px; }
+.convo-map-legend i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; border-radius: 2px; vertical-align: -0.5px; }
+/* Back to the newest entries, while the reader is scrolled up. */
+.convo-jump {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 5px 14px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; border: 0; background: var(--text); color: var(--bg); box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+}
+.convo-jump:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 85%, var(--bg)); }
+
+/* ---- Modal ---- */
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / 0.55); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.modal-box { background: var(--panel); border-radius: 12px; padding: 22px 24px; max-width: 460px; width: 100%; border: 1px solid var(--border); }
+.modal-box h2 { margin: 0 0 8px; }
+.modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+@media (max-width: 980px) {
+  .game { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  .setup { grid-template-columns: minmax(0, 1fr); }
+}
+/* The box, then its name and description as one wrapped line of text. */
+.check { display: block; position: relative; padding-left: 24px; font-size: 13px; margin: 4px 0 8px; color: var(--muted); }
+.check b { color: var(--text); font-weight: 600; }
+.check input { position: absolute; left: 0; top: 2px; margin: 0; accent-color: var(--accent); }
+
+.best-run { font-weight: 500; }
+
+/* Hardcore Nuzlocke tracker card */
+.nuzlocke .sub.bad { color: var(--bad); }
+.nuz-area, .grave { display: inline-block; margin: 2px 6px 2px 0; font-size: 12px; white-space: nowrap; }
+.nuz-area.caught { color: var(--good); }
+.nuz-area.missed { color: var(--muted, #888); text-decoration: line-through; }
+.nuz-area.open { color: var(--mid); }
+.grave { color: var(--bad); }
+
+/* Party panel: one detailed card + a column of slot tiles */
+.party { display: flex; flex-direction: column; gap: 8px; }
+.party > .card.mon { flex: 1; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; order: -1; }
+.tile { display: block; text-align: left; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.tile:hover { border-color: var(--muted); }
+.tile.shown { border-color: var(--muted); background: var(--panel-2); }
+.tile.fighting { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.tile.dead, .tile.fainted { opacity: 0.55; }
+.tile.over { border-color: var(--mid); box-shadow: inset 0 -3px 0 var(--mid); }
+.tile.over .lvl { color: var(--mid); font-weight: 700; }
+.tile.fighting.over { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text), inset 0 -3px 0 var(--mid); }
+.tile .tname { font-weight: 700; }
+.tile .lvl { font-size: 11px; }
+.tile .ttypes { display: block; margin: 3px 0; }
+.tile .hpbar { height: 4px; }
+.card.mon.dead { opacity: 0.6; }
+/* EXP bar under the HP bar (blue, like the games') */
+.exp-row { display: flex; align-items: center; gap: 8px; flex-basis: 100%; margin-top: 3px; }
+.expbar { flex: 1; height: 4px; background: var(--panel-2); border-radius: 2px; overflow: hidden; }
+.expfill { height: 100%; background: var(--info, #6d9cf0); transition: width 0.25s; }
+.exp-row .num { font-size: 10px; color: var(--muted); min-width: 0; }
+table.stat-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 4px 0 6px; font-variant-numeric: tabular-nums; table-layout: fixed; }
+table.stat-table th { color: var(--muted); font-weight: 500; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; padding: 1px 4px; text-align: right; }
+table.stat-table th:first-child { text-align: left; width: 3.2em; }
+table.stat-table td { padding: 1px 4px; text-align: right; white-space: nowrap; }
+/* Wild Pokémon card */
+table.enc { width: 100%; border-collapse: collapse; font-size: 12px; margin: 4px 0; }
+table.enc td { padding: 2px 4px; border-bottom: 1px solid var(--border); }
+table.enc td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Main party card next to the tiles: each stat block on one compact row */
+.party .cols { grid-template-columns: 1fr; gap: 0; }
+.party .stats { grid-template-columns: repeat(6, minmax(0, 1fr)); font-size: 12px; gap: 2px 6px; margin-bottom: 4px; }
+.party .stats .k { display: block; font-size: 10px; }
+.backup-state { align-self: center; font-size: 12px; color: var(--muted); cursor: help; display: inline-flex; align-items: center; gap: 6px; }
+.backup-state:not(:empty)::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.backup-state.fail::before { background: var(--bad); }
+
+/* The viewer: a map or screenshot from the model panel, big in the middle of the page. */
+.viewer { border: 1px solid var(--border); border-radius: 12px; padding: 0; background: var(--panel); color: inherit; max-width: 94vw; max-height: 92vh; }
+.viewer::backdrop { background: rgb(0 0 0 / 0.6); }
+.viewer-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+.viewer-head h3 { margin: 0; font-size: 15px; }
+.viewer-actions { display: flex; gap: 8px; }
+#viewer-close { margin-left: auto; padding: 3px 10px; }
+.viewer-body { padding: 14px; display: grid; justify-items: center; }
+.viewer-map { display: grid; gap: 8px; justify-items: center; font-size: 12px; }
+.viewer-map[hidden], .viewer-text[hidden] { display: none; }
+.viewer-map canvas { image-rendering: pixelated; border-radius: 4px; cursor: crosshair; }
+.viewer-text { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.25; white-space: pre; }
+.viewer-img { display: block; image-rendering: pixelated; border-radius: 6px; }
+.grid2 .span2 { grid-column: 1 / -1; }
+.card.mon.fighting { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+/* The model's own words: white on the dark theme. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #convo-list .say { color: #fff; } }
+:root[data-theme="dark"] #convo-list .say { color: #fff; }
+.convo-usage { font-weight: 500; color: color-mix(in srgb, var(--muted) 35%, var(--text)); }
+@media (max-width: 520px) {
+  .topbar { height: auto; padding: 8px 12px; }
+  .topbar h1 span { display: none; }
+  .run-meta { font-size: 12px; }
+}

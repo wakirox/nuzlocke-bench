@@ -1,0 +1,12 @@
+export enum StatChangeType {
+  NONE,
+  ATTACK,
+  DEFENSE,
+  SPECIAL_ATTACK,
+  SPECIAL_DEFENSE,
+  SPEED,
+  ACCURACY,
+  EVASION,
+  ALL,
+  SPECIAL,
+}

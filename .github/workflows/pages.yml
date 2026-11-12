@@ -1,0 +1,39 @@
+name: pages
+
+# The public leaderboard: built from results/ alone (npm run bench:results -- --dashboard), only in
+# the public repo, when the results or the page change on master.
+on:
+  push:
+    branches: [master]
+    paths: ["results/**", "mcp-server/dashboard*", "mcp-server/results.mjs", "mcp-server/score.mjs", "scripts/bench-results.mjs", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'wakirox/nuzlocke-bench'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The page needs no dependencies: the results script reads results/ with Node alone.
+      - run: mkdir -p site && node scripts/bench-results.mjs --dashboard site/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

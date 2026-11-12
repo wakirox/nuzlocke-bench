@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nuzlocke Bench Runs</title>
+<style>
+:root {
+  /* Neutral paper and ink; one blue for the data (light to dark = less to more). Contrast checked: text >= 4.5:1,
+     marks and unreached stops >= 3:1 on the card, in both themes. */
+  --bg: #f4f3f0; --surface: #fcfcfb; --ink: #1a1a19; --ink-2: #4a4a46; --muted: #5f5e58; --line: #e2e1dc; --ring: rgba(26,26,25,.12);
+  --track: #8f8e88; --track-line: #d6d5cf; --reach: #184f95; --best: #3987e5; --dead: #a23b2a; --focus: #184f95;
+  --h1: #cde2fb; --h2: #9ec5f4; --h3: #6da7ec; --h4: #3987e5; --h5: #256abf; --h6: #184f95; --h7: #0d366b;
+  --hi1: #1a1a19; --hi2: #1a1a19; --hi3: #1a1a19; --hi4: #1a1a19; --hi5: #fff; --hi6: #fff; --hi7: #fff;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121211; --surface: #1a1a19; --ink: #ecebe6; --ink-2: #c3c2bb; --muted: #a3a29b; --line: #2e2e2b; --ring: rgba(236,235,230,.12);
+  --track: #6b6a64; --track-line: #383835; --reach: #cde2fb; --best: #3987e5; --dead: #e0745f; --focus: #9ec5f4;
+  --h1: #13243a; --h2: #16345c; --h3: #184f95; --h4: #256abf; --h5: #5598e7; --h6: #9ec5f4; --h7: #cde2fb;
+  --hi1: #fff; --hi2: #fff; --hi3: #fff; --hi4: #fff; --hi5: #1a1a19; --hi6: #1a1a19; --hi7: #1a1a19;
+} }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 48px; }
+h1 { font-size: 34px; line-height: 1.1; margin: 0; letter-spacing: -.025em; font-weight: 750; }
+h2 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+.sub { color: var(--ink-2); margin: 8px 0 0; font-size: 16px; max-width: 62ch; }
+.note { color: var(--muted); font-size: 13px; margin: 2px 0 14px; max-width: 75ch; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin: 0 0 24px; }
+.rules { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 75ch; }
+.filters label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 7px 10px; min-height: 40px; max-width: 100%; }
+select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.run-tiles { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-top: 20px; }
+.tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+.tile b { display: block; font-size: 24px; line-height: 1.2; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile b.word { font-size: 16px; line-height: 1.3; }
+.tile span { color: var(--ink-2); font-size: 12.5px; }
+section { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 20px; margin: 0 0 16px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; text-align: left; white-space: nowrap; }
+td.num, th.num { text-align: right; }
+thead th { color: var(--ink-2); font-weight: 500; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+th button { all: unset; cursor: pointer; }
+th button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+td.id a { text-decoration: none; font-weight: 500; }
+td.id a:hover { text-decoration: underline; }
+.tag { display: inline-block; font-size: 11px; color: var(--ink-2); border: 1px solid var(--ring); border-radius: 4px; padding: 0 5px; margin-left: 5px; }
+
+/* The leaderboard: each model's runs as a walk along the game, badges as the stops. */
+.board { padding: 8px 20px 16px; }
+.lane { display: grid; grid-template-columns: minmax(150px, 190px) 1fr 96px; gap: 6px 24px; align-items: center; padding: 16px 0; }
+.lane + .lane { border-top: 1px solid var(--line); }
+.lane.axis { padding: 12px 0 0; }
+.who b { display: block; font-size: 16px; font-weight: 650; }
+.who span, .score span { color: var(--muted); font-size: 12.5px; }
+.score { text-align: right; }
+.score b { display: block; font-size: 28px; line-height: 1; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.track { display: grid; grid-template-columns: repeat(var(--n), 1fr); align-items: center; height: 22px; }
+.track i { height: 4px; background: var(--track-line); }
+.track i.best { background: var(--best); }
+.track i.reach { background: var(--reach); }
+.track i.stop { justify-self: center; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--track); background: var(--surface); }
+.track i.stop.best { border-color: var(--best); background: var(--best); }
+.track i.stop.reach { border-color: var(--reach); background: var(--reach); }
+.track i.stop.end { border-radius: 3px; transform: rotate(45deg); width: 12px; height: 12px; }
+.track i.stop.elite { border-radius: 3px; width: 12px; height: 12px; }
+.points { width: 100%; table-layout: fixed; }
+.points td:first-child { white-space: normal; }
+.points td.num { width: 4.5em; vertical-align: top; }
+.points .why { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.points td.zero { color: var(--muted); }
+.track i:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.where { grid-column: 2; color: var(--ink-2); font-size: 13px; margin-top: -2px; }
+.axis .track { height: auto; }
+.axis .track span { justify-self: center; color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.key { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--ink-2); font-size: 12.5px; margin: 14px 0 0; }
+.key i { display: inline-block; width: 18px; height: 4px; vertical-align: middle; margin-right: 6px; }
+
+#heat { border-collapse: separate; border-spacing: 2px; width: auto; }
+#heat th { font-size: 12.5px; padding: 4px 8px; }
+#heat thead th { border: 0; white-space: normal; vertical-align: bottom; width: 92px; min-width: 92px; text-align: center; }
+#heat thead th:first-child { width: auto; text-align: left; }
+#heat tbody td { border: 0; height: 28px; width: 92px; padding: 0 4px; text-align: center; font-size: 12.5px; border-radius: 4px; outline-offset: -2px; color: var(--muted); }
+#heat tbody th { font-weight: 400; color: var(--ink-2); position: sticky; left: 0; background: var(--surface); }
+#heat tbody tr.badge th { color: var(--ink); font-weight: 650; }
+#heat tbody tr.badge + tr th, #heat tbody tr.badge + tr td { box-shadow: 0 -1px 0 0 var(--surface), 0 -3px 0 0 var(--surface); }
+#heat td:focus-visible { outline: 2px solid var(--ink); }
+.legend { display: flex; gap: 6px; align-items: center; color: var(--ink-2); font-size: 12px; margin: 12px 0 0; flex-wrap: wrap; }
+.legend i { width: 22px; height: 12px; border-radius: 2px; display: inline-block; }
+#tip { position: fixed; pointer-events: none; z-index: 5; background: var(--ink); color: var(--surface); padding: 6px 9px; border-radius: 6px; font-size: 12.5px; max-width: 300px; display: none; }
+.empty { color: var(--ink-2); padding: 14px 0; }
+a { color: var(--ink); }
+.back { display: inline-block; margin: 0 0 16px; padding: 6px 0; }
+.top-run { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; margin-top: 16px; align-items: start; }
+.top-run section { margin: 0; }
+.big { font-size: 56px; line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.03em; margin-bottom: 6px; }
+.milestones { columns: 2; column-gap: 28px; }
+.ms { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; break-inside: avoid; border-top: 1px solid var(--line); }
+.ms .t { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.ms.no { color: var(--muted); }
+.ms.no .t { color: var(--muted); }
+details.fold { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; margin: 12px 0 0; padding: 0 20px; }
+details.fold summary { cursor: pointer; font-weight: 650; font-size: 15px; padding: 13px 0; min-height: 44px; }
+details.fold[open] { padding-bottom: 16px; }
+details.fold summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 720px) { .top-run { grid-template-columns: 1fr; } .milestones { columns: 1; } }
+td.wrap { white-space: normal; }
+td.top { vertical-align: top; }
+.mons { display: flex; flex-direction: column; gap: 2px; }
+.mon { white-space: nowrap; }
+.mon span { color: var(--ink-2); }
+.mon.gone { color: var(--muted); }
+.change { color: var(--ink-2); font-size: 12.5px; margin-top: 4px; white-space: normal; max-width: 300px; }
+.status-dead { font-weight: 600; }
+.status-dead::before { content: "✕ "; }
+.pips { display: inline-flex; gap: 3px; vertical-align: middle; }
+.pips i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--track); }
+.pips i.on { background: var(--reach); border-color: var(--reach); }
+.deaths { color: var(--dead); }
+.out-wipe, .out-lost, .out-disqualified { color: var(--dead); }
+.out-victory { color: var(--reach); font-weight: 650; }
+.more { all: unset; cursor: pointer; display: block; margin: 12px 0 0; color: var(--ink); text-decoration: underline; min-height: 24px; }
+.more[hidden] { display: none; }
+.more:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 640px) {
+  main { padding-top: 24px; }
+  h1 { font-size: 28px; }
+  section, .board { padding-left: 16px; padding-right: 16px; }
+  .lane { grid-template-columns: 1fr auto; gap: 4px 12px; }
+  .lane .track, .where { grid-column: 1 / -1; grid-row: 2; }
+  .where { grid-row: 3; }
+  .lane.axis { display: none; }
+  #heat tbody th { white-space: normal; min-width: 120px; max-width: 132px; line-height: 1.25; padding: 2px 6px 2px 0; }
+  #heat thead th, #heat tbody td { width: 68px; min-width: 68px; }
+  .hide-s { display: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <div id="one" hidden></div>
+  <div id="all">
+  <div class="head">
+    <div>
+      <h1>Nuzlocke Bench</h1>
+      <p class="sub">How far each model gets through a one-attempt, permadeath playthrough, playing through text tools alone.</p>
+    </div>
+    <div class="filters"><label>Game <select id="f-game"></select></label></div>
+  </div>
+  <section class="board" aria-labelledby="board-h">
+    <h2 id="board-h" style="padding-top:12px">Leaderboard</h2>
+    <p class="note" id="board-note"></p>
+    <div id="board"></div>
+    <div class="key"><span><i style="background:var(--reach)"></i>Median run</span><span><i style="background:var(--best)"></i>Best run</span><span>Circles are the 8 badges, squares the league's 4 elite rooms, the diamond is the Champion.</span></div>
+  </section>
+  <p class="rules"><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Most models have very few runs, so read the medians with care.</p>
+  <section style="margin-top:24px">
+    <h2>How far each model gets</h2>
+    <p class="note">Share of runs reaching each milestone, in game order. Hover or focus a cell for the counts.</p>
+    <div class="scroll"><table id="heat"></table></div>
+    <div class="legend" id="legend"></div>
+  </section>
+  <section>
+    <h2>Runs</h2>
+    <p class="note" id="runs-note"></p>
+    <div class="scroll"><table id="runs"></table></div>
+    <button class="more" id="more" type="button"></button>
+  </section>
+  </div>
+  <p class="note" id="stamp"></p>
+</main>
+<div id="tip" role="tooltip"></div>
+<script>
+const DATA = /*DATA*/null;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const secs = (t) => (t ?? "0:0:0").split(":").reduce((a, b) => a * 60 + Number(b), 0);
+const exactMedian = (xs) => { const s = [...xs].sort((a, b) => a - b), m = s.length / 2; return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[m - 1] + s[m]) / 2); };
+const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
+const label = (i) => (i >= 0 ? DATA.objectives[i].label : "None yet");
+const mTokens = (t, partial) => (t == null ? "" : `${partial ? "≥" : ""}${(t / 1e6).toFixed(1)}M`);
+const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""}`;
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+const byGroup = (a, b) => { const [ma, ea] = a.split(" "), [mb, eb] = b.split(" "); return ma.localeCompare(mb) || EFFORTS.indexOf(ea) - EFFORTS.indexOf(eb); };
+
+// Official runs only (docs/scoring.md): test runs, under other rules or not ended by them, aren't shown.
+const runsAll = DATA.runs.filter((r) => !r.short && !r.notOfficial);
+
+const counts = (key) => { const m = {}; for (const r of runsAll) if (r[key]) m[r[key]] = (m[r[key]] ?? 0) + 1; return m; };
+// One game at a time: scores from different games don't compare. The one with the most runs first.
+$("f-game").innerHTML = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]).map(([g, n]) => `<option value="${esc(g)}">${esc(g[0].toUpperCase() + g.slice(1))} (${n})</option>`).join("");
+
+let sort = { key: "id", dir: -1 };
+const PAGE = 25;
+let showAll = false;
+const chosen = () => runsAll.filter((r) => r.game === $("f-game").value);
+
+const isBadge = (o) => /^badge\d$/.test(o.id);
+const isEnd = (o, i) => i === DATA.objectives.length - 1;
+const isElite = (o) => /^elite\d$/.test(o.id);  // the league's four rooms: squares between the badges and the Champion
+
+function board(rows) {
+  const groups = [...new Set(rows.map(groupOf))];
+  const winners = rows.filter((r) => r.outcome === "victory").length;
+  const furthest = Math.max(-1, ...rows.map((r) => r.furthest));
+  $("board-note").textContent = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${groups.length} model${groups.length === 1 ? "" : "s"}. ${winners ? `${winners} became Champion.` : `No Champion yet: the furthest run reached ${label(furthest)}.`} Ranked by median score.`;
+  if (!groups.length) { $("board").innerHTML = `<p class="empty">No official runs yet.</p>`; return; }
+  const n = DATA.objectives.length;
+  const all = groups.map((g) => {
+    const of = rows.filter((r) => groupOf(r) === g);
+    const v = of.map((r) => r.score.total);
+    // The best run: the top score (the furthest one on a tie), linked from its row.
+    const bestRun = [...of].sort((a, b) => b.score.total - a.score.total || b.furthest - a.furthest)[0];
+    return { g, n: of.length, med: exactMedian(v), best: Math.max(...v), worst: Math.min(...v), at: median(of.map((r) => r.furthest)), top: Math.max(...of.map((r) => r.furthest)), bestId: bestRun.id };
+  }).sort((a, b) => b.med - a.med || b.top - a.top);
+  const stops = (x) => DATA.objectives.map((o, i) => {
+    const cls = [isBadge(o) ? "stop" : "", isElite(o) ? "stop elite" : "", isEnd(o, i) ? "stop end" : "", i <= x.at ? "reach" : i <= x.top ? "best" : ""].filter(Boolean).join(" ");
+    const tip = `${o.label}: ${i <= x.at ? "reached by the median run" : i <= x.top ? "reached by the best run" : "not reached"}`;
+    return isBadge(o) || isElite(o) || isEnd(o, i) ? `<i class="${cls}" tabindex="0" data-tip="${esc(tip)}" aria-label="${esc(tip)}"></i>` : `<i class="${cls}"></i>`;
+  }).join("");
+  const axis = `<div class="lane axis" aria-hidden="true"><span></span><div class="track" style="--n:${n}">${DATA.objectives.map((o, i) => `<span>${isBadge(o) ? o.id.slice(5) : isElite(o) ? "E" + o.id.slice(5) : isEnd(o, i) ? "C" : ""}</span>`).join("")}</div><span></span></div>`;
+  $("board").innerHTML = axis + all.map((x) => `<div class="lane">
+    <div class="who"><b>${esc(x.g)}</b><span>${x.n} run${x.n === 1 ? "" : "s"}</span></div>
+    <div class="track" style="--n:${n}" role="img" aria-label="${esc(`${x.g}: median run reached ${label(x.at)}, best ${label(x.top)}`)}">${stops(x)}</div>
+    <div class="score"><b>${x.med}</b><span>${x.n > 1 ? `${x.worst} to ${x.best}` : "score"}</span></div>
+    <div class="where">${x.at === x.top ? esc(label(x.top)) : `Median ${esc(label(x.at))}, best ${esc(label(x.top))}`} · <a href="#run/${esc(x.bestId)}">${x.n > 1 ? "See the best run" : "See the run"}</a></div>
+  </div>`).join("");
+}
+
+function heat(rows) {
+  const groups = [...new Set(rows.map(groupOf))].sort(byGroup);
+  if (!groups.length) { $("heat").innerHTML = `<tbody><tr><td class="empty">No official runs yet.</td></tr></tbody>`; $("legend").innerHTML = ""; return; }
+  const of = Object.fromEntries(groups.map((g) => [g, rows.filter((r) => groupOf(r) === g)]));
+  const head = `<thead><tr><th scope="col">Milestone</th>${groups.map((g) => `<th scope="col">${esc(g)}<br><span style="color:var(--muted);font-weight:400">${of[g].length} run${of[g].length === 1 ? "" : "s"}</span></th>`).join("")}</tr></thead>`;
+  const body = DATA.objectives.map((o) => `<tr${isBadge(o) ? ' class="badge"' : ""}><th scope="row">${esc(o.label)}</th>${groups.map((g) => {
+    const n = of[g].filter((r) => r.reached.includes(o.id)).length;
+    const d = of[g].length;
+    const pct = Math.round((100 * n) / d);
+    const step = n ? Math.max(1, Math.ceil(pct / (100 / 7))) : 0;
+    const style = step ? `background:var(--h${step});color:var(--hi${step})` : "";
+    return `<td tabindex="0" style="${style}" data-tip="${esc(`${g}: ${n} of ${d} runs reached ${o.label}`)}">${n ? `${pct}%` : "·"}</td>`;
+  }).join("")}</tr>`).join("");
+  $("heat").innerHTML = head + `<tbody>${body}</tbody>`;
+  $("legend").innerHTML = `<span>Fewer</span>` + [1, 2, 3, 4, 5, 6, 7].map((s) => `<i style="background:var(--h${s})"></i>`).join("") + `<span>All runs</span><span style="margin-left:10px">· none reached it</span>`;
+}
+
+const hhmm = (ms) => { const m = Math.round(ms / 60000); return ms ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}` : ""; };
+const mins = (t) => (t == null ? "—" : `${Math.round(t / 60)} min`);
+const pips = (n) => `<span class="pips" role="img" aria-label="${n} of 8 badges">${Array.from({ length: 8 }, (_, i) => `<i${i < n ? ' class="on"' : ""}></i>`).join("")}</span>`;
+const COLS = [
+  ["id", "Started (UTC)", (r) => `<td class="id"><a href="#run/${esc(r.id)}">${esc(when(r.id))}</a>${r.notOfficial ? `<span class="tag">${esc(r.notOfficial)}</span>` : ""}</td>`],
+  ["group", "Model", (r) => `<td>${esc(groupOf(r))}</td>`],
+  ["scoreTotal", "Score", (r) => `<td class="num"><strong>${r.score.total}</strong></td>`, 1],
+  ["badges", "Badges", (r) => `<td class="hide-s">${pips(r.badges)}</td>`, 1],
+  ["deaths", "Deaths", (r) => `<td class="num hide-s${r.deaths ? " deaths" : ""}">${r.deaths}</td>`, 1],
+  ["furthest", "Furthest milestone", (r) => `<td class="hide-s">${esc(label(r.furthest))}</td>`],
+  ["outcome", "Outcome", (r) => `<td class="out-${esc(r.outcome.replace(/ /g, "-"))}">${esc(r.outcome[0].toUpperCase() + r.outcome.slice(1))}</td>`],
+];
+
+function runs(rows) {
+  const value = (r) => (sort.key === "group" ? groupOf(r) : sort.key === "darkText" ? r.dark?.result ?? "" : sort.key === "scoreTotal" ? r.score.total : sort.key === "playSec" ? secs(r.playTime) : r[sort.key] ?? -1);
+  const sorted = [...rows].sort((a, b) => { const x = value(a), y = value(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
+  $("more").hidden = rows.length <= PAGE;
+  $("more").textContent = showAll ? `Show the first ${PAGE}` : `Show all ${rows.length} runs`;
+  $("runs-note").textContent = `${rows.length} run${rows.length === 1 ? "" : "s"}. Select a run for its details, or a heading to sort.`;
+  const arrow = (k) => (sort.key === k ? (sort.dir > 0 ? " ▲" : " ▼") : "");
+  const aria = (k) => (sort.key === k ? ` aria-sort="${sort.dir > 0 ? "ascending" : "descending"}"` : "");
+  $("runs").innerHTML = `<thead><tr>${COLS.map(([k, t, , num]) => `<th class="${num && k !== "badges" ? "num" : ""}${["badges", "deaths", "furthest"].includes(k) ? " hide-s" : ""}"${aria(k)}><button data-sort="${k}">${esc(t)}${arrow(k)}</button></th>`).join("")}</tr></thead><tbody>${(showAll ? sorted : sorted.slice(0, PAGE)).map((r) => `<tr>${COLS.map((c) => c[2](r)).join("")}</tr>`).join("")}</tbody>`;
+}
+
+$("more").addEventListener("click", () => { showAll = !showAll; draw(); });
+
+const stamp = (id) => id.slice(0, 16).replace("T", " ");
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const when = (id) => `${Number(id.slice(8, 10))} ${MONTHS[Number(id.slice(5, 7)) - 1]} ${id.slice(0, 4)}, ${id.slice(11, 13)}:${id.slice(14, 16)}`;
+function oneRun(r) {
+  const row = (cells) => `<tr>${cells.join("")}</tr>`;
+  const s = r.score;
+  // The points breakdown: each part with what earned or cost it (docs/scoring.md).
+  const oc = r.objectiveCalls ?? {};
+  const nReached = (r.reached ?? []).length, nBadges = (r.reached ?? []).filter((id) => /^badge\d$/.test(id)).length;
+  const toFurthest = Math.max(0, ...(r.reached ?? []).map((id) => oc[id] ?? 0));
+  const cottageCalls = oc.cottageDone != null && oc.badge2 != null ? oc.cottageDone - oc.badge2 : null;
+  const scored = r.outcome === "wipe" ? Math.max(0, r.deaths - (r.lastBattleDeaths ?? 0)) : r.deaths;
+  const parts = [
+    ["Milestones", s.progress, `${nReached} reached, ${nBadges} of them badges`],
+    ["Speed", s.speed ?? 0, toFurthest ? `${Math.round(toFurthest / Math.max(1, nReached))} calls per milestone` : "no milestone yet"],
+    ["Cottage step speed", s.cottageSpeed ?? 0, cottageCalls != null ? `${cottageCalls} calls from the second badge to leaving the town` : "not done"],
+    ["Dark tunnel speed", s.tunnelSpeed ?? 0, r.dark && /^crossed/.test(r.dark.result) ? `crossed in ${r.dark.calls} calls` : r.dark ? "not crossed" : "not reached"],
+    ["Flash", s.flash ?? 0, r.dark?.flashAt != null ? "used in the dark tunnel" : "not used"],
+    ["Deaths", s.deaths, r.outcome === "wipe" && r.lastBattleDeaths ? `${scored} before the last battle (the wipe counts below)` : `${r.deaths}`],
+    ["Run ended", s.ended ?? 0, s.ended ? r.outcome : "-"],
+    ["Disqualified", s.disqualified, s.disqualified ? "a rule broken" : "-"],
+    ["Efficiency", s.efficiency, s.efficiency ? "calls left of the 6,000" : "only after beating the Champion"],
+  ];
+  const captures = r.captures ?? [];
+  const alive = captures.filter((c) => !c.died).length;
+  const dark = r.dark ? `<section><h2>The dark tunnel</h2><p class="note">${esc(r.dark.result)}</p><div class="tiles" style="margin:0">${[[r.dark.calls, "calls"], [r.dark.deaths, "deaths inside"], [r.dark.flashAt ?? "—", "Flash at call"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div></section>` : "";
+  const capturesTable = !r.captures ? "" : `<section><h2>Captures</h2><p class="note">${captures.length ? `${captures.length} Pokémon, ${alive} not recorded as dead.${r.outcome === "wipe" ? " The one that fainted last in the wipe isn't marked." : ""} A dash means the run gave it no name we can find.` : "No captures recorded for this run."}</p>${captures.length ? `<div class="scroll"><table><thead><tr><th>Name</th><th>Species</th><th>Caught at</th><th class="num">Level caught</th><th class="num">Last known level</th><th>Status</th></tr></thead><tbody>${captures.map((c) => row([`<td>${esc(c.nickname ?? "—")}</td>`, `<td>${esc(c.species)}</td>`, `<td>${esc(c.where ?? "")}</td>`, `<td class="num">${c.level ?? ""}</td>`, `<td class="num">${c.lastLevel ?? ""}</td>`, c.died ? `<td class="status-dead">Died: ${esc(c.died)}</td>` : `<td>Alive</td>`])).join("")}</tbody></table></div>` : ""}</section>`;
+  const mon = (m) => {
+    const name = m.nickname && m.nickname !== m.species ? `${esc(m.nickname)} <span>${esc(m.species)}</span>` : esc(m.species);
+    const hp = m.maxHp ? ` · ${m.hp}/${m.maxHp} HP` : "";
+    const down = m.dead || m.hp === 0;
+    return `<div class="mon${down ? " gone" : ""}" tabindex="0"${m.moves?.length ? ` data-tip="${esc(m.moves.join(", "))}"` : ""}>${down ? "✕ " : ""}${name} <span>Lv${m.level}${hp}${m.dead ? " · dead, carried" : ""}</span></div>`;
+  };
+  const fights = r.fights ?? [];
+  const fightsTable = !r.fights ? "" : `<section><h2>Big fights</h2><p class="note">${fights.length ? "The team brought to each rival, gym leader and Elite Four battle, as it stood when the fight began. Hover a Pokémon for its moves." : "None recorded for this run."}</p>${fights.length ? `<div class="scroll"><table><thead><tr><th>Fight</th><th class="num">Badges</th><th class="num">Game time</th><th class="num">Level cap</th><th>Their team</th><th>Team brought</th><th>Result</th></tr></thead><tbody>${fights.map((f) => row([
+    `<td class="top">${esc(f.trainer)}<div class="change">${esc(f.map)}</div></td>`,
+    `<td class="num top">${f.badges ?? ""}</td>`,
+    `<td class="num top">${esc(f.playTime ?? "")}</td>`,
+    `<td class="num top">${f.cap ?? ""}</td>`,
+    `<td class="top"><div class="mons">${f.foe.map((m) => `<div class="mon">${esc(m.species)} <span>Lv${m.level}</span></div>`).join("")}</div></td>`,
+    `<td class="top"><div class="mons">${f.team.map(mon).join("")}</div><div class="change">Since the last: ${esc(f.change)}</div></td>`,
+    `<td class="top">${esc(f.result ?? "—")}${f.died.length ? `<div class="change">Died: ${esc(f.died.join(", "))}</div>` : ""}</td>`,
+  ])).join("")}</tbody></table></div>` : ""}</section>`;
+  const fold = (html) => html.replace("<section><h2>", '<details class="fold"><summary>').replace("</h2>", "</summary>").replace(/<\/section>$/, "</details>");
+  const reached = DATA.objectives.filter((o) => r.times?.[o.id] !== undefined).sort((a, b) => secs(r.times[a.id]) - secs(r.times[b.id]));
+  const missing = DATA.objectives.filter((o) => r.times?.[o.id] === undefined);
+  const areasTable = r.hardAreas?.length ? `<section><h2>Hard areas</h2><p class="note">From the first call inside to the milestone that ends it, trips out included.</p><div class="scroll"><table><thead><tr><th>Area</th><th>Status</th><th class="num">Calls</th><th class="num">Game time</th><th class="num">Times in</th><th class="num">Deaths</th></tr></thead><tbody>${r.hardAreas.map((a) => row([`<td>${esc(a.label)}</td>`, `<td>${a.done ? "Finished" : "Not finished"}</td>`, `<td class="num">${a.calls}</td>`, `<td class="num">${mins(a.seconds)}</td>`, `<td class="num">${a.entries}</td>`, `<td class="num">${a.deaths}</td>`])).join("")}</tbody></table></div></section>` : "";
+  const stats = `<div class="tiles run-tiles">${[[r.deaths, "deaths"], [r.calls, "calls"], [r.playTime ?? "—", "game time"], [hhmm(r.realMs) || "—", "real time"], [r.screenshots, "screenshots"], [r.wrongCalls ?? 0, "failed calls"], [mTokens(r.tokens, r.tokensPartial) || "—", "tokens"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div>`;
+  $("one").innerHTML = `<a class="back" href="#">Back to all runs</a>
+    <h1>${esc(groupOf(r))} · ${esc(r.game ? r.game[0].toUpperCase() + r.game.slice(1) : "")}</h1>
+    <p class="sub">Started ${esc(when(r.id))} UTC · ${esc(r.preset ?? "")} · harness ${esc(r.harness ?? "?")}${r.playtest ? " · playtest" : ""}${r.continued ? " · continued" : ""}</p>
+    ${stats}
+    <div class="top-run">
+      <section class="score-card">
+        <div class="big">${s.total}</div>
+        <p class="note" style="margin:0 0 12px">Score · ${esc(r.outcome)}${r.notOfficial ? ` · not official: ${esc(r.notOfficial)}` : " · official"}</p>
+        <table class="points"><tbody>${parts.map(([t, v, why]) => row([`<td>${t}<span class="why">${esc(why)}</span></td>`, `<td class="num${v ? "" : " zero"}">${v > 0 ? "+" + v : v}</td>`])).join("")}</tbody></table>
+      </section>
+      <section>
+        <h2>Milestones</h2>
+        <p class="note">${reached.length} of ${DATA.objectives.length} reached, in the order they happened.</p>
+        <div class="milestones">${reached.map((o) => `<div class="ms"><span>✓ ${esc(o.label)}</span><span class="t">${esc(r.times[o.id] ?? "")}</span></div>`).join("")}${missing.map((o) => `<div class="ms no"><span>${esc(o.label)}</span><span class="t">—</span></div>`).join("")}</div>
+      </section>
+    </div>
+    ${areasTable ? fold(areasTable) : ""}
+    ${capturesTable ? fold(capturesTable) : ""}
+    ${fightsTable ? fold(fightsTable) : ""}
+    ${dark ? fold(dark) : ""}`;
+}
+
+function route() {
+  const id = decodeURIComponent(location.hash).match(/^#run\/(.+)$/)?.[1];
+  const r = id && DATA.runs.find((x) => x.id === id);
+  $("all").hidden = !!r;
+  $("one").hidden = !r;
+  if (r) oneRun(r);
+  scrollTo(0, 0);
+}
+addEventListener("hashchange", route);
+
+function draw() {
+  const rows = chosen();
+  board(rows); heat(rows); runs(rows);
+}
+
+$("f-game").addEventListener("change", draw);
+$("runs").addEventListener("click", (e) => {
+  const k = e.target.closest("button")?.dataset.sort;
+  if (!k) return;
+  sort = { key: k, dir: sort.key === k ? -sort.dir : (k === "id" || COLS.find((c) => c[0] === k)[3] ? -1 : 1) };
+  draw();
+});
+const tip = $("tip");
+const showTip = (el, x, y) => {
+  tip.textContent = el.dataset.tip;
+  tip.style.display = "block";
+  tip.style.left = `${Math.max(8, Math.min(x + 12, innerWidth - tip.offsetWidth - 8))}px`;
+  tip.style.top = `${Math.max(8, y - tip.offsetHeight - 10)}px`;
+};
+document.querySelector("main").addEventListener("pointermove", (e) => { const c = e.target.closest("[data-tip]"); if (c) showTip(c, e.clientX, e.clientY); else tip.style.display = "none"; });
+document.querySelector("main").addEventListener("pointerleave", () => { tip.style.display = "none"; });
+document.querySelector("main").addEventListener("focusin", (e) => { const c = e.target.closest("[data-tip]"); if (c) { const b = c.getBoundingClientRect(); showTip(c, b.left, b.top); } });
+document.querySelector("main").addEventListener("focusout", () => { tip.style.display = "none"; });
+$("stamp").textContent = `Generated ${DATA.generatedAt.slice(0, 16).replace("T", " ")} UTC.`;
+draw();
+route();
+</script>
+</body>
+</html>

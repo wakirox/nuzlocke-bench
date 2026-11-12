@@ -1,0 +1,17 @@
+export * as Abilities from './abilities';
+export * as Moves from './moves';
+export * as Species from './species';
+export * as Items from './items';
+export * as Gen1Items from './gen1-items';
+export * as Gen2Items from './gen2-items';
+export * as Gen3Items from './gen3-items';
+export * as GBConstants from './gb-constants';
+export * as N3DSConstants from './n3ds-constants';
+export * as GlobalConstants from './global-constants';
+export * as Gen1Constants from './gen1-constants';
+export * as Gen2Constants from './gen2-constants';
+export * as Gen3Constants from './gen3-constants';
+export * as Gen4Constants from './gen4-constants';
+export * as Gen5Constants from './gen5-constants';
+export * as Gen6Constants from './gen6-constants';
+export * as Gen7Constants from './gen7-constants';

@@ -1,0 +1,796 @@
+[
+  {
+    "name": "advance_text",
+    "description": "Press A through dialogue/battle text until a menu or YES/NO choice appears, the text box closes, or max_presses is hit. Returns every message shown — use this instead of pressing A one box at a time.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "max_presses": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 80
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "choose",
+    "description": "Pick an on-screen menu option by its text — YES/NO prompts, NEW NAME, FIGHT/PKMN/ITEM/RUN, shop or start-menu entries. Moves the ▶ cursor until it's on that option, presses A, and returns the dialogue that follows. Safer than raw presses.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "option": {
+          "type": "string",
+          "description": "Option text as shown, e.g. \"YES\", \"NO\", \"ITEM\""
+        }
+      },
+      "required": [
+        "option"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "do",
+    "description": "Run several of your own actions in one call, in order — e.g. walk_to a door, advance_text, choose YES, exit_map. Each step is { tool, args: { …that tool's usual arguments } }. It stops after the first step that leaves something new to decide (a battle, a step cut short, a tracker warning or violation, an error, the end of the run) and says which steps didn't run. Returns every step's messages and the final screen. Steps can be: walk, walk_to, travel, exit_map, go_to, note_route, advance_text, choose, press, wait, use_item, rare_candy, make_lead, field_move, fight_trainer, hunt, fight, switch_pokemon, throw_ball; the last step may also be get_map or get_state (run only if every step before it went through).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "steps": {
+          "minItems": 1,
+          "maxItems": 12,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string",
+                "enum": [
+                  "walk",
+                  "walk_to",
+                  "travel",
+                  "exit_map",
+                  "go_to",
+                  "note_route",
+                  "advance_text",
+                  "choose",
+                  "press",
+                  "wait",
+                  "use_item",
+                  "rare_candy",
+                  "make_lead",
+                  "field_move",
+                  "fight_trainer",
+                  "hunt",
+                  "fight",
+                  "switch_pokemon",
+                  "throw_ball",
+                  "get_map",
+                  "get_state"
+                ]
+              },
+              "args": {
+                "description": "That tool's arguments",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "tool"
+            ],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": [
+        "steps"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "exit_map",
+    "description": "Walk to this map's edge in a direction and cross into the connected map. Pathfinds over the whole map. Fails if the map has no exit that way (then look for a door D).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "show_map": {
+          "description": "Also show the area's map after moving (otherwise only get_map shows it)",
+          "type": "boolean"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        },
+        "trainers": {
+          "description": "This call only: ignore = shortest path (crossings of trainers' sight are reported); avoid = route around their sight where possible",
+          "type": "string",
+          "enum": [
+            "ignore",
+            "avoid"
+          ]
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "field_move",
+    "description": "Use a field move (CUT, SURF, STRENGTH, FLASH…) from whichever party Pokémon knows it. Face the tree/water first.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "move": {
+          "type": "string",
+          "description": "e.g. \"CUT\""
+        }
+      },
+      "required": [
+        "move"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "fight",
+    "description": "In battle: choose FIGHT, select a move (by name or slot 1–4) and play out the turn. Returns the battle messages (damage, crits, status, faints) and stops at the next decision.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "move": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            }
+          ],
+          "description": "Move name or slot 1-4"
+        }
+      },
+      "required": [
+        "move"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "fight_trainer",
+    "description": "Walk up to the trainer at (x, y), talk, and play through the intro to the battle menu.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "y": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "forget_route",
+    "description": "Remove a route you noted (from → to).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_map",
+    "description": "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits. Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. Map legend: @ you, T trainer (a solid square; it doesn't step aside, beaten or not; unbeaten ones fight you on sight), ! a walkable square an unbeaten trainer is watching: stepping on it starts that trainer's battle, it isn't a wall (paths go around these only with trainers: avoid), I item ball (or another item lying there to pick up, like a fossil), N person, $ shop clerk (talk to them to buy or sell; across a counter like any person), H nurse (talk to her to heal your team; across the counter), F your Pikachu following you (Yellow: walk onto it and it steps aside; A while facing it shows how it feels), B boulder, o floor switch, , a cave's lower floor (. is its upper floor), O hole in the floor (paths avoid it), D door/warp, G a closed gate (solid), S something you read or use by facing it and pressing A (a sign, a switch…), P a PC (used only from the square below it, facing up: stand there and press A), C tree you can Cut (face it, then @cut), = counter (a person behind it is talked to across it), # blocked, . walkable, ~ water (Surf; walkable while surfing), * ice (step on it and you slide that way until something stops you; walk_to plans the slides), \" tall grass, v < > one-way ledge (hop that way), ↑ ↓ ← → spinner arrow (stepping on it slides you that way, along a fixed path; paths avoid them; + if its direction isn't known). Columns are x, rows are y. The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "full": {
+          "description": "Whole current map instead of the screen",
+          "type": "boolean"
+        },
+        "legend": {
+          "description": "Add what each symbol on this map means to the result",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_rules",
+    "description": "The rules this run follows and its goal.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_screen",
+    "description": "PNG screenshot of the Game Boy screen (plus the decoded text). Use it to see the overworld map, sprites and positions.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scale": {
+          "description": "Upscale factor, default 3",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "get_state",
+    "description": "Name-resolved game state: lead Pokémon (moves with type/power/PP/effectiveness), enemy in battle, party, bag, location, badges, heals, catches, rule events and run outcome. only=[...] returns just those sections (cheaper).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "only": {
+          "description": "Sections to return (default: all)",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "run",
+              "location",
+              "battle",
+              "lead",
+              "party",
+              "nuzlocke",
+              "enemy",
+              "bag",
+              "healsInBag",
+              "badges",
+              "money",
+              "pokemonCenterHeals",
+              "catches",
+              "recentRuleEvents"
+            ]
+          }
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "go_to",
+    "description": "Travel to a map by its id (e.g. ROUTE_1) along the routes you noted with note_route — only those; nothing is known in advance. Stops at battles and says where a noted route didn't work.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "show_map": {
+          "description": "Also show the area's map after moving (otherwise only get_map shows it)",
+          "type": "boolean"
+        },
+        "map": {
+          "type": "string"
+        },
+        "trainers": {
+          "description": "This call only: ignore = shortest path (crossings of trainers' sight are reported); avoid = route around their sight where possible",
+          "type": "string",
+          "enum": [
+            "ignore",
+            "avoid"
+          ]
+        }
+      },
+      "required": [
+        "map"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "hint",
+    "description": "Where to go next in the story, and what starts that step. Each hint uses up a tool call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "hunt",
+    "description": "Nuzlocke: pace the nearest grass (or cave floor) until a wild battle starts, and stop in it — the result says whether it counts for this area. With the encounters policy flee_uncounted it runs from ones that don't count and keeps pacing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "max_steps": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 2000
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "make_lead",
+    "description": "Swap a party Pokémon (species, nickname or slot number) into the lead slot via the start menu.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pokemon": {
+          "type": "string",
+          "description": "Species/nickname as shown in your party, or slot \"2\""
+        }
+      },
+      "required": [
+        "pokemon"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "note_route",
+    "description": "Write down how to get from one map to a neighbouring one, so go_to can travel it later: either cross the map's edge (exit: up/down/left/right) or step on a door/warp square (door: {x, y} in the from-map's coordinates; push: a direction to step after, for warps you leave by walking, like building exits). Map ids as in 📍 [BRACKETS]. Kept for this run; replaces an older note.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "Map you leave from (default: the map you're on)",
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "exit": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        },
+        "door": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ]
+        },
+        "push": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        }
+      },
+      "required": [
+        "to"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "notes",
+    "description": "Your own notes for this run, a numbered list kept outside the conversation: if a long run's conversation is summarized, they're still here. With nothing, lists them. add puts entries at the end, remove takes entries out by number, clear empties the list; in one call they apply in that order: clear, remove, add (20000 characters at most in all). A new run starts with none.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "add": {
+          "description": "Entry or entries to add at the end (one line each)",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "remove": {
+          "description": "Numbers of the entries to remove, as last listed",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "clear": {
+          "description": "Empty the list first",
+          "type": "boolean"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "policies",
+    "description": "Your standing choices for how walking behaves (call with no arguments to see them). encounters: stop (default) hands you every wild battle; flee_uncounted runs from wild Pokémon that don't count for the area (Nuzlocke: area used, dupe) and walks on — a battle that counts still stops you, and a failed escape hands the battle back. trainers: avoid (default) routes around unbeaten trainers' sight where possible and stops short where it isn't, saying whose sight is in the way; ignore takes shortest paths, through sight (that trainer then battles you), and reports whose sight they crossed. Path tools also take trainers for one call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "encounters": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "flee_uncounted"
+          ]
+        },
+        "trainers": {
+          "type": "string",
+          "enum": [
+            "ignore",
+            "avoid"
+          ]
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "press",
+    "description": "Press a sequence of Game Boy buttons, in order. Tokens: a, b, start, select, up, down, left, right; repeat with '*' (down*3); chords with '+' (up+b); pause with wait:N (frames, 60 = 1 s); name:SPROUT types a name on an open naming keyboard and confirms it. Example: \"a a down*2 a wait:60 b\". Returns the screen text and state afterwards.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "buttons": {
+          "type": "string",
+          "description": "Space- or comma-separated tokens"
+        },
+        "hold_frames": {
+          "description": "Frames each press is held (default 6)",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600
+        },
+        "wait_frames": {
+          "description": "Frames to wait after each press (default 20)",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 600
+        }
+      },
+      "required": [
+        "buttons"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "rare_candy",
+    "description": "Outside battle: feed Rare Candies to a party slot through the bag until it reaches `level`. Evolutions play out; if a move-learning question comes up it stops with the prompt open — answer it with choose.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Party slot 1-6"
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 100,
+          "description": "Target level"
+        }
+      },
+      "required": [
+        "slot",
+        "level"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "read_screen_text",
+    "description": "The Game Boy screen's text, one line per box: Text (dialogue), Menu (▶ is the cursor; 'Menu (behind)' with ▷ is a menu a level back), Box (e.g. MONEY), then anything outside a box. A box's rows are joined with ' / '. ▼ means more text — press 'a'.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "report_issue",
+    "description": "Report a tool that let you down (a result that doesn't match the screen, a wrong-looking map, a move that fails where it looks like it should work, an error you don't understand, something that takes many tries). It doesn't use up a tool call; keep playing after it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "did": {
+          "type": "string",
+          "description": "What you did (the tool and arguments, or the steps)"
+        },
+        "expected": {
+          "type": "string",
+          "description": "What you expected to happen"
+        },
+        "happened": {
+          "type": "string",
+          "description": "What happened instead"
+        }
+      },
+      "required": [
+        "did",
+        "expected",
+        "happened"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "routes",
+    "description": "The routes you've noted this run.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "start_game",
+    "description": "From the title screen of a fresh run: sets options (fast text, animations off, battle style SET, as the rules require) and names you and your rival. Stops in the bedroom when the game hands you control. Call right after new_run.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Player name (default PLAYER)",
+          "type": "string",
+          "pattern": "^[A-Za-z]{1,7}$"
+        },
+        "rival": {
+          "description": "Rival name (default RIVAL)",
+          "type": "string",
+          "pattern": "^[A-Za-z]{1,7}$"
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "switch_pokemon",
+    "description": "In battle: switch to a party Pokémon (nickname, species or slot). Also picks who comes out after a faint ('Use next POKéMON?' in wild battles, 'Bring out which POKéMON?' in trainer battles). Returns the battle messages.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pokemon": {
+          "type": "string",
+          "description": "Nickname, species or slot \"1\"-\"6\""
+        }
+      },
+      "required": [
+        "pokemon"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "throw_ball",
+    "description": "In a wild battle: throw the ball you choose and report the result. On a catch it answers the nickname prompt with `nickname` (Nuzlocke: always give one).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "nickname": {
+          "description": "Nickname for the catch (letters)",
+          "type": "string",
+          "maxLength": 10
+        },
+        "ball": {
+          "type": "string",
+          "enum": [
+            "poke",
+            "great",
+            "ultra",
+            "master"
+          ],
+          "description": "Which ball to throw"
+        }
+      },
+      "required": [
+        "ball"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "travel",
+    "description": "Head in a direction across a route or town: repeatedly walks to the furthest visible square that way (or, when the screen shows no way on, the furthest one on the whole map), routing around walls and ledges, until you enter a new map, a battle starts, something scripted stops you, or it's a dead end. maps=N keeps going the same way through up to N map changes in one call.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "show_map": {
+          "description": "Also show the area's map after moving (otherwise only get_map shows it)",
+          "type": "boolean"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        },
+        "max_legs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 40
+        },
+        "maps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6
+        },
+        "trainers": {
+          "description": "This call only: ignore = shortest path (crossings of trainers' sight are reported); avoid = route around their sight where possible",
+          "type": "string",
+          "enum": [
+            "ignore",
+            "avoid"
+          ]
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "use_item",
+    "description": "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody). Closes the menus after.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "type": "string",
+          "description": "Item name, e.g. \"SUPER POTION\", \"REPEL\""
+        },
+        "pokemon": {
+          "description": "Target: nickname, species or slot",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "wait",
+    "description": "Let the game run for N frames without input (60 frames = 1 second).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "frames": {
+          "default": 60,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "walk",
+    "description": "Walk a path in one call, e.g. \"up 3, right 2\" or \"U3 R2\" (or direction+tiles). Each leg stops early at walls, people, warps or when a battle starts. Returns where you ended up (and the map around you with show_map).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "show_map": {
+          "description": "Also show the area's map after moving (otherwise only get_map shows it)",
+          "type": "boolean"
+        },
+        "path": {
+          "description": "Legs like \"up 3, right 2\" or \"U3 R2\"",
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right"
+          ]
+        },
+        "tiles": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
+        }
+      },
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "walk_to",
+    "description": "Pathfind to map coordinate (x, y) anywhere on the current map (see get_map full=true) and walk there, re-planning around people. If the target is a person, sign or object, stops next to it and faces it; interact=true also presses A and reads the dialogue.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "show_map": {
+          "description": "Also show the area's map after moving (otherwise only get_map shows it)",
+          "type": "boolean"
+        },
+        "x": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "y": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "interact": {
+          "type": "boolean"
+        },
+        "trainers": {
+          "description": "This call only: ignore = shortest path (crossings of trainers' sight are reported); avoid = route around their sight where possible",
+          "type": "string",
+          "enum": [
+            "ignore",
+            "avoid"
+          ]
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+]

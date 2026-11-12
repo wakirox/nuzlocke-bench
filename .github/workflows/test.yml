@@ -1,0 +1,28 @@
+name: test
+
+# Actions minutes are scarce: run only for pull requests into master (once per change, not per
+# push to every stacked branch), skip doc-only changes, cancel a run made stale by a newer push,
+# and allow a manual run from the Actions tab.
+on:
+  pull_request:
+    branches: [master]
+    paths-ignore: ["**/*.md", "LICENSE"]
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # npm install, not ci: keeps working while package-lock.json catches up with package.json.
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npm run build

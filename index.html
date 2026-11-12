@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nuzlocke Bench</title>
+    <meta name="description" content="Hardcore Nuzlocke runs of Pokémon Red, Blue and Yellow in the browser — emulator, rules tracker and an MCP bridge so an AI can play." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='%23e33' stroke='%23222' stroke-width='1.5'/><rect x='1' y='7.2' width='14' height='1.6' fill='%23222'/><path d='M1 8a7 7 0 0 0 14 0z' fill='%23fff'/><circle cx='8' cy='8' r='2.2' fill='%23fff' stroke='%23222' stroke-width='1.2'/></svg>" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Nuzlocke Bench <span>Gen 1</span></h1>
+      <div class="run-meta" id="run-meta"></div>
+    </header>
+
+    <main id="setup" class="setup" hidden>
+      <section class="panel">
+        <h2>Start a run</h2>
+        <p>Load your own <b>Pokémon Red, Blue, Yellow or Crystal</b> ROM (English). It never leaves your device.</p>
+        <label class="drop" id="drop">
+          <input type="file" id="rom-input" accept=".gb,.gbc,.sgb" hidden />
+          <span id="drop-text">Drop a .gb ROM here or click to choose</span>
+        </label>
+        <div class="row">
+          <label>Ruleset
+            <select id="mode"></select>
+          </label>
+          <label>Goal
+            <select id="goal">
+              <option value="0">Become Champion (full game)</option>
+              <option value="1">Short run: the first badge</option>
+              <option value="2">2 badges</option>
+              <option value="4">4 badges</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint" data-for="nuzlocke" hidden>Hardcore Nuzlocke: the game exactly as it shipped, played under the Hardcore Nuzlocke rules. Pick any starter you like.</p>
+        <label class="check" data-for="nuzlocke" hidden><input type="checkbox" id="rare-candies" checked /> <b>Infinite Rare Candies</b>: always 99 in the bag (they can't take a Pokémon past the level cap)</label>
+        <label class="check" data-for="nuzlocke" hidden><input type="checkbox" id="hard-level-caps" checked /> <b>Hard level caps</b>: a Pokémon at the cap gains no more levels (experience and Rare Candies stop there), as in many ROM hacks — easier: nobody can go over the cap. Changes one value in the loaded game.</label>
+        <label class="check" data-for="nuzlocke" hidden><input type="checkbox" id="first-rival-free" checked /> <b>First rival battle doesn't count</b>: a Pokémon that faints in the lab fight isn't dead and losing it doesn't end the run (the usual exception; the game heals your party after it)</label>
+        <label class="check"><input type="checkbox" id="end-on-violation" /> <b>End the run on a violation</b>: the first rule broken disqualifies the run</label>
+        <details class="rule-switches" data-for="nuzlocke" hidden>
+          <summary>Which rules disqualify <small>(for tuning the harness: unticked = only logged)</small></summary>
+          <div id="rule-switches"></div>
+        </details>
+        <div class="row">
+          <button id="start" class="primary" disabled>Play</button>
+        </div>
+        <p class="hint best-run" id="setup-best"></p>
+        <p class="status" id="setup-status" role="status"></p>
+      </section>
+      <section class="panel rules" data-for="nuzlocke" hidden>
+        <h2>Hardcore Nuzlocke rules</h2>
+        <p class="hint">The classic Nuzlocke plus the Hardcore rules. The tracker checks them as you play.</p>
+        <ul>
+          <li>You may only catch the first wild Pokémon you meet in each area (route, town, cave; a multi-floor place counts once). If it faints or flees, that area is spent.</li>
+          <li>Dupes clause: a Pokémon whose evolution line you already have doesn't count; the next new one does. Encounters before you have Poké Balls don't count either.</li>
+          <li>Nickname every Pokémon you get, the starter included. Its species name (e.g. PIDGEY for a Pidgey) isn't a nickname.</li>
+          <li>A Pokémon that faints is dead and may never battle again: sending it out, as the lead or by a switch, breaks the rule. It may stay in the party, and a Pokémon Center heals it like the others.</li>
+          <li data-rule="wipe">A wipe (every living Pokémon fainted; the dead don't count, healed or not) ends the run. So does having no Pokémon left that may battle: every living one, in the party and the PC, over the level cap.</li>
+          <li>No items in battle (Poké Balls excepted). Healing between battles is fine.</li>
+          <li data-rule="level-cap">Level caps: a Pokémon over the highest level of the next Gym Leader may stay in the party but must not battle — it may not lead or be sent out. Passing the cap during a battle is fine; from the next battle on it sits out until the cap goes up. In the League the cap is the last Elite Four member's highest level, and it may be passed once the League's battles have begun. Outside battle, the line about your lead in each result ends with the current cap ("cap Lv14").</li>
+          <li>Battle style must be Set.</li>
+          <li>Gifts (and the starter) don't use up an area's encounter. Win by beating the Champion.</li>
+          <li data-option="hard-level-caps">Hard level caps (option): a Pokémon at the level cap gains no more levels — experience and Rare Candies stop there.</li>
+          <li data-option="first-rival-free">First rival battle (option): it doesn't count — a Pokémon that faints in it isn't dead, and losing it doesn't end the run.</li>
+        </ul>
+      </section>
+    </main>
+
+    <main id="game" class="game" hidden>
+      <section class="screen-col">
+        <div class="screen-wrap">
+          <div class="screen-inner">
+            <canvas id="screen" width="160" height="144"></canvas>
+          </div>
+          <div class="ai-badge" id="ai-badge" hidden>AI playing</div>
+        </div>
+        <div class="toolbar">
+          <button id="btn-ff" title="Fast-forward (hold Space)">Speed 1×</button>
+          <button id="btn-save" title="Save state (F2)">Save state</button>
+          <button id="btn-load" title="Load state (F4)">Load state</button>
+          <button id="btn-export" title="Download all saves as a file">Export save</button>
+          <button id="btn-import" title="Load saves from an exported file">Import</button>
+          <input type="file" id="import-file" accept=".json,application/json" hidden />
+          <span class="backup-state" id="backup-state" title="Disk backup status"></span>
+          <label class="vol" title="Volume (muted by default)"><span aria-hidden="true" id="vol-icon"></span><input type="range" id="volume" min="0" max="1" step="0.05" value="0" aria-label="Volume" /></label>
+          <button id="btn-full" title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+          <button id="btn-ai" title="Let a model play through the MCP bridge">AI control</button>
+          <button id="btn-convo" title="Show the model's conversation beside the game (runs played with npm run bench)">Model log</button>
+          <button id="btn-new" class="danger">New run</button>
+        </div>
+        <div class="touchpad" id="touchpad">
+          <div class="dpad">
+            <button data-gb-button="up" class="up" aria-label="Up">▲</button>
+            <button data-gb-button="left" class="left" aria-label="Left">◀</button>
+            <button data-gb-button="right" class="right" aria-label="Right">▶</button>
+            <button data-gb-button="down" class="down" aria-label="Down">▼</button>
+          </div>
+          <div class="mid">
+            <button data-gb-button="select">SELECT</button>
+            <button data-gb-button="start">START</button>
+          </div>
+          <div class="ab">
+            <button data-gb-button="b" class="b">B</button>
+            <button data-gb-button="a" class="a">A</button>
+          </div>
+        </div>
+        <p class="keys">Arrows move · X = A · Z = B · Enter = Start · Backspace = Select · hold Space = fast-forward · F2/F4 = save/load state · gamepads work too</p>
+        <p class="status" id="ai-status" role="status"></p>
+      </section>
+      <aside class="tracker tracker-a">
+        <div id="t-lead"></div>
+        <div id="t-enemy"></div>
+      </aside>
+      <aside class="tracker tracker-b">
+        <div id="t-run"></div>
+        <details class="card">
+          <summary>Rule log</summary>
+          <div id="t-events"></div>
+        </details>
+        <details class="card">
+          <summary>Attempts <span class="muted best-run" id="best-summary"></span></summary>
+          <div id="t-history"></div>
+        </details>
+      </aside>
+      <aside class="card convo" id="convo" hidden>
+        <div class="convo-head">
+          <h3>Model log</h3><span class="convo-live" id="convo-live" title="The transcript changed in the last minute" hidden>Live</span>
+          <button id="convo-collapse" title="Older tool results as one line each (click one to open it); the newest stay open">Expand all</button>
+          <div class="convo-meta"><span class="convo-model" id="convo-model" title="The model playing, and its effort level"></span><span class="convo-usage" id="convo-usage" title="What the model has used so far: tokens (input, output and cache) and turns (its replies)"></span><span id="convo-state"></span></div>
+        </div>
+        <div class="convo-body">
+          <ol id="convo-list" aria-live="off"></ol>
+          <button class="convo-jump" id="convo-jump" hidden>Jump to latest</button>
+        </div>
+      </aside>
+    </main>
+
+    <dialog class="viewer" id="viewer">
+      <div class="viewer-head"><h3 id="viewer-title"></h3><span class="viewer-actions" id="viewer-actions"></span><button id="viewer-close" title="Close (Esc)">✕</button></div>
+      <div class="viewer-body" id="viewer-body"></div>
+    </dialog>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-box">
+        <h2 id="modal-title"></h2>
+        <p id="modal-text"></p>
+        <div class="modal-actions" id="modal-actions"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

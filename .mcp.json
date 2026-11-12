@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "nuzlocke-bench": {
+      "command": "node",
+      "args": ["mcp-server/server.mjs"]
+    }
+  }
+}

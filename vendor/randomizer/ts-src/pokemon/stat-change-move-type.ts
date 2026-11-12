@@ -1,0 +1,9 @@
+export enum StatChangeMoveType {
+  NONE_OR_UNKNOWN,
+  NO_DAMAGE_TARGET,
+  NO_DAMAGE_USER,
+  NO_DAMAGE_ALL,
+  NO_DAMAGE_ALLY,
+  DAMAGE_TARGET,
+  DAMAGE_USER,
+}
