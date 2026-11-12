@@ -42,10 +42,10 @@ describe("scoreRun", () => {
     expect(scoreRun({ reached: ["badge3"], dark: { result: "crossed in the dark", calls: 100, flashAt: null } }).flash).toBe(0);
   });
 
-  it("leaves screenshots and failed calls out: they grew with how far a run got", () => {
+  it("scores screenshots and failed calls as their own parts", () => {
     expect(Object.keys(scoreRun({ reached: ["badge1"] })).sort()).toEqual(
-      ["cottageSpeed", "deaths", "disqualified", "efficiency", "ended", "flash", "progress", "speed", "total", "tunnelSpeed"]);
-    expect(scoreRun({ reached: ["badge1"], screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60, progress: 60 });
+      ["cottageSpeed", "deaths", "disqualified", "efficiency", "ended", "flash", "progress", "screenshots", "speed", "total", "tunnelSpeed", "wrongCalls"]);
+    expect(scoreRun({ reached: ["badge1"], screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60 - 222 - 291, progress: 60 });
   });
 
   it("counts the calls the server rejected from the transcript's error results", () => {
@@ -77,5 +77,14 @@ describe("screenshotsOf", () => {
   it("counts its own calls and the ones in a batch", () => {
     const calls = [{ tool: "get_screen" }, { tool: "walk" }, { tool: "do", args: { steps: [{ tool: "get_screen" }, { tool: "press" }] } }];
     expect(screenshotsOf(calls)).toBe(2);
+  });
+
+  it("charges 3 per screenshot and 1 per failed call, for every run", () => {
+    const base = scoreRun({ reached: ["badge1"], outcome: "wipe" });
+    const messy = scoreRun({ reached: ["badge1"], outcome: "wipe", screenshots: 4, wrongCalls: 10 });
+    expect(messy.screenshots).toBe(-12);
+    expect(messy.wrongCalls).toBe(-10);
+    expect(messy.total).toBe(base.total - 22);
+    expect(scoreRun({ reached: ["badge1"] }).screenshots).toBe(0);
   });
 });

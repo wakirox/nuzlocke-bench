@@ -14,6 +14,9 @@ export const POINTS = {
   speed: 29,
   // Using Flash in the dark tunnel.
   flash: 30,
+  // Every run (since 2026-11-12): each screenshot asked for, and each failed tool call.
+  screenshot: -3,
+  wrongCall: -1,
 };
 export const CALL_BUDGET = 6000;
 // Where each speed bonus reaches 0: calls per milestone over the whole run, the cottage step's calls
@@ -26,10 +29,10 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
  * A run's score and what it's made of. `reached`: its milestone ids, as in report.mjs's OBJECTIVES;
  * `objectiveCalls`: the call that first reached each; `lastBattleDeaths`: a wipe's deaths in its last
  * battle (the wipe itself, charged once as `ended`); `dark`: report.mjs's darkTunnelOf.
- * Screenshots and failed calls aren't in it: a point each grew with how far a run got, so a long run
- * lost more to them than to its deaths (2026-11-08). The dashboard shows them as the run's stats.
+ * Screenshots (-3) and failed calls (-1) count again since 2026-11-12, for every run: with a Champion
+ * reached, a clean run has to beat a messy one (docs/scoring.md).
  */
-export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null }) {
+export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null, screenshots = 0, wrongCalls = 0 }) {
   let progress = 0;
   for (const id of reached) progress += id === "champion" ? POINTS.champion : id.startsWith("badge") ? POINTS.badge : POINTS.milestone;
   const finished = reached.includes("champion");
@@ -47,6 +50,8 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
     deaths: (Math.max(0, deaths - (outcome === "wipe" ? lastBattleDeaths : 0)) * POINTS.death) || 0,  // || 0: no -0
     ended: !finished && ["wipe", "lost", "gave up", "out of calls"].includes(outcome) ? POINTS.ended : 0,
     disqualified: outcome === "disqualified" ? POINTS.disqualified : 0,
+    screenshots: (screenshots * POINTS.screenshot) || 0,
+    wrongCalls: (wrongCalls * POINTS.wrongCall) || 0,
   };
   return { total: Object.values(parts).reduce((a, b) => a + b, 0), ...parts };
 }
