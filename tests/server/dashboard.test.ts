@@ -77,10 +77,10 @@ describe("dashboardRuns", () => {
     expect(run.score).toMatchObject({ deaths: -30, ended: -45, screenshots: -9, total: 60 - 30 - 45 - 9 });
   });
 
-  it("counts failed calls (run-log errors plus calls the server rejected), -1 each", () => {
-    const [run] = dashboardRuns([row("a", { errors: 3, extras: { rejected: 2 }, objectives: { badge1: "x" } })]);
+  it("counts failed calls (run-log errors plus calls the server rejected), -4 per percentage point of the calls", () => {
+    const [run] = dashboardRuns([row("a", { calls: 100, errors: 3, extras: { rejected: 2 }, objectives: { badge1: "x" } })]);
     expect(run.wrongCalls).toBe(5);
-    expect(run.score.total).toBe(60 - 5);
+    expect(run.score.wrongCalls).toBe(-20);
   });
 
   it("marks official runs: the official rules on Red, from a new game, ended by the rules", () => {

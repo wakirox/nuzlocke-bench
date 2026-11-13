@@ -37,7 +37,8 @@ the public page from those files only, so `runs/` stays private.
 | Each of the 8 badges | +60 | every run |
 | Each of the 20 other milestones, the 6 rival wins before the League among them | +30 | every run |
 | Beating the Champion | +130 | every run |
-| Each death | -15 | every run, except the deaths in a wipe's last battle |
+| Each death | -15 | every run that stops before the Champion, except the deaths in a wipe's last battle |
+| Each death | -30 | a run that beat the Champion |
 | A run that ends early: a wipe, lost, gave up, out of calls | -45 | once |
 | Disqualified | -100 | every run |
 | Speed: calls per milestone reached, up to the furthest | up to +29 | every run; 0 at 300 calls per milestone |
@@ -60,7 +61,9 @@ first). The deaths in a wipe's last battle, from the last call made outside a ba
 the score charges them once as the early end, not per Pokémon, so a big team that wipes doesn't cost more
 than a lone starter. Giving up costs the same as wiping out, so stopping is never the cheaper way out.
 
-Every screenshot the model asks for costs 3 points, and every failed tool call 1 (since 2026-11-12).
+Every screenshot the model asks for costs 3 points (since 2026-11-12). Failed tool calls cost 4 points per
+percentage point of the run's calls that failed (since 2026-11-13): `round(4 × 100 × failed / calls)`, so
+6% failed costs 24, in a short run or a long one.
 
 ## A model's score
 
@@ -70,6 +73,9 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 
 - **A death costs half a milestone.** Deaths hurt, but playing safe never beats getting further.
   It does mean a cleaner run can outscore one that got a little further.
+- **A finisher's death costs double (2026-11-13).** Once the Champion is beaten there's no further to get,
+  and the first two Champions both lost 6 Pokémon: at -15 their deaths (-90) weighed less than their
+  failed calls. Among finishers, the lost Pokémon should count for more than the calls.
 - **Efficiency counts only for finishers,** so a model gains nothing by rushing into a wipe.
 - **Speed counts for every run, but stays under a milestone.** Before 2026-11-11 runs that stopped at the
   same place tied (three at 210, three at 225 to 240). The two speed checks single out the steps that
@@ -77,12 +83,14 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 - **Flash is rewarded** as the player's own answer to the dark tunnel: getting the HM and using it is a plan.
 - **One cost for any early end (2026-11-11).** Giving up used to cost nothing while a wipe cost 15 per
   Pokémon, so quitting was cheaper than fighting on.
-- **Screenshots and failed calls are scored again (2026-11-12): -3 and -1 each, for every run.** With a
+- **Screenshots and failed calls are scored again (2026-11-12), for every run.** With a
   Champion reached, runs near the top were separated by little else: a model that reads the text and
-  calls its tools right should beat one that leans on screenshots and retries. The cost is known: both
-  grow with how far a run gets, so a long run pays the most (under the first version, -2 and -1 until
-  2026-11-08, an 8-badge run fell below a 6-badge one), and today a 3-badge run can rank below a
-  2-badge run that was cleaner.
+  calls its tools right should beat one that leans on screenshots and retries. Screenshots cost 3 each,
+  which grows with how far a run gets, so a long run pays the most.
+- **Failed calls are charged as a rate (2026-11-13), not -1 each.** The two Champions failed 6.2% and 6.3%
+  of their calls, yet the longer run paid 75 points more: the count was a second charge for the run's
+  length, which efficiency and speed already cover. Per call, a 3-badge run also ranked below a 2-badge
+  run that failed more often.
 - **Tokens aren't scored.** They depend on the model and client more than on how well it plays.
 
 ## Open questions
