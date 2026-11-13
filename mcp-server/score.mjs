@@ -5,6 +5,8 @@ export const POINTS = {
   milestone: 30,
   champion: 130,
   death: -15,
+  // After beating the Champion a death costs double: among finishers, lost Pokémon should weigh more than calls.
+  finisherDeath: -30,
   disqualified: -100,
   // Any other early end (a wipe, lost, gave up, out of calls): one flat cost, whatever the team size.
   ended: -45,
@@ -14,9 +16,11 @@ export const POINTS = {
   speed: 29,
   // Using Flash in the dark tunnel.
   flash: 30,
-  // Every run (since 2026-11-12): each screenshot asked for, and each failed tool call.
+  // Every run (since 2026-11-12): each screenshot asked for.
   screenshot: -3,
-  wrongCall: -1,
+  // Every run: each percentage point of the calls that failed (a rate since 2026-11-13, so a long run
+  // doesn't pay more than a short one that fails as often).
+  wrongCallPoint: -4,
 };
 export const CALL_BUDGET = 6000;
 // Where each speed bonus reaches 0: calls per milestone over the whole run, the cottage step's calls
@@ -29,8 +33,8 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
  * A run's score and what it's made of. `reached`: its milestone ids, as in report.mjs's OBJECTIVES;
  * `objectiveCalls`: the call that first reached each; `lastBattleDeaths`: a wipe's deaths in its last
  * battle (the wipe itself, charged once as `ended`); `dark`: report.mjs's darkTunnelOf.
- * Screenshots (-3) and failed calls (-1) count again since 2026-11-12, for every run: with a Champion
- * reached, a clean run has to beat a messy one (docs/scoring.md).
+ * Screenshots (-3 each) and failed calls (-4 per percentage point of the calls) count for every run: with
+ * a Champion reached, a clean run has to beat a messy one (docs/scoring.md).
  */
 export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null, screenshots = 0, wrongCalls = 0 }) {
   let progress = 0;
@@ -47,11 +51,11 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
     tunnelSpeed: crossed ? bonus(dark.calls, SPEED_ZERO.tunnel) : 0,
     flash: dark?.flashAt != null ? POINTS.flash : 0,
     efficiency: finished ? Math.floor(Math.max(0, CALL_BUDGET - calls) / POINTS.callsPerPoint) : 0,
-    deaths: (Math.max(0, deaths - (outcome === "wipe" ? lastBattleDeaths : 0)) * POINTS.death) || 0,  // || 0: no -0
+    deaths: (Math.max(0, deaths - (outcome === "wipe" ? lastBattleDeaths : 0)) * (finished ? POINTS.finisherDeath : POINTS.death)) || 0,  // || 0: no -0
     ended: !finished && ["wipe", "lost", "gave up", "out of calls"].includes(outcome) ? POINTS.ended : 0,
     disqualified: outcome === "disqualified" ? POINTS.disqualified : 0,
     screenshots: (screenshots * POINTS.screenshot) || 0,
-    wrongCalls: (wrongCalls * POINTS.wrongCall) || 0,
+    wrongCalls: (calls > 0 ? Math.round((100 * Math.min(wrongCalls, calls) / calls) * POINTS.wrongCallPoint) : 0) || 0,
   };
   return { total: Object.values(parts).reduce((a, b) => a + b, 0), ...parts };
 }

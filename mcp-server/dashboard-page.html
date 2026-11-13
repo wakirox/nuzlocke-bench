@@ -292,12 +292,12 @@ function oneRun(r) {
     ["Cottage step speed", s.cottageSpeed ?? 0, cottageCalls != null ? `${cottageCalls} calls from the second badge to leaving the town` : "not done"],
     ["Dark tunnel speed", s.tunnelSpeed ?? 0, r.dark && /^crossed/.test(r.dark.result) ? `crossed in ${r.dark.calls} calls` : r.dark ? "not crossed" : "not reached"],
     ["Flash", s.flash ?? 0, r.dark?.flashAt != null ? "used in the dark tunnel" : "not used"],
-    ["Deaths", s.deaths, r.outcome === "wipe" && r.lastBattleDeaths ? `${scored} before the last battle (the wipe counts below)` : `${r.deaths}`],
+    ["Deaths", s.deaths, r.outcome === "wipe" && r.lastBattleDeaths ? `${scored} before the last battle (the wipe counts below)` : /^victory/.test(r.outcome) && r.deaths ? `${r.deaths}, -30 each after beating the Champion` : `${r.deaths}`],
     ["Run ended", s.ended ?? 0, s.ended ? r.outcome : "-"],
     ["Disqualified", s.disqualified, s.disqualified ? "a rule broken" : "-"],
     ["Efficiency", s.efficiency, s.efficiency ? "calls left of the 6,000" : "only after beating the Champion"],
     ["Screenshots", s.screenshots ?? 0, `${r.screenshots ?? 0} asked for, -3 each`],
-    ["Failed calls", s.wrongCalls ?? 0, `${r.wrongCalls ?? 0}, -1 each`],
+    ["Failed calls", s.wrongCalls ?? 0, `${r.wrongCalls ?? 0}${r.calls ? ` of ${r.calls} calls (${(100 * (r.wrongCalls ?? 0) / r.calls).toFixed(1)}%)` : ""}, -4 per percentage point`],
   ];
   const captures = r.captures ?? [];
   const alive = captures.filter((c) => !c.died).length;

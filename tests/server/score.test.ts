@@ -45,7 +45,7 @@ describe("scoreRun", () => {
   it("scores screenshots and failed calls as their own parts", () => {
     expect(Object.keys(scoreRun({ reached: ["badge1"] })).sort()).toEqual(
       ["cottageSpeed", "deaths", "disqualified", "efficiency", "ended", "flash", "progress", "screenshots", "speed", "total", "tunnelSpeed", "wrongCalls"]);
-    expect(scoreRun({ reached: ["badge1"], screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60 - 222 - 291, progress: 60 });
+    expect(scoreRun({ reached: ["badge1"], calls: 2910, screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60 - 222 - 40, progress: 60 });
   });
 
   it("counts the calls the server rejected from the transcript's error results", () => {
@@ -79,12 +79,28 @@ describe("screenshotsOf", () => {
     expect(screenshotsOf(calls)).toBe(2);
   });
 
-  it("charges 3 per screenshot and 1 per failed call, for every run", () => {
-    const base = scoreRun({ reached: ["badge1"], outcome: "wipe" });
-    const messy = scoreRun({ reached: ["badge1"], outcome: "wipe", screenshots: 4, wrongCalls: 10 });
+  it("charges 3 per screenshot and 4 per percentage point of failed calls, for every run", () => {
+    const base = scoreRun({ reached: ["badge1"], outcome: "wipe", calls: 200 });
+    const messy = scoreRun({ reached: ["badge1"], outcome: "wipe", calls: 200, screenshots: 4, wrongCalls: 10 });
     expect(messy.screenshots).toBe(-12);
-    expect(messy.wrongCalls).toBe(-10);
-    expect(messy.total).toBe(base.total - 22);
+    expect(messy.wrongCalls).toBe(-20);
+    expect(messy.total).toBe(base.total - 32);
     expect(scoreRun({ reached: ["badge1"] }).screenshots).toBe(0);
+  });
+
+  it("charges failed calls by their share of the calls, not their number", () => {
+    // The same 6% failed: a long run pays what a short one does.
+    expect(scoreRun({ reached: ["badge1"], calls: 500, wrongCalls: 30 }).wrongCalls).toBe(-24);
+    expect(scoreRun({ reached: ["badge1"], calls: 3000, wrongCalls: 180 }).wrongCalls).toBe(-24);
+    expect(scoreRun({ reached: ["badge1"], calls: 3000, wrongCalls: 30 }).wrongCalls).toBe(-4);
+    // No calls on record: nothing to take a share of. More failures than calls: capped at all of them.
+    expect(scoreRun({ reached: ["badge1"], wrongCalls: 30 }).wrongCalls).toBe(0);
+    expect(scoreRun({ reached: ["badge1"], calls: 10, wrongCalls: 30 }).wrongCalls).toBe(-400);
+    expect(scoreRun({ reached: ["badge1"], calls: 100 }).wrongCalls).toBe(0);
+  });
+
+  it("charges a finisher's deaths double", () => {
+    expect(scoreRun({ reached: ALL, calls: 6000, deaths: 6 }).deaths).toBe(-180);
+    expect(scoreRun({ reached: ALL.filter((id: string) => id !== "champion"), calls: 6000, deaths: 6 }).deaths).toBe(-90);
   });
 });
