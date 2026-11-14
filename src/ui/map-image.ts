@@ -173,7 +173,7 @@ function openMap(grid: Grid, text: string, asText: boolean): void {
     raw.hidden = !t;
     toggle.textContent = t ? "As a picture" : "As the model sees it";
   };
-  toggle.addEventListener("click", () => show(raw.hidden));
+  toggle.addEventListener("click", () => show(Boolean(raw.hidden)));
   body.append(picture, raw);
   show(asText);
   openViewer("Map", body, [toggle]);
