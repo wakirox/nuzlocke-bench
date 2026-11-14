@@ -7,7 +7,8 @@ export const POINTS = {
   death: -15,
   // After beating the Champion a death costs double: among finishers, lost Pokémon should weigh more than calls.
   finisherDeath: -30,
-  disqualified: -100,
+  // Worse than a wipe a badge earlier (-45 - 60): breaking a rule never pays (since 2026-11-14; was -100).
+  disqualified: -150,
   // Any other early end (a wipe, lost, gave up, out of calls): one flat cost, whatever the team size.
   ended: -45,
   // After the last milestone only: this many calls under the budget are worth a point.
@@ -16,8 +17,9 @@ export const POINTS = {
   speed: 29,
   // Using Flash in the dark tunnel.
   flash: 30,
-  // Every run (since 2026-11-12): each screenshot asked for.
-  screenshot: -3,
+  // Every run: each percentage point of the calls that were screenshots (a rate since 2026-11-14, as
+  // failed calls: a long run doesn't pay more than a short one that looks as often; was -3 each).
+  screenshotPoint: -20,
   // Every run: each percentage point of the calls that failed (a rate since 2026-11-13, so a long run
   // doesn't pay more than a short one that fails as often).
   wrongCallPoint: -4,
@@ -34,8 +36,9 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
  * `objectiveCalls`: the call that first reached each; `lastBattleDeaths`: a wipe's deaths in its last
  * battle (the wipe itself, charged once as `ended`); `dark`: report.mjs's darkTunnelOf.
  * `wrongCalls` includes `rejected`: calls the server turned down before they ran, which aren't in `calls`.
- * Screenshots (-3 each) and failed calls (-4 per percentage point of the calls) count for every run: with
- * a Champion reached, a clean run has to beat a messy one (docs/scoring.md).
+ * Screenshots (-20) and failed calls (-4), each per percentage point of the calls, count for every run:
+ * with a Champion reached, a clean run has to beat a messy one (docs/scoring.md). Beating the Champion
+ * always scores more than losing to him with the same run would have (`winFloor`).
  */
 /**
  * @param {{ reached?: string[], deaths?: number, outcome?: string, calls?: number, objectiveCalls?: Record<string, number>, lastBattleDeaths?: number, dark?: any, screenshots?: number, wrongCalls?: number, rejected?: number }} run
@@ -58,9 +61,14 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
     deaths: (Math.max(0, deaths - (outcome === "wipe" ? lastBattleDeaths : 0)) * (finished ? POINTS.finisherDeath : POINTS.death)) || 0,  // || 0: no -0
     ended: !finished && ["wipe", "lost", "gave up", "out of calls"].includes(outcome) ? POINTS.ended : 0,
     disqualified: outcome === "disqualified" ? POINTS.disqualified : 0,
-    screenshots: (screenshots * POINTS.screenshot) || 0,
+    screenshots: (calls > 0 ? Math.round((100 * Math.min(screenshots, calls) / calls) * POINTS.screenshotPoint) : 0) || 0,
     // Out of every call made: the rejected ones (in wrongCalls) never reached the run log's count.
     wrongCalls: (calls + rejected > 0 ? Math.round((100 * Math.min(wrongCalls, calls + rejected) / (calls + rejected)) * POINTS.wrongCallPoint) : 0) || 0,
   };
-  return { total: Object.values(parts).reduce((a, b) => a + b, 0), ...parts };
+  // A finisher's deaths cost double, so with many deaths and few calls left, winning could score less
+  // than wiping at the Champion: what winning adds over that (the Champion, no early end, efficiency,
+  // the deaths' extra cost) is kept above 0.
+  const winLead = finished ? POINTS.champion - POINTS.ended + parts.efficiency + deaths * (POINTS.finisherDeath - POINTS.death) : 1;
+  const all = { ...parts, winFloor: winLead > 0 ? 0 : 1 - winLead };
+  return { total: Object.values(all).reduce((a, b) => a + b, 0), ...all };
 }

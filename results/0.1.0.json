@@ -6,7 +6,7 @@
   "game": "red",
   "since": "2026-11-08"
  },
- "updated": "2026-11-14T11:45:04.559Z",
+ "updated": "2026-11-14T11:49:40.037Z",
  "objectives": [
   {
    "id": "rival1",
@@ -143,7 +143,7 @@
    "rejected": 0,
    "realMs": 12304857,
    "score": {
-    "total": 1289,
+    "total": 1351,
     "progress": 1210,
     "speed": 18,
     "cottageSpeed": 15,
@@ -153,8 +153,9 @@
     "deaths": -180,
     "ended": 0,
     "disqualified": 0,
-    "screenshots": -78,
-    "wrongCalls": -25
+    "screenshots": -16,
+    "wrongCalls": -25,
+    "winFloor": 0
    },
    "tokens": 250479534,
    "tokensPartial": false,
@@ -349,7 +350,8 @@
     "ended": -45,
     "disqualified": 0,
     "screenshots": -21,
-    "wrongCalls": -34
+    "wrongCalls": -34,
+    "winFloor": 0
    },
    "tokens": 65386582,
    "tokensPartial": false,
@@ -417,7 +419,7 @@
    "rejected": 0,
    "realMs": 1082937,
    "score": {
-    "total": 31,
+    "total": 23,
     "progress": 120,
     "speed": 14,
     "cottageSpeed": 0,
@@ -427,8 +429,9 @@
     "deaths": -15,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -18,
-    "wrongCalls": -25
+    "screenshots": -26,
+    "wrongCalls": -25,
+    "winFloor": 0
    },
    "tokens": 32936684,
    "tokensPartial": false,
@@ -484,7 +487,7 @@
    "rejected": 3,
    "realMs": 5296322,
    "score": {
-    "total": 1455,
+    "total": 1480,
     "progress": 1210,
     "speed": 22,
     "cottageSpeed": 18,
@@ -494,8 +497,9 @@
     "deaths": -180,
     "ended": 0,
     "disqualified": 0,
-    "screenshots": -36,
-    "wrongCalls": -25
+    "screenshots": -11,
+    "wrongCalls": -25,
+    "winFloor": 0
    },
    "tokens": 171260323,
    "tokensPartial": false,
@@ -690,7 +694,8 @@
     "ended": -45,
     "disqualified": 0,
     "screenshots": -27,
-    "wrongCalls": -54
+    "wrongCalls": -54,
+    "winFloor": 0
    },
    "tokens": 48564767,
    "tokensPartial": false,
@@ -755,7 +760,7 @@
    "rejected": 3,
    "realMs": 3120411,
    "score": {
-    "total": 153,
+    "total": 151,
     "progress": 240,
     "speed": 19,
     "cottageSpeed": 0,
@@ -765,8 +770,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -15,
-    "wrongCalls": -46
+    "screenshots": -17,
+    "wrongCalls": -46,
+    "winFloor": 0
    },
    "tokens": 42013915,
    "tokensPartial": false,
@@ -831,7 +837,7 @@
    "rejected": 0,
    "realMs": 2040043,
    "score": {
-    "total": 84,
+    "total": 81,
     "progress": 180,
     "speed": 16,
     "cottageSpeed": 0,
@@ -841,8 +847,9 @@
     "deaths": -15,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -15,
-    "wrongCalls": -37
+    "screenshots": -18,
+    "wrongCalls": -37,
+    "winFloor": 0
    },
    "tokens": 44844993,
    "tokensPartial": false,
@@ -901,7 +908,7 @@
    "rejected": 1,
    "realMs": 1763745,
    "score": {
-    "total": 134,
+    "total": 135,
     "progress": 240,
     "speed": 18,
     "cottageSpeed": 0,
@@ -911,8 +918,9 @@
     "deaths": -15,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -27,
-    "wrongCalls": -37
+    "screenshots": -26,
+    "wrongCalls": -37,
+    "winFloor": 0
    },
    "tokens": 55532401,
    "tokensPartial": false,
@@ -977,7 +985,7 @@
    "rejected": 0,
    "realMs": 1471731,
    "score": {
-    "total": 120,
+    "total": 119,
     "progress": 210,
     "speed": 17,
     "cottageSpeed": 0,
@@ -987,8 +995,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -21,
-    "wrongCalls": -41
+    "screenshots": -22,
+    "wrongCalls": -41,
+    "winFloor": 0
    },
    "tokens": 51662495,
    "tokensPartial": false,
@@ -1050,7 +1059,7 @@
    "rejected": 0,
    "realMs": 1227625,
    "score": {
-    "total": 96,
+    "total": 94,
     "progress": 210,
     "speed": 18,
     "cottageSpeed": 0,
@@ -1060,8 +1069,9 @@
     "deaths": -30,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -12,
-    "wrongCalls": -45
+    "screenshots": -14,
+    "wrongCalls": -45,
+    "winFloor": 0
    },
    "tokens": 48636654,
    "tokensPartial": false,
@@ -1123,7 +1133,7 @@
    "rejected": 0,
    "realMs": 627568,
    "score": {
-    "total": -4,
+    "total": -7,
     "progress": 90,
     "speed": 2,
     "cottageSpeed": 0,
@@ -1133,8 +1143,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -15,
-    "wrongCalls": -36
+    "screenshots": -18,
+    "wrongCalls": -36,
+    "winFloor": 0
    },
    "tokens": 29388879,
    "tokensPartial": false,
@@ -1177,7 +1188,7 @@
    "rejected": 0,
    "realMs": 290508,
    "score": {
-    "total": -39,
+    "total": -61,
     "progress": 30,
     "speed": 10,
     "cottageSpeed": 0,
@@ -1187,8 +1198,9 @@
     "deaths": -15,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -9,
-    "wrongCalls": -10
+    "screenshots": -31,
+    "wrongCalls": -10,
+    "winFloor": 0
    },
    "tokens": 12498953,
    "tokensPartial": false,
@@ -1228,7 +1240,7 @@
    "rejected": 1,
    "realMs": 263818,
    "score": {
-    "total": -46,
+    "total": -72,
     "progress": 30,
     "speed": 13,
     "cottageSpeed": 0,
@@ -1238,8 +1250,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -9,
-    "wrongCalls": -35
+    "screenshots": -35,
+    "wrongCalls": -35,
+    "winFloor": 0
    },
    "tokens": 9942481,
    "tokensPartial": false,
@@ -1279,7 +1292,7 @@
    "rejected": 0,
    "realMs": 378014,
    "score": {
-    "total": -71,
+    "total": -82,
     "progress": 30,
     "speed": 6,
     "cottageSpeed": 0,
@@ -1289,8 +1302,9 @@
     "deaths": -30,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -6,
-    "wrongCalls": -26
+    "screenshots": -17,
+    "wrongCalls": -26,
+    "winFloor": 0
    },
    "tokens": 18996002,
    "tokensPartial": false,
@@ -1341,7 +1355,8 @@
     "ended": -45,
     "disqualified": 0,
     "screenshots": -21,
-    "wrongCalls": -44
+    "wrongCalls": -44,
+    "winFloor": 0
    },
    "tokens": 57348402,
    "tokensPartial": false,
@@ -1397,7 +1412,7 @@
    "rejected": 8,
    "realMs": 11707757,
    "score": {
-    "total": 897,
+    "total": 957,
     "progress": 1080,
     "speed": 15,
     "cottageSpeed": 22,
@@ -1407,8 +1422,9 @@
     "deaths": -90,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -72,
-    "wrongCalls": -25
+    "screenshots": -12,
+    "wrongCalls": -25,
+    "winFloor": 0
    },
    "tokens": 314543814,
    "tokensPartial": false,
@@ -1589,7 +1605,7 @@
    "rejected": 3,
    "realMs": 8352821,
    "score": {
-    "total": 266,
+    "total": 325,
     "progress": 390,
     "speed": 0,
     "cottageSpeed": 8,
@@ -1599,8 +1615,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -72,
-    "wrongCalls": -15
+    "screenshots": -13,
+    "wrongCalls": -15,
+    "winFloor": 0
    },
    "tokens": 278203519,
    "tokensPartial": false,
@@ -1702,7 +1719,8 @@
     "ended": -45,
     "disqualified": 0,
     "screenshots": -18,
-    "wrongCalls": -48
+    "wrongCalls": -48,
+    "winFloor": 0
    },
    "tokens": 47920931,
    "tokensPartial": false,
@@ -1764,7 +1782,7 @@
    "rejected": 0,
    "realMs": 350262,
    "score": {
-    "total": -53,
+    "total": -65,
     "progress": 30,
     "speed": 2,
     "cottageSpeed": 0,
@@ -1774,8 +1792,9 @@
     "deaths": -15,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -9,
-    "wrongCalls": -16
+    "screenshots": -21,
+    "wrongCalls": -16,
+    "winFloor": 0
    },
    "tokens": 17455819,
    "tokensPartial": false,
@@ -1815,7 +1834,7 @@
    "rejected": 0,
    "realMs": 2402900,
    "score": {
-    "total": 110,
+    "total": 112,
     "progress": 210,
     "speed": 15,
     "cottageSpeed": 0,
@@ -1825,8 +1844,9 @@
     "deaths": 0,
     "ended": -45,
     "disqualified": 0,
-    "screenshots": -18,
-    "wrongCalls": -52
+    "screenshots": -16,
+    "wrongCalls": -52,
+    "winFloor": 0
    },
    "tokens": 58253883,
    "tokensPartial": false,

@@ -74,7 +74,7 @@ describe("dashboardRuns", () => {
     const [run] = dashboardRuns([row("a", { outcome: "wipe: X", deaths: 2, screenshots: 3, objectives: { badge1: "x" } })]);
     expect(run.deaths).toBe(3);
     // The last Pokémon is the wipe itself (the run ends as "ended"); the two before it cost points.
-    expect(run.score).toMatchObject({ deaths: -30, ended: -45, screenshots: -9, total: 60 - 30 - 45 - 9 + run.score.speed });
+    expect(run.score).toMatchObject({ deaths: -30, ended: -45, screenshots: -60, total: 60 - 30 - 45 - 60 + run.score.speed });
   });
 
   it("counts failed calls (run-log errors plus calls the server rejected), -4 per percentage point of the calls", () => {

@@ -14,7 +14,9 @@ describe("scoreRun", () => {
   });
 
   it("takes deaths and a disqualification off, with no floor", () => {
-    expect(scoreRun({ reached: ["badge1"], deaths: 2, outcome: "disqualified" })).toMatchObject({ total: 60 - 30 - 100, progress: 60 });
+    expect(scoreRun({ reached: ["badge1"], deaths: 2, outcome: "disqualified" })).toMatchObject({ total: 60 - 30 - 150, progress: 60 });
+    // Breaking a rule at a badge scores below a clean wipe a badge earlier.
+    expect(scoreRun({ reached: ["badge1", "badge2"], outcome: "disqualified" }).total).toBeLessThan(scoreRun({ reached: ["badge1"], outcome: "wipe" }).total);
   });
 
   it("charges any early end once, and a wipe's last battle as that end, not per Pokémon", () => {
@@ -48,8 +50,8 @@ describe("scoreRun", () => {
 
   it("scores screenshots and failed calls as their own parts", () => {
     expect(Object.keys(scoreRun({ reached: ["badge1"] })).sort()).toEqual(
-      ["cottageSpeed", "deaths", "disqualified", "efficiency", "ended", "flash", "progress", "screenshots", "speed", "total", "tunnelSpeed", "wrongCalls"]);
-    expect(scoreRun({ reached: ["badge1"], calls: 2910, screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60 - 222 - 40, progress: 60 });
+      ["cottageSpeed", "deaths", "disqualified", "efficiency", "ended", "flash", "progress", "screenshots", "speed", "total", "tunnelSpeed", "winFloor", "wrongCalls"]);
+    expect(scoreRun({ reached: ["badge1"], calls: 2910, screenshots: 74, wrongCalls: 291 })).toMatchObject({ total: 60 - 51 - 40, progress: 60 });
   });
 
   it("counts the calls the server rejected from the transcript's error results", () => {
@@ -72,6 +74,17 @@ describe("scoreRun", () => {
     expect(scoreRun({ reached: ALL, calls: 7000 }).efficiency).toBe(0);
   });
 
+  it("never scores a win below losing to the Champion with the same run", () => {
+    const toChampion = OBJECTIVES.map((o: { id: string }) => o.id).filter((id: string) => id !== "champion");
+    const run = { calls: 5850, deaths: 13 };
+    const won = scoreRun({ ...run, reached: [...toChampion, "champion"], outcome: "victory" });
+    const lost = scoreRun({ ...run, reached: toChampion, outcome: "wipe" });
+    expect(won.winFloor).toBeGreaterThan(0);
+    expect(won.total).toBeGreaterThan(lost.total);
+    // A usual win needs no floor.
+    expect(scoreRun({ ...run, calls: 2000, deaths: 6, reached: [...toChampion, "champion"], outcome: "victory" }).winFloor).toBe(0);
+  });
+
   it("has no maximum beyond what the parts give", () => {
     // Everything, at 1,000 calls: the parts and the pace (1,000 calls over every milestone).
     expect(scoreRun({ reached: ALL, calls: 1000 }).total).toBe(1710 + Math.round(29 * (1 - 1000 / ALL.length / 300)));
@@ -84,13 +97,15 @@ describe("screenshotsOf", () => {
     expect(screenshotsOf(calls)).toBe(2);
   });
 
-  it("charges 3 per screenshot and 4 per percentage point of failed calls, for every run", () => {
+  it("charges 20 per percentage point of screenshots and 4 per percentage point of failed calls, for every run", () => {
     const base = scoreRun({ reached: ["badge1"], outcome: "wipe", calls: 200 });
     const messy = scoreRun({ reached: ["badge1"], outcome: "wipe", calls: 200, screenshots: 4, wrongCalls: 10 });
-    expect(messy.screenshots).toBe(-12);
+    expect(messy.screenshots).toBe(-40);
     expect(messy.wrongCalls).toBe(-20);
-    expect(messy.total).toBe(base.total - 32);
+    expect(messy.total).toBe(base.total - 60);
     expect(scoreRun({ reached: ["badge1"] }).screenshots).toBe(0);
+    // The same share costs the same in a short run and a long one.
+    expect(scoreRun({ reached: ["badge1"], calls: 3000, screenshots: 60 }).screenshots).toBe(messy.screenshots);
   });
 
   it("takes the rejected calls' share out of every call made, logged or rejected", () => {
