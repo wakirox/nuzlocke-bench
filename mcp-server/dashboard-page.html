@@ -43,6 +43,8 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 th, td { padding: 7px 8px; text-align: left; white-space: nowrap; }
 td.num, th.num { text-align: right; }
 thead th { color: var(--ink-2); font-weight: 500; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+tr.group th { color: var(--ink-2); font-weight: 500; font-size: 12.5px; border-bottom: 1px solid var(--line); padding-top: 16px; }
+tr.group:first-child th { padding-top: 7px; }
 tbody tr + tr td { border-top: 1px solid var(--line); }
 th button { all: unset; cursor: pointer; }
 th button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
@@ -323,6 +325,25 @@ function oneRun(r) {
   const reached = DATA.objectives.filter((o) => r.times?.[o.id] !== undefined).sort((a, b) => secs(r.times[a.id]) - secs(r.times[b.id]));
   const missing = DATA.objectives.filter((o) => r.times?.[o.id] === undefined);
   const areasTable = r.hardAreas?.length ? `<section><h2>Hard areas</h2><p class="note">From the first call inside to the milestone that ends it, trips out included.</p><div class="scroll"><table><thead><tr><th>Area</th><th>Status</th><th class="num">Calls</th><th class="num">Game time</th><th class="num">Times in</th><th class="num">Deaths</th></tr></thead><tbody>${r.hardAreas.map((a) => row([`<td>${esc(a.label)}</td>`, `<td>${a.done ? "Finished" : "Not finished"}</td>`, `<td class="num">${a.calls}</td>`, `<td class="num">${mins(a.seconds)}</td>`, `<td class="num">${a.entries}</td>`, `<td class="num">${a.deaths}</td>`])).join("")}</tbody></table></div></section>` : "";
+  // What the run shows about the model (capabilities.mjs): measured numbers, none of them in the score.
+  const cap = r.capabilities;
+  const val = (v, unit = "") => (v == null ? "—" : `${v}${unit}`);
+  const group = (title, rows) => `<tr class="group"><th colspan="2">${esc(title)}</th></tr>${rows.map(([k, v]) => row([`<td>${esc(k)}</td>`, `<td class="num">${esc(v)}</td>`])).join("")}`;
+  const labelOf = Object.fromEntries(DATA.objectives.map((o) => [o.id, o.label]));
+  const longest = cap ? Object.entries(cap.knowledge.steps).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
+  const capsTable = cap ? `<section><h2>What the run shows</h2><p class="note">Measured from the run's own records, for seeing where a model struggles. None of it is in the score.</p><div class="scroll"><table><tbody>${[
+    group("Tool use", [
+      ["Failed calls", val(cap.tools.failedPct, "%")], ["Screenshots", val(cap.tools.screenshotPct, "%")],
+      ["Calls that move for the model (a route, a path, a batch)", val(cap.tools.plannedMovePct, "%")], ["Raw button presses", val(cap.tools.pressPct, "%")],
+      ["Batches (do)", val(cap.tools.batches)], ["The same call three times running", val(cap.tools.loops)],
+    ]),
+    group("Planning", [
+      ["Flash in the dark tunnel", cap.planning.flash == null ? "not reached" : cap.planning.flash ? "used" : "not used"],
+      ["Deaths per badge", val(cap.planning.deathsPerBadge)],
+      ...(r.hardAreas ?? []).map((a) => [`Times into ${a.label.toLowerCase()}`, `${a.entries}${a.done ? "" : " (not finished)"}`]),
+    ]),
+    group("Knowledge: the longest story steps (calls from the milestone before)", longest.map(([id, n]) => [labelOf[id] ?? id, String(n)])),
+  ].join("")}</tbody></table></div></section>` : "";
   const stats = `<div class="tiles run-tiles">${[[r.deaths, "deaths"], [r.calls, "calls"], [r.playTime ?? "—", "game time"], [hhmm(r.realMs) || "—", "real time"], [r.screenshots, "screenshots"], [r.wrongCalls ?? 0, "failed calls"], [mTokens(r.tokens, r.tokensPartial) || "—", "tokens"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div>`;
   $("one").innerHTML = `<a class="back" href="#">Back to all runs</a>
     <h1>${esc(groupOf(r))} · ${esc(r.game ? r.game[0].toUpperCase() + r.game.slice(1) : "")}</h1>
@@ -340,6 +361,7 @@ function oneRun(r) {
         <div class="milestones">${reached.map((o) => `<div class="ms"><span>✓ ${esc(o.label)}</span><span class="t">${esc(r.times[o.id] ?? "")}</span></div>`).join("")}${missing.map((o) => `<div class="ms no"><span>${esc(o.label)}</span><span class="t">—</span></div>`).join("")}</div>
       </section>
     </div>
+    ${capsTable ? fold(capsTable) : ""}
     ${areasTable ? fold(areasTable) : ""}
     ${capturesTable ? fold(capturesTable) : ""}
     ${fightsTable ? fold(fightsTable) : ""}

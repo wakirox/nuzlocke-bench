@@ -294,3 +294,14 @@ describe("renderDashboard", () => {
     expect(html).toContain('"label":"Badge 1"');
   });
 });
+
+describe("the dashboard page", () => {
+  it("has scripts that parse (a broken one leaves the page blank)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { Script } = await import("node:vm");
+    const page = readFileSync("mcp-server/dashboard-page.html", "utf8");
+    const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const js of scripts) expect(() => new Script(js)).not.toThrow();
+  });
+});
