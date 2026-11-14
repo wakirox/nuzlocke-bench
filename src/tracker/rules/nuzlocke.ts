@@ -299,6 +299,7 @@ export class NuzlockeRules implements RuleModule {
 
   /** Hardcore: no items in battle (Poké Balls aside). Anything goes outside battle. */
   items(s: GameState, p: GameState, deltas: ItemDeltas): void {
+    if (this.hasBalls(s)) this.t.snap.hadBalls = true;
     for (const [id, d] of deltas) {
       if (d < 0 && s.battle > 0 && p.battle > 0 && !this.t.game.data.items.balls.has(id)) {
         this.t.log("violation", `Used ${this.t.itemName(id)} in battle — Hardcore Nuzlocke bans items in battle.`, "items-in-battle");
@@ -355,6 +356,15 @@ export class NuzlockeRules implements RuleModule {
     return cur;
   }
 
+  private hasBalls(s: GameState): boolean {
+    return s.bag.some((it) => this.t.game.data.items.balls.has(it.id) && it.qty > 0);
+  }
+
+  /** Whether the player has ever had Poké Balls this run (older saves: a non-gift catch proves it). */
+  private everHadBalls(): boolean {
+    return !!this.t.snap.hadBalls || this.t.snap.catches.some((c) => !c.gift);
+  }
+
   private firstEncounter(s: GameState, species: number, level: number): void {
     const key = areaKey(s.mapConst);
     const label = this.t.mapName(s);
@@ -362,7 +372,10 @@ export class NuzlockeRules implements RuleModule {
       this.t.log("info", `${this.t.name(species)} on ${label}: this area's encounter is used.`);
       return;
     }
-    if (!s.bag.some((it) => this.t.game.data.items.balls.has(it.id) && it.qty > 0)) {
+    // Only the first stretch, before the player ever has Poké Balls, is free: running out later doesn't reopen
+    // areas (it would let a model skip buying balls to keep them open).
+    if (this.hasBalls(s)) this.t.snap.hadBalls = true;
+    if (!this.everHadBalls()) {
       this.t.log("info", `${this.t.name(species)} on ${label}, but you have no Poké Balls yet — this one doesn't count.`);
       return;
     }

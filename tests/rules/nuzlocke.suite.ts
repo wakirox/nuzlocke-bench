@@ -75,6 +75,11 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(areas(run)).toEqual([]);
       });
 
+      it("counts an encounter after you ran out of Poké Balls: only the first stretch is free", () => {
+        const run = new Run(game).goTo(places.route).poll({ bag: [] }).wildBattle(ids.wildA).endBattle();
+        expect(areas(run)).toEqual([expect.objectContaining({ species: ids.wildA })]);
+      });
+
       it("skips dupes of a family you already have (dupes clause) and counts the next new one", () => {
         const [base, evolved] = ids.family;
         const run = new Run(game).receiveGift(base, "BIRDY").goTo(places.route)
