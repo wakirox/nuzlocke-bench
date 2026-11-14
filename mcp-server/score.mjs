@@ -44,13 +44,13 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
   let progress = 0;
   for (const id of reached) progress += id === "champion" ? POINTS.champion : id.startsWith("badge") ? POINTS.badge : POINTS.milestone;
   const finished = reached.includes("champion");
-  const ids = Object.keys(objectiveCalls).filter((id) => reached.includes(id));
-  const toFurthest = ids.length ? Math.max(...ids.map((id) => objectiveCalls[id])) : null;
   const cottage = objectiveCalls.cottageDone != null && objectiveCalls.badge2 != null ? objectiveCalls.cottageDone - objectiveCalls.badge2 : null;
   const crossed = dark && /^crossed/.test(dark.result);
   const parts = {
     progress,
-    speed: toFurthest != null && reached.length ? bonus(toFurthest / reached.length, SPEED_ZERO.pace) : 0,
+    // Over all the run's calls (since 2026-11-14), not just up to its furthest milestone: calls spent
+    // stuck after it count, and a quick early wipe isn't the fastest run.
+    speed: reached.length && calls > 0 ? bonus(calls / reached.length, SPEED_ZERO.pace) : 0,
     cottageSpeed: cottage != null && cottage >= 0 ? bonus(cottage, SPEED_ZERO.cottage) : 0,
     tunnelSpeed: crossed ? bonus(dark.calls, SPEED_ZERO.tunnel) : 0,
     flash: dark?.flashAt != null ? POINTS.flash : 0,

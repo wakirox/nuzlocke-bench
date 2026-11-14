@@ -114,7 +114,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     menuCursor: extra.menuCursor,
     lead,
     party: s.party.map((m, i) => ({ slot: i + 1, species: t.name(m.species), nickname: m.nickname, level: m.level, hp: m.hp, maxHp: m.maxHp, status: G.statusName(m.status),
-      dead: t.isDead(m.uid), overLevelCap: cap ? m.level > cap.level : undefined,
+      dead: t.isDead(m), overLevelCap: cap ? m.level > cap.level : undefined,
       expToNextLevel: t.data.species[m.species] ? Math.max(0, G.expForLevel(t.data.species[m.species].curve, m.level + 1) - m.exp) : undefined })),
     nuzlocke: {
       levelCap: cap,
@@ -241,8 +241,9 @@ export function battleMoves(t: Tracker, s: GameState) {
     }));
 }
 
+/** Stat stages by name. Gen 2's seventh is Sp. Def (its spc is Sp. Atk then); Gen 1 has six. */
 function stagesObj(st: number[]) {
-  return { atk: st[0], def: st[1], spd: st[2], spc: st[3], acc: st[4], eva: st[5] };
+  return { atk: st[0], def: st[1], spd: st[2], spc: st[3], acc: st[4], eva: st[5], ...(st.length > 6 ? { spdef: st[6] } : {}) };
 }
 
 /** An area whose encounter is unused: which grass Pokémon would count (not dupes). */

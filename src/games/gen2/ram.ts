@@ -6,7 +6,7 @@
 import type { BattleMonState, BattlerHp, GameState, MemoryReader, MonState, Position } from "../types";
 import { charFor, decodeText } from "./text";
 import { MAP_CONSTANTS_CRYSTAL } from "./map-constants";
-import { currentBoxCount, readPcMons } from "./boxes";
+import { currentBoxCount, currentBoxNewest, readPcMons } from "./boxes";
 
 export const A = {
   // Bank 0 ($C000-$CFFF).
@@ -274,6 +274,10 @@ export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }): 
     pcMons: () => {
       const ram = mem.getExtRam?.();
       return ram ? readPcMons(ram, rd(mem, A.curBox)) : [];
+    },
+    boxNewest: () => {
+      const m = currentBoxNewest(mem.getExtRam?.() ?? null);
+      return m ? { species: m.species, nickname: decodeText(m.nick) } : null;
     },
   };
 }

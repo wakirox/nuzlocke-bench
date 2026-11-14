@@ -19,8 +19,12 @@ Only these runs make the leaderboard (`OFFICIAL` in `mcp-server/benchmark.mjs`, 
   nudges. A run stopped by hand, or one nothing ended, isn't a result.
 - **Nothing that helps or steers the model:** no playtest (`--playtest`), and no narration (older runs were marked "narrated").
 
-Everything else is the runner's defaults: 3 nudges, the standard context window, the narrow grid,
-report_issue on. Watching a run (`--headed`, `--watch`) doesn't change it.
+- **The runner's defaults, on a clean harness:** Claude Code (not `--api`), the model's standard
+  context (not `[1m]`), effectiveness off, report_issue on, the narrow grid, a 200k compaction window,
+  3 nudges and the 500M-token limit; the harness a commit with the page built from it. Settings a run
+  from before they were recorded didn't record are taken as the defaults they were.
+
+Watching a run (`--headed`, `--watch`) or a watch-only observer doesn't change it.
 
 The dashboard shows these runs only, one game at a time; test runs stay in `npm run bench:report`.
 
@@ -41,7 +45,7 @@ the public page from those files only, so `runs/` stays private.
 | Each death | -30 | a run that beat the Champion |
 | A run that ends early: a wipe, lost, gave up, out of calls | -45 | once |
 | Disqualified | -100 | every run |
-| Speed: calls per milestone reached, up to the furthest | up to +29 | every run; 0 at 300 calls per milestone |
+| Speed: the run's calls per milestone reached | up to +29 | every run; 0 at 300 calls per milestone |
 | The cottage step's speed: calls from the second badge to leaving that town south or east | up to +29 | when that step is done; 0 at 400 calls |
 | The dark tunnel's speed: calls from the first step inside to the town past it | up to +29 | when crossed; 0 at 1,500 calls |
 | Flash used in the dark tunnel | +30 | every run |
@@ -97,6 +101,9 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
   of their calls, yet the longer run paid 75 points more: the count was a second charge for the run's
   length, which efficiency and speed already cover. Per call, a 3-badge run also ranked below a 2-badge
   run that failed more often.
+- **Speed counts every call (2026-11-14), not just those up to the furthest milestone.** Calls spent stuck
+  after it were free (a run that wandered 2,700 calls past its third badge kept +19), and a wipe in the
+  first forest out-paced the Champions. The model order didn't change.
 - **report_issue is free in the score too (2026-11-14).** The budget never counted it, but the score did,
   so reporting a problem cost a little efficiency and speed, the opposite of what the prompt promises.
   The 20 results moved by 1 point at most.

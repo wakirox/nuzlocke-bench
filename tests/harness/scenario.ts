@@ -8,16 +8,18 @@
 // runs on any game.
 
 import type { GameState, MonState, PcMon } from "../../src/games/types";
-import type { Severity } from "../../src/tracker/tracker";
+import { Tracker, type Severity } from "../../src/tracker/tracker";
 import type { GameFixture, Place, RulesEngine } from "./game-fixture";
 
 export class Run {
-  readonly engine: RulesEngine;
+  engine: RulesEngine;
   s: GameState;
   /** uid of the Pokémon the last catchWild/receiveGift added. */
   lastNew = "";
   /** What the PC boxes hold (GameState.pcMons); null = the PC can't be read, as in states from plain RAM. */
   pc: PcMon[] | null = null;
+  /** The current box's newest Pokémon (GameState.boxNewest), once one went to the PC. */
+  boxed: { species: number; nickname: string } | null = null;
 
   /** `engine` defaults to the game's Hardcore Nuzlocke engine. */
   constructor(readonly game: GameFixture, over?: Partial<GameState>, engine?: RulesEngine) {
@@ -28,10 +30,11 @@ export class Run {
 
   /** Feeds the next state: the current one with `patch` applied. */
   poll(patch: Partial<GameState> | ((s: GameState) => Partial<GameState>) = {}): this {
-    const { pcMons: _pc, ...cur } = this.s;
+    const { pcMons: _pc, boxNewest: _bn, ...cur } = this.s;
     const base = structuredClone(cur);
     const p = typeof patch === "function" ? patch(base) : patch;
-    this.s = { ...base, ...structuredClone(p), ...(this.pc ? { pcMons: () => this.pc ?? [] } : {}) };
+    const boxed = this.boxed;
+    this.s = { ...base, ...structuredClone(p), ...(this.pc ? { pcMons: () => this.pc ?? [] } : {}), ...(boxed ? { boxNewest: () => boxed } : {}) };
     this.engine.update(this.s);
     return this;
   }
@@ -96,6 +99,26 @@ export class Run {
     this.useItem(this.game.ids.ball);
     this.poll((s) => ({ party: [...s.party, mon] }));
     return this.endBattle();
+  }
+
+  /** Catches the wild Pokémon with a full party: it goes to the PC (the current box) under `nickname`. */
+  catchToBox(nickname: string): this {
+    const e = this.s.enemy!;
+    this.useItem(this.game.ids.ball);
+    this.boxed = { species: e.species, nickname };
+    this.poll((s) => ({ boxCount: s.boxCount + 1 }));
+    return this.endBattle();
+  }
+
+  /**
+   * The page reloads (or a run is continued): a new engine from the saved snapshot, primed with the
+   * state as it is now, as the app does on load.
+   */
+  reload(): this {
+    const e = this.engine;
+    this.engine = new Tracker(e.data, e.mode, JSON.parse(JSON.stringify(e.snap)), () => {}, e.options);
+    this.engine.update(this.s);
+    return this;
   }
 
   /** Leaves the battle (ran away, or won). */

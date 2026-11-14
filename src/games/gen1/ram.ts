@@ -4,7 +4,7 @@
 
 import type { GameVersion } from "../../rom/types";
 import type { BattleMonState, BattlerHp, GameState, MemoryReader, MonState, Position } from "../types";
-import { readPcMons } from "./boxes";
+import { currentBoxNewest, readPcMons } from "./boxes";
 import { decodeText, charFor } from "./data";
 import { MAP_CONSTANTS_RB, MAP_CONSTANTS_Y } from "./map-constants";
 
@@ -233,6 +233,10 @@ export function readGameState(mem: MemoryReader, version: GameVersion): GameStat
     options: mem.read8(A.options),
     boxText: readBoxText(mem),
     pcMons: () => readPcMons((a) => mem.read8(a), (a, n) => mem.readBytes(a, n), mem.getExtRam?.() ?? null, A),
+    boxNewest: () => {
+      const m = currentBoxNewest((a) => mem.read8(a), (a, n) => mem.readBytes(a, n), A.boxCount);
+      return m ? { species: m.species, nickname: decodeText(m.nick) } : null;
+    },
   };
 }
 

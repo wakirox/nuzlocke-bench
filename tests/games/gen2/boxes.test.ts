@@ -1,7 +1,7 @@
 // Crystal's PC boxes in cartridge RAM: the current box counts catches; junk boxes are ignored.
 
 import { describe, expect, it } from "vitest";
-import { CURRENT_BOX, currentBoxCount, readPcMons } from "../../../src/games/gen2/boxes";
+import { CURRENT_BOX, currentBoxCount, currentBoxNewest, readPcMons } from "../../../src/games/gen2/boxes";
 
 /** A box at `base`: these species, each mon with an OT id, DVs and level. */
 function putBox(ram: Uint8Array, base: number, species: number[]) {
@@ -49,5 +49,17 @@ describe("Crystal PC boxes", () => {
     ram[CURRENT_BOX + 2] = 0xfd; // the second is an egg
     expect(currentBoxCount(ram)).toBe(2);
     expect(readPcMons(ram, 0).map((m) => m.species)).toEqual([79]);
+  });
+
+  it("gives the current box's newest Pokémon and its nickname (after the 20 OT names), and no egg", () => {
+    const ram = new Uint8Array(0x8000);
+    putBox(ram, CURRENT_BOX, [161, 16]);
+    const nick = CURRENT_BOX + 1 + 21 + 20 * 32 + 20 * 11 + 11; // the second nickname
+    ram.set([0x81, 0x50], nick);
+    expect(currentBoxNewest(ram)).toEqual({ species: 16, nick: ram.subarray(nick, nick + 11) });
+    expect(currentBoxNewest(ram)?.nick[0]).toBe(0x81);
+    ram[CURRENT_BOX + 2] = 0xfd; // an egg in the species list
+    expect(currentBoxNewest(ram)).toBeNull();
+    expect(currentBoxNewest(new Uint8Array(0x8000))).toBeNull();
   });
 });

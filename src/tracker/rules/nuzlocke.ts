@@ -46,6 +46,8 @@ export class NuzlockeRules implements RuleModule {
    * name of its own while still that species (seen on any poll before the check).
    */
   private nickPending = new Map<string, { species: number; named: boolean }>();
+  /** The species of a Pokémon that went straight to the PC, its nickname not yet checked (the newest in the current box). */
+  private boxNickPending: number | null = null;
   /** You've walked since the last battle (a badge won in it has had time to raise the cap). */
   private walking = false;
   private family: Map<number, number> | null = null;
@@ -60,7 +62,31 @@ export class NuzlockeRules implements RuleModule {
      * last Elite Four member's top level.
      */
     readonly hardLevelCaps = false,
-  ) {}
+  ) {
+    // A reload or a --resume mid-battle comes back to the battle under way: what this rule knew of it
+    // comes back from the snapshot (the battle won't start again, so battleStart won't set it).
+    const saved = t.snap.nuzlockeBattle;
+    if (saved) {
+      this.encounterPending = saved.encounterPending;
+      this.encounterArea = saved.encounterArea;
+      this.sentChecked = new Set(saved.sentChecked);
+      this.overAtStart = new Set(saved.overAtStart);
+      this.nickPending = new Map(saved.nickPending);
+      this.boxNickPending = saved.boxNickPending ?? null;
+    }
+  }
+
+  /** Kept in the snapshot, which is saved with the game's state: see the constructor. */
+  private saveBattleState(): void {
+    this.t.snap.nuzlockeBattle = {
+      encounterPending: this.encounterPending,
+      encounterArea: this.encounterArea,
+      sentChecked: [...this.sentChecked],
+      overAtStart: [...this.overAtStart],
+      nickPending: [...this.nickPending],
+      boxNickPending: this.boxNickPending,
+    };
+  }
 
   /**
    * Hard level caps: the level experience should stop at now, and Rare Candies with it unless
@@ -89,7 +115,7 @@ export class NuzlockeRules implements RuleModule {
     const cap = this.levelCap(s);
     if (!cap || this.leagueUnderway(s)) return;
     for (const m of s.party) {
-      if (m.species && m.level > cap.level && !this.isDead(m.uid)) this.overAtStart.add(m.uid);
+      if (m.species && m.level > cap.level && !this.isDead(m)) this.overAtStart.add(m.uid);
     }
   }
 
@@ -109,7 +135,7 @@ export class NuzlockeRules implements RuleModule {
       if (mon && mon.species === s.battleMon.species) {
         this.sentChecked.add(s.activeIndex);
         const who = this.monLabel(mon);
-        if (this.isDead(mon.uid)) {
+        if (this.isDead(mon)) {
           this.t.log("violation", `${who} is dead but was sent into battle — a fainted Pokémon may never battle again.`, "dead-pokemon");
         }
         // Level caps: nobody over the cap when the battle started may battle in it.
@@ -129,6 +155,8 @@ export class NuzlockeRules implements RuleModule {
 
   caught(s: GameState, _p: GameState, c: Catch): void {
     this.t.snap.owned.push(c.species);
+    // A full party: it went to the PC, where the party's nickname check can't see it.
+    if (c.toBox) this.boxNickPending = c.species;
     this.t.log("info", `${c.gift ? "Received" : "Caught"} ${this.t.name(c.species)} Lv${c.level} at ${this.t.mapName(s)}.`);
     if (c.gift) return;
     // An area is only "open" during (or right after) its first-encounter battle.
@@ -142,6 +170,11 @@ export class NuzlockeRules implements RuleModule {
 
   /** Every poll, after catches are counted: missed encounters, deaths, species owned, level cap. */
   afterCatches(s: GameState, p: GameState): void {
+    this.checkAfterCatches(s, p);
+    this.saveBattleState();
+  }
+
+  private checkAfterCatches(s: GameState, p: GameState): void {
     const snap = this.t.snap;
     // A catch can register a poll after the battle ends; caughtThisBattle is set the moment it lands.
     if (p.battle === 1 && s.battle === 0) {
@@ -184,9 +217,17 @@ export class NuzlockeRules implements RuleModule {
       }
       this.nickPending.clear();
     }
+    // The same for one sent to the PC, read as the current box's newest once you walk on.
+    if (this.boxNickPending != null && s.battle === 0 && (s.x !== p.x || s.y !== p.y || s.map !== p.map)) {
+      const m = s.boxNewest?.();
+      if (m && m.species === this.boxNickPending && m.nickname.toUpperCase() === this.t.name(m.species).toUpperCase()) {
+        this.t.log("violation", `${this.t.name(m.species)} (sent to the PC) has no nickname — Nuzlocke: nickname every Pokémon you get.`, "nickname");
+      }
+      this.boxNickPending = null;
+    }
     for (const now of s.party) {
       const was = p.party.find((m) => m.uid && m.uid === now.uid);
-      if (!was || was.hp === 0 || now.hp > 0 || this.isDead(now.uid)) continue;
+      if (!was || was.hp === 0 || now.hp > 0 || this.isDead(now)) continue;
       // First rival battle option: a faint there isn't a death (the game heals the party after it).
       if (this.t.options.firstRivalFree && s.firstRivalFought === false) continue;
       // The foe: this poll's, or the last one's when the battle has just closed (see the tracker's wipe).
@@ -211,7 +252,7 @@ export class NuzlockeRules implements RuleModule {
     if (!cap) return;
     for (const m of s.party) {
       const key = `${m.uid}:${cap.level}`;
-      if (m.level > cap.level && !snap.overCap.includes(key) && !this.isDead(m.uid)) {
+      if (m.level > cap.level && !snap.overCap.includes(key) && !this.isDead(m)) {
         snap.overCap.push(key);
         this.t.log("warning", `${this.monLabel(m)} is Lv${m.level}, over the level cap (Lv${cap.level}, ${cap.who}'s highest) — it may stay in the party, but must not battle (lead or be sent out) until the cap goes up.`);
       }
@@ -237,12 +278,12 @@ export class NuzlockeRules implements RuleModule {
     const cap = this.levelCap(s);
     if (!cap || this.leagueUnderway(s) || !s.party.length) return null;
     const capText = `the level cap is Lv${cap.level} (${cap.who}'s highest)`;
-    const pcHasOne = () => (s.pcMons?.() ?? []).some((m) => m.level <= cap.level && !this.isDead(m.uid));
+    const pcHasOne = () => (s.pcMons?.() ?? []).some((m) => m.level <= cap.level && !this.isDead(m));
     const who = (ms: GameState["party"], over: (m: GameState["party"][number]) => boolean) =>
-      ms.map((m) => `${this.monLabel(m)} Lv${m.level} ${this.isDead(m.uid) ? "is dead" : over(m) ? "is over the cap" : "has fainted"}`).join(", ");
+      ms.map((m) => `${this.monLabel(m)} Lv${m.level} ${this.isDead(m) ? "is dead" : over(m) ? "is over the cap" : "has fainted"}`).join(", ");
     if (s.battle > 0) {
       // The dead don't stand, healed or not: with no living one standing it's a wipe (the Tracker ends the run).
-      const standing = s.party.filter((m) => m.hp > 0 && !this.isDead(m.uid));
+      const standing = s.party.filter((m) => m.hp > 0 && !this.isDead(m));
       if (!standing.length) return null;
       const barred = (m: GameState["party"][number]) => this.overAtStart.has(m.uid);
       if (standing.some((m) => !barred(m))) return null;
@@ -252,7 +293,7 @@ export class NuzlockeRules implements RuleModule {
     }
     // Once you've walked since the last battle: a gym leader's badge, which raises the cap, comes after the battle.
     if (s.battle !== 0 || !this.walking) return null;
-    if (s.party.some((m) => !this.isDead(m.uid) && m.level <= cap.level) || pcHasOne()) return null;
+    if (s.party.some((m) => !this.isDead(m) && m.level <= cap.level) || pcHasOne()) return null;
     return `${who(s.party, (m) => m.level > cap.level)}, and nobody in the PC is at or under the cap; ${capText}.`;
   }
 
@@ -288,8 +329,15 @@ export class NuzlockeRules implements RuleModule {
     return this.t.snap.owned.some((o) => this.familyRoot(o) === root);
   }
 
-  isDead(uid: string): boolean {
-    return !!uid && this.t.snap.dead.some((d) => d.uid === uid);
+  /**
+   * The uid is the trainer ID and the DVs (they survive evolution), but all of the player's own catches
+   * share that ID, so two can match by chance (~0.7% over 30 catches): the dead one must also be of
+   * this Pokémon's evolution family, or a live catch would be taken for it.
+   */
+  isDead(mon: { uid: string; species: number }): boolean {
+    if (!mon.uid) return false;
+    const root = this.familyRoot(mon.species);
+    return this.t.snap.dead.some((d) => d.uid === mon.uid && this.familyRoot(d.species) === root);
   }
 
   // ---- Internals ----

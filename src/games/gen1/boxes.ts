@@ -46,3 +46,11 @@ export function readPcMons(
   }
   return out;
 }
+
+/** The current box's last Pokémon and its nickname bytes (the box in WRAM at `boxCount`). */
+export function currentBoxNewest(read8: (addr: number) => number, readBytes: (addr: number, len: number) => Uint8Array, boxCount: number): { species: number; nick: Uint8Array } | null {
+  const n = Math.min(read8(boxCount), BOX_CAPACITY);
+  if (!n) return null;
+  const nicknames = boxCount + 1 + 21 + BOX_CAPACITY * BOX_MON + BOX_CAPACITY * NAME;
+  return { species: read8(boxCount + 1 + n - 1), nick: readBytes(nicknames + (n - 1) * NAME, NAME) };
+}

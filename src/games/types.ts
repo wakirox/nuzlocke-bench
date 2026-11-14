@@ -109,6 +109,8 @@ export interface GameState {
    * to copy every poll). Call it on the latest state only. Missing = the PC can't be read.
    */
   pcMons?: () => PcMon[];
+  /** The current box's last Pokémon (where a catch with a full party lands) with its nickname, or null when the box is empty or can't be read. */
+  boxNewest?: () => { species: number; nickname: string } | null;
 }
 
 /** One battler's name and HP, read between battle messages to say what each hit did. */

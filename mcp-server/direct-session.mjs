@@ -1,5 +1,6 @@
 // A session that plays through a model's API directly, without Claude Code (bench-run.mjs --api):
-// no system prompt, no tools but the game's, nothing added to what the model reads. It speaks the
+// no tools but the game's and nothing added to what the model reads, except what Claude Code also
+// gives it: the game server's own instructions, as the system prompt. It speaks the
 // Anthropic Messages API (Claude, or Ollama's /v1/messages) or the OpenAI chat completions API
 // (Ollama, vLLM, OpenRouter…), and writes the same stream-json events as claude -p, so the runner,
 // the transcript, the report and the page's model log treat both alike.
@@ -135,16 +136,16 @@ export const contextTokens = (usage) =>
  * them) with tool_choice none; the OpenAI API gets none, which Ollama honours where tool_choice isn't.
  */
 /**
- * @param {{ api: string, baseUrl: string, apiKey?: string, model: string, maxOutput: number, messages: any[], tools: any[], textOnly?: boolean, fetchImpl?: (url: string, opts?: any) => Promise<any>, signal?: AbortSignal }} opts
+ * @param {{ api: string, baseUrl: string, apiKey?: string, model: string, maxOutput: number, messages: any[], tools: any[], system?: string | null, textOnly?: boolean, fetchImpl?: (url: string, opts?: any) => Promise<any>, signal?: AbortSignal }} opts
  */
-export async function callModel({ api, baseUrl, apiKey, model, maxOutput, messages, tools, textOnly = false, fetchImpl = postNoTimeout, signal }) {
+export async function callModel({ api, baseUrl, apiKey, model, maxOutput, messages, tools, system = null, textOnly = false, fetchImpl = postNoTimeout, signal }) {
   if (api === "anthropic") {
     const res = await fetchImpl(`${baseUrl}/v1/messages`, {
       method: "POST",
       signal,
       headers: { "content-type": "application/json", "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) },
       body: JSON.stringify({
-        model, max_tokens: maxOutput, messages,
+        model, max_tokens: maxOutput, ...(system ? { system } : {}), messages,
         ...(tools.length ? { tools: anthropicTools(tools), ...(textOnly ? { tool_choice: { type: "none" } } : {}) } : {}),
       }),
     });
@@ -156,7 +157,7 @@ export async function callModel({ api, baseUrl, apiKey, model, maxOutput, messag
     method: "POST",
     signal,
     headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-    body: JSON.stringify({ model, max_tokens: maxOutput, messages: toOpenAI(messages), ...(tools.length && !textOnly ? { tools: openaiTools(tools) } : {}) }),
+    body: JSON.stringify({ model, max_tokens: maxOutput, messages: [...(system ? [{ role: "system", content: system }] : []), ...toOpenAI(messages)], ...(tools.length && !textOnly ? { tools: openaiTools(tools) } : {}) }),
   });
   if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`);
   return fromOpenAI(await res.json());
@@ -197,6 +198,8 @@ export class DirectSession extends EventEmitter {
   async start() {
     this.mcp = await this.connect(this.server);
     this.tools = (await this.mcp.listTools()).tools;
+    // The server's instructions (how its tools fit together): Claude Code puts them in its system prompt.
+    this.system = this.mcp.getInstructions?.() ?? null;
     this.emit("event", { type: "system", subtype: "init", model: this.model, tools: this.tools.map((t) => t.name) });
   }
 
@@ -228,7 +231,7 @@ export class DirectSession extends EventEmitter {
   async ask(tools, textOnly = false) {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await callModel({ ...this, messages: this.messages, tools, textOnly, signal: this.abort.signal });
+        return await callModel({ ...this, messages: this.messages, tools, system: this.system, textOnly, signal: this.abort.signal });
       } catch (e) {
         if (this.abort.signal.aborted || attempt >= RETRIES) throw e;
         await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
@@ -287,6 +290,8 @@ export class DirectSession extends EventEmitter {
     summary ||= "(no summary)";
     this.messages = [{ role: "user", content: [{ type: "text", text: afterCompaction(this.firstTurn, summary) }] }];
     this.emit("event", { type: "system", subtype: "compact_boundary", compact_metadata: { trigger: "auto", pre_tokens: preTokens }, summary });
+    // What the model reads from now on, as Claude Code writes it after compacting: a synthetic user turn.
+    this.emit("event", { type: "user", isSynthetic: true, message: { role: "user", content: this.messages[0].content } });
   }
 }
 

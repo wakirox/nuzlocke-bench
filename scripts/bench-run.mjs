@@ -1,6 +1,6 @@
 // Plays one benchmark run with Claude Code (claude -p), or straight through a model's API (--api), and records it.
 //   node scripts/bench-run.mjs --rom path/to/red.gb [--model claude-haiku-5-5] [--effort medium]
-//        [--api openai|anthropic] [--base-url <url>]   play through the API: no Claude Code, no system prompt
+//        [--api openai|anthropic] [--base-url <url>]   play through the API: no Claude Code; the server's instructions as the system prompt
 //        [--preset hardcore-nuzlocke-badge1] [--max-tokens 500] [--nudges 3] [--port 7880] [--headed] [--watch]
 //        [--resume runs/<id>]   continue that run from a copy of its saves, in a new run folder
 //        [-o nohardcap] …       options on top of the preset (repeat, or comma-separated); hardcap and firstrival
@@ -19,7 +19,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { COMPACT_WINDOW, HINTS, NUDGE, PLAYTEST, PROMPT, REPORT, RESUME_PROMPT, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, TokenMeter, loggedPreset, mTokens, userTurn, GIVE_UP_AFTER } from "../mcp-server/bench-runner.mjs";
+import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, HINTS, NUDGE, PLAYTEST, PROMPT, REPORT, RESUME_PROMPT, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, TokenMeter, loggedPreset, mTokens, userTurn, GIVE_UP_AFTER } from "../mcp-server/bench-runner.mjs";
 import { isExperimental, romVersion } from "../mcp-server/games/index.mjs";
 import { DirectSession } from "../mcp-server/direct-session.mjs";
 import { compressTranscript, locateRun, runFiles } from "../mcp-server/run-folder.mjs";
@@ -43,7 +43,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --effort <level>     low, medium, high… (default: Claude Code's; not with --api)
   --api <kind>         play straight through the model's API instead of Claude Code: openai (chat completions:
                        Ollama, vLLM, OpenRouter…) or anthropic (Messages API). The model reads only the prompt
-                       and the game's tools: no system prompt. Key: BENCH_API_KEY (or OPENAI_API_KEY /
+                       and the game's tools, and the server's instructions as the system prompt (as Claude Code gives them). Key: BENCH_API_KEY (or OPENAI_API_KEY /
                        ANTHROPIC_API_KEY); not needed for Ollama
   --base-url <url>     the API's address (default: Ollama's, http://127.0.0.1:11434/v1 for openai and
                        http://127.0.0.1:11434 for anthropic)
@@ -135,7 +135,7 @@ if (effectivenessAsked !== null && effectivenessAsked !== "on" && effectivenessA
 }
 // Help, so only in the hints group by default: whether results say how effective each move is.
 const effectiveness = effectivenessAsked ?? (preset.split("+").includes("hints") ? "on" : "off");
-const maxTokens = numberOpt("max-tokens", 500, { min: 0.001 }) * 1e6;
+const maxTokens = numberOpt("max-tokens", DEFAULT_MAX_TOKENS / 1e6, { min: 0.001 }) * 1e6;
 const maxNudges = numberOpt("nudges", GIVE_UP_AFTER, { integer: true });
 const compactWindow = Number(opt("compact-window", COMPACT_WINDOW / 1000)) * 1000;
 if (!Number.isFinite(compactWindow) || compactWindow < 0) {
@@ -314,7 +314,7 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
 player.onExit((code) => {
   const agent = {
     model, effort, preset, nudges, gaveUp,
-    // Who ran the model: Claude Code (claudeVersion), or its API straight (no system prompt).
+    // Who ran the model: Claude Code (claudeVersion), or its API straight (the server's instructions as the system prompt).
     via: api ? "api" : "claude-code",
     ...(api ? { api, baseUrl } : {}),
     resumedFrom: resumed?.name ?? null,
@@ -325,6 +325,9 @@ player.onExit((code) => {
     promptSha256,
     // The window Claude Code compacted at (null: the model's own).
     compactWindow: compactWindow || null,
+    // The limits the runner set: an official run has the defaults (dashboard.mjs's notOfficial).
+    maxNudges,
+    maxTokens,
     ...(grid ? { grid } : {}),
     ...(observers ? { observers } : {}),
     // Maps on request (get_map, or show_map on a move): recorded so reports can tell runs from before apart.

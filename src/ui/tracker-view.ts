@@ -22,6 +22,8 @@ function baseStats(sp: SpeciesData, stages?: number[]): string {
   const rows: [string, number, number | undefined][] = [
     ["HP", sp.base.hp, undefined], ["ATK", sp.base.atk, stages?.[0]], ["DEF", sp.base.def, stages?.[1]],
     ["SPD", sp.base.spd, stages?.[2]], ["SPC", sp.base.spc, stages?.[3]],
+    // Gen 2: SPC is Sp. Atk, and Sp. Def has its own stat and stage (the seventh).
+    ...(sp.base.spdef != null ? [["SPDEF", sp.base.spdef, stages?.[6]] as [string, number, number | undefined]] : []),
   ];
   return `<div class="stats">${rows
     .map(([k, v, st]) => `<div><span class="k">${k}</span><span class="v">${v}</span>${st ? stage(st) : ""}</div>`)
@@ -30,12 +32,15 @@ function baseStats(sp: SpeciesData, stages?: number[]): string {
 
 /** Base and actual stats in one table: the stat names once, a row each for base and actual values. */
 function statTable(sp: SpeciesData, mon: MonState, stages?: number[]): string {
-  const keys = ["hp", "atk", "def", "spd", "spc"] as const;
-  const actual = [mon.maxHp, mon.stats.atk, mon.stats.def, mon.stats.spd, mon.stats.spc];
+  // [stat, actual value, its stage's index in `stages`]; Gen 2 adds Sp. Def, the seventh stage.
+  const cols: [keyof SpeciesData["base"], number, number | null][] = [
+    ["hp", mon.maxHp, null], ["atk", mon.stats.atk, 0], ["def", mon.stats.def, 1], ["spd", mon.stats.spd, 2], ["spc", mon.stats.spc, 3],
+    ...(sp.base.spdef != null ? [["spdef", mon.stats.spdef ?? 0, 6] as [keyof SpeciesData["base"], number, number | null]] : []),
+  ];
   return `<table class="stat-table">
-    <tr><th></th>${keys.map((k) => `<th>${k.toUpperCase()}</th>`).join("")}<th>BST</th></tr>
-    <tr><th>Base</th>${keys.map((k) => `<td>${sp.base[k]}</td>`).join("")}<td>${sp.bst}</td></tr>
-    <tr><th>Stat</th>${actual.map((v, i) => `<td class="v">${v}${i && stages?.[i - 1] ? stage(stages[i - 1]) : ""}</td>`).join("")}<td></td></tr>
+    <tr><th></th>${cols.map(([k]) => `<th>${k.toUpperCase()}</th>`).join("")}<th>BST</th></tr>
+    <tr><th>Base</th>${cols.map(([k]) => `<td>${sp.base[k] ?? ""}</td>`).join("")}<td>${sp.bst}</td></tr>
+    <tr><th>Stat</th>${cols.map(([, v, i]) => `<td class="v">${v}${i != null && stages?.[i] ? stage(stages[i]) : ""}</td>`).join("")}<td></td></tr>
   </table>`;
 }
 
@@ -121,7 +126,7 @@ export function renderParty(t: Tracker, s: GameState, selected: string | null): 
   const cap = t.levelCap(s);
   const tiles = s.party.map((m, i) => {
     const sp = t.data.species[m.species];
-    const dead = t.isDead(m.uid);
+    const dead = t.isDead(m);
     const over = !!cap && m.level > cap.level && !dead;
     const name = m.nickname || sp?.name || "?";
     const hp = inBattle && i === active && s.battleMon ? s.battleMon : m;
@@ -147,7 +152,7 @@ function monCard(t: Tracker, s: GameState, mon: MonState, partyMon: MonState, fi
   const sp = t.data.species[mon.species];
   if (!sp) return `<section class="card"><p class="muted">Unknown species ${mon.species}</p></section>`;
   const status = G.statusName(mon.status);
-  const dead = t.isDead(partyMon.uid);
+  const dead = t.isDead(partyMon);
   const cap = t.levelCap(s);
   const overCap = !!cap && partyMon.level > cap.level && !dead;
   const nick = partyMon.nickname && partyMon.nickname.toUpperCase() !== sp.name.toUpperCase() ? partyMon.nickname : "";
@@ -217,6 +222,8 @@ export function renderEnemy(t: Tracker, s: GameState): string {
 
 /** Gen 1 wild slot odds out of 256, slots 1-10 of a map's table (pokered: WildMonEncounterSlotChances). */
 const SLOT_ODDS = [51, 51, 39, 25, 25, 25, 13, 13, 11, 3];
+/** Crystal's grass slots 1-7 (pokecrystal: GrassMonProbTable, 30/30/20/10/5/4/1 %), in the same 256ths. */
+const SLOT_ODDS_GEN2 = [30, 30, 20, 10, 5, 4, 1].map((p) => (p * 256) / 100);
 
 /**
  * The current map's wild Pokémon (grass/cave table): species, levels and how likely each is per
@@ -228,7 +235,7 @@ export function renderEncounters(t: Tracker, s: GameState): string {
   s.grassMons.forEach((m, i) => {
     if (!m.species) return;
     const r = rows.get(m.species) ?? { odds: 0, min: m.level, max: m.level };
-    r.odds += SLOT_ODDS[i] ?? 0;
+    r.odds += (t.data.version === "crystal" ? SLOT_ODDS_GEN2 : SLOT_ODDS)[i] ?? 0;
     r.min = Math.min(r.min, m.level);
     r.max = Math.max(r.max, m.level);
     rows.set(m.species, r);
@@ -261,7 +268,7 @@ function encounterBadge(t: Tracker, s: GameState, species: number): string {
   if (area?.status === "open" && area.species === species) return `<span class="badge ok">First encounter — catch it</span>`;
   if (area) return `<span class="badge bad">Area spent — no catch</span>`;
   if (t.isDupe(species)) return `<span class="badge warn">Dupe — doesn't count</span>`;
-  const balls = s.bag.some((it) => [0x01, 0x02, 0x03, 0x04, 0x08].includes(it.id) && it.qty > 0);
+  const balls = s.bag.some((it) => t.game.data.items.balls.has(it.id) && it.qty > 0);
   return balls ? "" : `<span class="badge warn">Doesn't count (no Poké Balls)</span>`;
 }
 
@@ -282,14 +289,14 @@ function renderNuzlocke(t: Tracker, s: GameState, usage: string | null): string 
     : "encounter still available";
   const areas = Object.values(t.snap.areas);
   const icon = { caught: "●", missed: "✕", open: "…" } as const;
-  const overCap = cap ? s.party.filter((m) => m.level > cap.level && !t.isDead(m.uid)) : [];
+  const overCap = cap ? s.party.filter((m) => m.level > cap.level && !t.isDead(m)) : [];
   return `<section class="card run nuzlocke">
     <div class="grid2">
       <div><span class="k">Location</span> ${esc(t.mapName(s))}</div>
       <div><span class="k">Time</span> ${time}${t.snap.realMs != null ? ` <span class="muted" title="Real time with the run open (the game clock only runs while the game does)">· real <span class="real-time">${realTime(t.snap.realMs)}</span></span>` : ""}</div>
       <div><span class="k">Level cap</span> ${cap ? `<b>Lv ${cap.level}</b> <span class="muted">(${esc(cap.who)})</span>` : "—"}</div>
       <div><span class="k">Money</span> ₽${s.money}</div>
-      <div><span class="k">Alive</span> ${s.party.filter((m) => !t.isDead(m.uid)).length} in party · ${s.boxCount} boxed</div>
+      <div><span class="k">Alive</span> ${s.party.filter((m) => !t.isDead(m)).length} in party · ${s.boxCount} boxed</div>
       <div><span class="k">Trainers</span> ${t.snap.trainersBeaten}</div>
       ${usage ? `<div class="span2" title="What the model has used so far: tokens (input, output and cache) and turns (its replies)"><span class="k">Model</span> <span class="model-usage">${esc(usage)}</span></div>` : ""}
     </div>

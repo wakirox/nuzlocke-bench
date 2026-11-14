@@ -258,6 +258,17 @@ describe("direct session", () => {
       expect(reply.content).toEqual([{ type: "text", text: "hi" }]);
     });
 
+    it("sends the server's instructions as the system prompt, in each API's way, and none when there are none", async () => {
+      const a = fakeFetch([{ id: "m1", content: [], usage: {} }, { id: "m2", content: [], usage: {} }]);
+      await callModel({ api: "anthropic", baseUrl: "http://x", model: "m", maxOutput: 1, messages, tools, system: "Use do to chain moves.", fetchImpl: a.fn });
+      expect(a.calls[0].body.system).toBe("Use do to chain moves.");
+      await callModel({ api: "anthropic", baseUrl: "http://x", model: "m", maxOutput: 1, messages, tools, fetchImpl: a.fn });
+      expect(a.calls[1].body.system).toBeUndefined();
+      const o = fakeFetch([textReply("hi")]);
+      await callModel({ api: "openai", baseUrl: "http://x", model: "m", maxOutput: 1, messages, tools, system: "Use do to chain moves.", fetchImpl: o.fn });
+      expect((o.calls[0].body.messages as unknown[])[0]).toEqual({ role: "system", content: "Use do to chain moves." });
+    });
+
     it("throws with the status when the API answers with an error", async () => {
       const failing = async () => new Response("overloaded", { status: 529 });
       await expect(callModel({ api: "anthropic", baseUrl: "http://x", model: "m", maxOutput: 1, messages, tools, fetchImpl: failing }))
@@ -268,6 +279,17 @@ describe("direct session", () => {
   });
 
   describe("session turns", () => {
+    it("gives the model the game server's instructions, as Claude Code does", async () => {
+      const fake = fakeFetch([textReply("Done.")]);
+      const client = { ...fakeClient(), getInstructions: () => "Chain moves with do." };
+      const session = new DirectSession({ api: "openai", baseUrl: "http://fake", apiKey: "k", model: "m", server: {}, connect: async () => client, fetchImpl: fake.fn });
+      const finished = new Promise<void>((resolve) => session.on("event", (e: SessionEvent) => e.type === "result" && resolve()));
+      await session.start();
+      session.send("go");
+      await finished;
+      expect((fake.calls[0].body.messages as unknown[])[0]).toEqual({ role: "system", content: "Chain moves with do." });
+    });
+
     it("plays a tool call, then a text answer, and emits the stream-json events in order", async () => {
       const fake = fakeFetch([toolCallReply, textReply("Done.")]);
       const client = fakeClient();
@@ -313,6 +335,7 @@ describe("direct session", () => {
       });
 
       let boundary: SessionEvent | undefined;
+      let synthetic: SessionEvent | undefined;
       let messagesAtBoundary: { role: string; content: { text: string }[] }[] = [];
       const finished = new Promise<SessionEvent>((resolve) => {
         session.on("event", (e: SessionEvent) => {
@@ -320,6 +343,7 @@ describe("direct session", () => {
             boundary = e;
             messagesAtBoundary = JSON.parse(JSON.stringify(session.messages));
           }
+          if (e.type === "user" && e.isSynthetic) synthetic = e;
           if (e.type === "result") resolve(e);
         });
       });
@@ -332,6 +356,8 @@ describe("direct session", () => {
         compact_metadata: { trigger: "auto", pre_tokens: 150 },
         summary: "Summary: at Route 1.",
       });
+      // The feed shows what the model reads from here, as it does for Claude Code (a synthetic user turn).
+      expect(synthetic?.message.content).toEqual([{ type: "text", text: afterCompaction("go", "Summary: at Route 1.") }]);
       expect(messagesAtBoundary).toHaveLength(1);
       expect(messagesAtBoundary[0].role).toBe("user");
       const text = messagesAtBoundary[0].content[0].text;

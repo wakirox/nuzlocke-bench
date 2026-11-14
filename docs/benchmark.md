@@ -72,7 +72,7 @@ option, preset and preset option; `bench:report` and `verify` take `--help` too)
 npm run bench -- --rom path/to/red.gb --model claude-haiku-5-5 --effort medium \
   [--preset hardcore-nuzlocke-badge1] [-o nohardcap,nofirstrival] [--max-tokens 500] [--nudges 10] [--port 7880] [--headed] [--watch] [--playtest] [--no-report] [--grid wide]
 
-# any other model, through its API (no Claude Code, no system prompt):
+# any other model, through its API (no Claude Code; the system prompt is the game server's instructions, as Claude Code gives them):
 npm run bench -- --rom path/to/red.gb --model qwen3.8:27b --api openai [--base-url http://127.0.0.1:11434/v1] [--compact-window 100]
 ```
 
