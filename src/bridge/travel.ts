@@ -99,7 +99,7 @@ export class Travel {
       }
       const next = plan[0];
       const link = this.core.routes.link(here, next)!;
-      let walked = "";
+      let walked: string;
       if ("exit" in link) {
         walked = String(((await this.exitMap(link.exit)) as Record<string, unknown>).walk ?? "");
         // Crossing a map edge sometimes stops right at it: take a couple more steps.

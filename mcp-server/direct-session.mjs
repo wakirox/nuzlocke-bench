@@ -110,7 +110,7 @@ export function fromOpenAI(resp) {
   if (reasoning?.trim()) content.push({ type: "thinking", thinking: reasoning });
   if (msg.content?.trim()) content.push({ type: "text", text: msg.content });
   for (const c of msg.tool_calls ?? []) {
-    let input = {};
+    let input;
     try {
       input = c.function?.arguments ? JSON.parse(c.function.arguments) : {};
     } catch {

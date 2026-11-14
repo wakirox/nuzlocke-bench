@@ -109,7 +109,7 @@ function collapseConvo(on: boolean) {
 document.addEventListener("DOMContentLoaded", () => {
   const list = $("convo-list");
   convo = new ConvoView(list);
-  $("btn-convo").addEventListener("click", () => showConvo($("convo").hidden));
+  $("btn-convo").addEventListener("click", () => showConvo(Boolean($("convo").hidden)));
   $("convo-collapse").addEventListener("click", () => collapseConvo(!list.classList.contains("collapsed")));
   collapseConvo(localStorage.getItem(COLLAPSE_KEY) !== "0");
   list.addEventListener("scroll", () => {
