@@ -219,6 +219,16 @@ describe("PC boxes", () => {
       ]);
     });
 
+    it(`gives the current box's newest Pokémon with its nickname, after the 20 OT names (${version})`, () => {
+      const ram = new FakeRam();
+      putBox((at, b) => ram.set(at, b), A.boxCount, [boxMon(SPECIES.WILD_A, 12, 1), boxMon(SPECIES.WILD_B, 5, 1)]);
+      const nicknames = A.boxCount + 1 + 21 + 20 * BOX_MON + 20 * 11;
+      ram.set(nicknames + 11, [0x81, 0x88, 0x93, 0x84, 0x98, 0x50]); // "BITEY", the second Pokémon's
+      expect(readGameState(ram, version).boxNewest?.()).toEqual({ species: SPECIES.WILD_B, nickname: "BITEY" });
+      ram.set(A.boxCount, [0]);
+      expect(readGameState(ram, version).boxNewest?.()).toBeNull();
+    });
+
     it(`reads only the current box before the boxes were set up (${version})`, () => {
       const ram = new FakeRam();
       const sram = new Uint8Array(0x8000);

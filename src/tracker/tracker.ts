@@ -28,6 +28,8 @@ export interface Catch {
   species: number;
   level: number;
   gift: boolean;
+  /** It went straight to the PC (a full party). */
+  toBox?: boolean;
 }
 
 export type Outcome =
@@ -54,6 +56,15 @@ export interface TrackerSnapshot {
   violations: RunEvent[];
   /** The lead as last seen (for the attempt history, even if the screen no longer shows it). */
   lastLead?: { species: number; level: number };
+  /** Nuzlocke: the battle under way as the rule saw it, for a reload mid-battle (rules/nuzlocke.ts). */
+  nuzlockeBattle?: {
+    encounterPending: boolean;
+    encounterArea: string | null;
+    sentChecked: number[];
+    overAtStart: string[];
+    nickPending: [string, { species: number; named: boolean }][];
+    boxNickPending?: number | null;
+  };
   /** Nuzlocke: each area's first encounter (area key → what it was and how it went). */
   areas: Record<string, NuzArea>;
   /** Nuzlocke: Pokémon that fainted (by uid) — dead for the rest of the run. */
@@ -294,7 +305,7 @@ export class Tracker {
     // A dead Pokémon (Nuzlocke) doesn't count as standing, healed or not: it may ride in the party
     // but never battle, so the run ends as it would have without it. (One that faints this poll is
     // recorded dead later in the poll: its HP says it's down.)
-    const down = (m: GameState["party"][number]) => m.hp === 0 || this.isDead(m.uid);
+    const down = (m: GameState["party"][number]) => m.hp === 0 || this.isDead(m);
     const allDown = s.party.length > 0 && s.party.length === p.party.length &&
       s.party.every(down) && p.party.some((m) => !down(m));
     // First rival battle option: losing it doesn't count (the game heals the party right after).
@@ -359,7 +370,7 @@ export class Tracker {
       // A catch keeps the wild Pokémon's species and level; a gift is read from its slot.
       const species = (pc.wild ? pc.enemy?.species : 0) || newest?.species || pc.enemy?.species || 0;
       const level = (pc.wild ? pc.enemy?.level : 0) || newest?.level || pc.enemy?.level || 0;
-      const c: Catch = { t: Date.now(), map: s.map, mapConst: s.mapConst, species, level, gift };
+      const c: Catch = { t: Date.now(), map: s.map, mapConst: s.mapConst, species, level, gift, ...(pc.toParty ? {} : { toBox: true }) };
       this.snap.catches.push(c);
       rules.caught(s, p, c);
     }
@@ -413,7 +424,7 @@ export class Tracker {
         team: s.party.map((m) => ({
           nickname: m.nickname, species: this.name(m.species), level: m.level, hp: m.hp, maxHp: m.maxHp,
           moves: m.moves.filter(Boolean).map((id) => this.data.moves[id]?.name ?? `move ${id}`),
-          ...(this.isDead(m.uid) ? { dead: true } : {}),
+          ...(this.isDead(m) ? { dead: true } : {}),
         })),
         deadBefore: this.snap.dead.length,
       });
@@ -438,8 +449,8 @@ export class Tracker {
     return this.nuzlocke?.isDupe(species) ?? false;
   }
 
-  isDead(uid: string): boolean {
-    return this.nuzlocke?.isDead(uid) ?? false;
+  isDead(mon: { uid: string; species: number }): boolean {
+    return this.nuzlocke?.isDead(mon) ?? false;
   }
 
   /**

@@ -28,6 +28,11 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(run.violations()).toEqual([]);
       });
 
+      it("still marks the area missed after a reload mid-battle", () => {
+        const run = new Run(game).goTo(places.route).wildBattle(ids.wildA).step().reload().endBattle().step();
+        expect(areas(run)).toEqual([expect.objectContaining({ species: ids.wildA, status: "missed" })]);
+      });
+
       it("marks the area missed when the battle ends without a catch", () => {
         const run = new Run(game).goTo(places.route).wildBattle(ids.wildA).endBattle();
         expect(areas(run)).toEqual([expect.objectContaining({ status: "missed" })]);
@@ -113,6 +118,15 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(run.violations()[0]).toMatch(/has no nickname/);
       });
 
+      it("checks the nickname of a catch sent straight to the PC, once you walk on", () => {
+        const unnamed = new Run(game).goTo(places.route).wildBattle(ids.wildA);
+        unnamed.catchToBox(unnamed.engine.name(ids.wildA).toUpperCase()); // no name given: it's called what it is
+        expect(unnamed.violations()).toEqual([]);
+        expect(unnamed.step(2).violations()).toEqual([expect.stringMatching(/sent to the PC\) has no nickname/)]);
+        const named = new Run(game).goTo(places.route).wildBattle(ids.wildA).catchToBox("BITEY").step(2);
+        expect(named.violations()).toEqual([]);
+      });
+
       it("accepts a nicknamed catch", () => {
         const run = new Run(game).goTo(places.route).wildBattle(ids.wildA).catchWild("BITEY").step(2);
         expect(run.violations()).toEqual([]);
@@ -124,9 +138,22 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route)
           .trainerBattle(ids.wildA, 7).sendOut(1).faint(1);
         const uid = run.s.party[1].uid;
-        expect(run.engine.isDead(uid)).toBe(true);
+        expect(run.engine.isDead(run.s.party[1])).toBe(true);
         expect(run.engine.snap.dead).toEqual([expect.objectContaining({ uid, species: ids.wildB, nickname: "SPIKE" })]);
         expect(run.engine.snap.outcome).toBeNull(); // the starter is still standing
+      });
+
+      it("doesn't take a live catch of another family for a dead one that shares its uid", () => {
+        // All the player's catches share the trainer ID, so two can share the uid (trainer ID + DVs) by chance.
+        const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route)
+          .trainerBattle(ids.wildA, 7).sendOut(1).faint(1);
+        const dead = run.s.party[1];
+        expect(run.engine.isDead({ uid: dead.uid, species: ids.wildA })).toBe(false);
+        expect(run.engine.isDead({ uid: dead.uid, species: dead.species })).toBe(true);
+        // The same Pokémon evolved is still the dead one.
+        const [base, evolved] = ids.family;
+        const fam = new Run(game).receiveGift(base, "SEED").goTo(places.route).trainerBattle(ids.wildA, 7).sendOut(1).faint(1);
+        expect(fam.engine.isDead({ uid: fam.s.party[1].uid, species: evolved })).toBe(true);
       });
 
       it("flags a dead Pokémon sent into battle again", () => {
@@ -271,7 +298,7 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
       it("lets a dead Pokémon ride in the party and be healed, without a violation", () => {
         const run = withDead().step(3).goTo(places.route2).step(3);
         expect(run.s.party).toHaveLength(2);
-        expect(run.engine.isDead(run.s.party[1].uid)).toBe(true);
+        expect(run.engine.isDead(run.s.party[1])).toBe(true);
         expect(run.violations()).toEqual([]);
       });
 

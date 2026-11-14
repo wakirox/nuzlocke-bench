@@ -6,6 +6,8 @@ import type { PcMon } from "../types";
 
 const BOX_MON = 32;
 const BOX_CAPACITY = 20;
+/** An OT name or nickname (NAME_LENGTH). */
+const NAME = 11;
 const BOXES = 14;
 /** The species list's mark for an egg (EGG in pokecrystal's constants). */
 const EGG = 0xfd;
@@ -53,4 +55,13 @@ export function readPcMons(extRam: Uint8Array, currentBox: number): PcMon[] {
     if (wellFormed(extRam, boxBase(b))) box(boxBase(b));
   }
   return out;
+}
+
+/** The current box's last Pokémon and its nickname bytes (an egg isn't one yet: null). */
+export function currentBoxNewest(extRam: Uint8Array | null): { species: number; nick: Uint8Array } | null {
+  if (!extRam || !wellFormed(extRam, CURRENT_BOX)) return null;
+  const n = extRam[CURRENT_BOX];
+  if (!n || extRam[CURRENT_BOX + n] === EGG) return null;
+  const nicknames = CURRENT_BOX + 1 + 21 + BOX_CAPACITY * BOX_MON + BOX_CAPACITY * NAME;
+  return { species: extRam[CURRENT_BOX + n], nick: extRam.subarray(nicknames + (n - 1) * NAME, nicknames + n * NAME) };
 }

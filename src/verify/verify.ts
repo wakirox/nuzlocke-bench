@@ -156,7 +156,7 @@ export async function verifyRecording(input: VerifyInput): Promise<Verdict> {
       poll();
       const s = gameFor(data.version).readGameState(gb);
       const mon = s.party[a];
-      if (!mon || !tracker.isDead(mon.uid)) problems.push(`It buries party slot ${a + 1}${mon ? ` (${tracker.name(mon.species)})` : ""}, which isn't dead.`);
+      if (!mon || !tracker.isDead(mon)) problems.push(`It buries party slot ${a + 1}${mon ? ` (${tracker.name(mon.species)})` : ""}, which isn't dead.`);
     },
   });
   const total = player.eventCount;
