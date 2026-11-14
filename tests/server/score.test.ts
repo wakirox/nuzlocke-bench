@@ -85,6 +85,17 @@ describe("scoreRun", () => {
     expect(scoreRun({ ...run, calls: 2000, deaths: 6, reached: [...toChampion, "champion"], outcome: "victory" }).winFloor).toBe(0);
   });
 
+  it("never scores a win by losing Pokémon to the Champion below wiping there", () => {
+    // 8 deaths on the way, a team of 5: win losing 4 in the fight, or lose all 5 (forgiven as the wipe).
+    const toChampion = OBJECTIVES.map((o: { id: string }) => o.id).filter((id: string) => id !== "champion");
+    const won = scoreRun({ calls: 5850, deaths: 12, lastBattleDeaths: 4, reached: [...toChampion, "champion"], outcome: "victory" });
+    const lost = scoreRun({ calls: 5850, deaths: 13, lastBattleDeaths: 5, reached: toChampion, outcome: "wipe" });
+    expect(won.winFloor).toBeGreaterThan(0);
+    expect(won.total).toBeGreaterThan(lost.total);
+    // The Champion-fight deaths only set the floor: they're still charged at -30 each.
+    expect(won.deaths).toBe(12 * -30);
+  });
+
   it("has no maximum beyond what the parts give", () => {
     // Everything, at 1,000 calls: the parts and the pace (1,000 calls over every milestone).
     expect(scoreRun({ reached: ALL, calls: 1000 }).total).toBe(1710 + Math.round(29 * (1 - 1000 / ALL.length / 300)));
