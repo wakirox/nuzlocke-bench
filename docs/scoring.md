@@ -44,12 +44,14 @@ the public page from those files only, so `runs/` stays private.
 | Each death | -15 | every run that stops before the Champion, except the deaths in a wipe's last battle |
 | Each death | -30 | a run that beat the Champion |
 | A run that ends early: a wipe, lost, gave up, out of calls | -45 | once |
-| Disqualified | -100 | every run |
+| Disqualified | -150 | every run |
 | Speed: the run's calls per milestone reached | up to +29 | every run; 0 at 300 calls per milestone |
 | The cottage step's speed: calls from the second badge to leaving that town south or east | up to +29 | when that step is done; 0 at 400 calls |
 | The dark tunnel's speed: calls from the first step inside to the town past it | up to +29 | when crossed; 0 at 1,500 calls |
 | Flash used in the dark tunnel | +30 | every run |
 | Every 10 calls under the 6,000 budget | +1 | only after beating the Champion |
+| Each percentage point of the calls that were screenshots | -20 | every run |
+| Each percentage point of the calls that failed | -4 | every run |
 
 Each speed bonus is `round(29 × (1 − calls / zero))`, never below 0: under one milestone's worth, so being quick
 never outweighs getting further. They break the ties between runs that stop at the same place.
@@ -65,9 +67,10 @@ first). The deaths in a wipe's last battle, from the last call made outside a ba
 the score charges them once as the early end, not per Pokémon, so a big team that wipes doesn't cost more
 than a lone starter. Giving up costs the same as wiping out, so stopping is never the cheaper way out.
 
-Every screenshot the model asks for costs 3 points (since 2026-11-12). Failed tool calls cost 4 points per
-percentage point of the run's calls that failed (since 2026-11-13): `round(4 × 100 × failed / calls)`, so
-6% failed costs 24, in a short run or a long one. Calls the server rejects before they run (arguments that
+Screenshots cost 20 points per percentage point of the run's calls that were screenshots (since 2026-11-14):
+`round(20 × 100 × screenshots / calls)`, so 1% costs 20, in a short run or a long one. Failed tool calls cost
+4 points per percentage point of the run's calls that failed (since 2026-11-13): `round(4 × 100 × failed / calls)`,
+so 6% failed costs 24. Calls the server rejects before they run (arguments that
 don't fit the tool) count as failed and as calls made, though they don't use up the budget.
 
 `report_issue` isn't one of the run's calls anywhere in the score (since 2026-11-14): not in the totals, the
@@ -104,6 +107,15 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 - **Speed counts every call (2026-11-14), not just those up to the furthest milestone.** Calls spent stuck
   after it were free (a run that wandered 2,700 calls past its third badge kept +19), and a wipe in the
   first forest out-paced the Champions. The model order didn't change.
+- **Screenshots are charged as a rate too (2026-11-14), not -3 each.** The count was the same second charge
+  for a run's length that failed calls had: the first Champion paid 78 for looking at 0.8% of its calls, a
+  2-badge run 27 for 1.3%. At 20 per point a short run pays about what it did, a long one less.
+- **A disqualification costs 150 (2026-11-14), not 100.** At 100 it was 55 more than a wipe, under a badge:
+  a run disqualified at a badge outranked a clean one a badge behind. At 150 it's worse than a wipe a badge
+  earlier (45 + 60).
+- **Beating the Champion always scores more than losing to him would have (2026-11-14).** A finisher's deaths
+  cost double, so a run with many deaths and few calls left could score less by winning (13 deaths at 5,850
+  calls: 5 points less). A floor keeps what winning adds above 0; no run so far has needed it.
 - **report_issue is free in the score too (2026-11-14).** The budget never counted it, but the score did,
   so reporting a problem cost a little efficiency and speed, the opposite of what the prompt promises.
   The 20 results moved by 1 point at most.
@@ -116,7 +128,6 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 - **Efficiency.** It counts only for finishers at the moment; the speed bonuses cover the rest.
 - **The speed scales** (300, 400, 1,500) come from today's runs: one run has crossed the dark tunnel (898
   calls) and two have done the cottage step (91 and 293). Revisit them once more runs get there.
-- **Is -100 right for a disqualification?** It might deserve more.
 - **When every model finishes clean,** efficiency only separates them for so long. Harder rule tiers
   (no free first rival, fewer candies, randomized), each with its own leaderboard, are the next step.
 - **How many runs make a model's score.**

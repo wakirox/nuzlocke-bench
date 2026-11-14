@@ -283,20 +283,20 @@ function oneRun(r) {
   // The points breakdown: each part with what earned or cost it (docs/scoring.md).
   const oc = r.objectiveCalls ?? {};
   const nReached = (r.reached ?? []).length, nBadges = (r.reached ?? []).filter((id) => /^badge\d$/.test(id)).length;
-  const toFurthest = Math.max(0, ...(r.reached ?? []).map((id) => oc[id] ?? 0));
   const cottageCalls = oc.cottageDone != null && oc.badge2 != null ? oc.cottageDone - oc.badge2 : null;
   const scored = r.outcome === "wipe" ? Math.max(0, r.deaths - (r.lastBattleDeaths ?? 0)) : r.deaths;
   const parts = [
     ["Milestones", s.progress, `${nReached} reached, ${nBadges} of them badges`],
-    ["Speed", s.speed ?? 0, toFurthest ? `${Math.round(toFurthest / Math.max(1, nReached))} calls per milestone` : "no milestone yet"],
+    ["Speed", s.speed ?? 0, nReached && r.calls ? `${Math.round(r.calls / nReached)} calls per milestone` : "no milestone yet"],
     ["Cottage step speed", s.cottageSpeed ?? 0, cottageCalls != null ? `${cottageCalls} calls from the second badge to leaving the town` : "not done"],
     ["Dark tunnel speed", s.tunnelSpeed ?? 0, r.dark && /^crossed/.test(r.dark.result) ? `crossed in ${r.dark.calls} calls` : r.dark ? "not crossed" : "not reached"],
     ["Flash", s.flash ?? 0, r.dark?.flashAt != null ? "used in the dark tunnel" : "not used"],
     ["Deaths", s.deaths, r.outcome === "wipe" && r.lastBattleDeaths ? `${scored} before the last battle (the wipe counts below)` : /^victory/.test(r.outcome) && r.deaths ? `${r.deaths}, -30 each after beating the Champion` : `${r.deaths}`],
     ["Run ended", s.ended ?? 0, s.ended ? r.outcome : "-"],
     ["Disqualified", s.disqualified, s.disqualified ? "a rule broken" : "-"],
+    ...(s.winFloor ? [["Win floor", s.winFloor, "beating the Champion scores more than losing to him would have"]] : []),
     ["Efficiency", s.efficiency, s.efficiency ? "calls left of the 6,000" : "only after beating the Champion"],
-    ["Screenshots", s.screenshots ?? 0, `${r.screenshots ?? 0} asked for, -3 each`],
+    ["Screenshots", s.screenshots ?? 0, `${r.screenshots ?? 0}${r.calls ? ` of ${r.calls} calls (${(100 * (r.screenshots ?? 0) / r.calls).toFixed(1)}%)` : ""}, -20 per percentage point`],
     ["Failed calls", s.wrongCalls ?? 0, `${r.wrongCalls ?? 0}${r.calls ? ` of ${r.calls + (r.rejected ?? 0)} calls (${(100 * (r.wrongCalls ?? 0) / (r.calls + (r.rejected ?? 0))).toFixed(1)}%)` : ""}, -4 per percentage point`],
   ];
   const captures = r.captures ?? [];
