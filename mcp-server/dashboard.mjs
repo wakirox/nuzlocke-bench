@@ -172,7 +172,8 @@ export function dashboardRuns(rows, { names = true } = {}) {
     const deaths = (last.deaths ?? 0) + (outcome === "wipe" ? 1 : 0);
     const screenshots = legs.reduce((n, l) => n + (l.screenshots ?? 0), 0);
     // Calls that failed: errors in the run log, and calls the server rejected (only in the transcript).
-    const wrongCalls = legs.reduce((n, l) => n + (l.errors ?? 0) + (l.extras?.rejected ?? 0), 0);
+    const rejected = legs.reduce((n, l) => n + (l.extras?.rejected ?? 0), 0);
+    const wrongCalls = legs.reduce((n, l) => n + (l.errors ?? 0), 0) + rejected;
     const tokens = legs.map((l) => l.agent?.tokens?.total).filter((t) => t != null);
     // Calls to each milestone across the legs (a continued leg's calls start after the ones before it).
     /** @type {Record<string, number>} */
@@ -198,8 +199,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
       calls,
       screenshots,
       wrongCalls,
+      rejected,
       realMs: legs.reduce((n, l) => n + (l.wallMs ?? 0), 0),
-      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths, dark, screenshots, wrongCalls }),
+      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths, dark, screenshots, wrongCalls, rejected }),
       // Unrecorded for a leg stopped by a reboot: then it's a floor, so the page marks it.
       tokens: tokens.length ? tokens.reduce((a, b) => a + b, 0) : null,
       tokensPartial: tokens.length < legs.length,

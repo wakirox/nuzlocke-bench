@@ -121,6 +121,7 @@ export async function verifyRecording(input: VerifyInput): Promise<Verdict> {
     problems.push("It doesn't start from power-on (its start state has different memory); it was played from power-on.");
   }
   const tracker = new Tracker(data, "nuzlocke", null, () => {}, conditions.options);
+  let earlyTopUp = false;
   const poll = () => tracker.update(gameFor(data.version).readGameState(gb));
   // Only what's allowed is played: buttons and interventions (raw writes are already a failure above).
   const allowed: number[] = [];
@@ -139,6 +140,15 @@ export async function verifyRecording(input: VerifyInput): Promise<Verdict> {
         poll();
         const want = tracker.candyCapForRom(gameFor(data.version).readGameState(gb));
         if (want !== a) problems.push(`It stops Rare Candies at Lv${a} where the cap is ${want == null ? "not hard" : `Lv${want}`}.`);
+        return;
+      }
+      if (kind === KIND_TOP_UP) {
+        // The bottomless Rare Candies start after the first rival battle (main.ts): that fight is
+        // played at the starter's own level. Reported once: a run tops up on every frame.
+        if (!earlyTopUp && !gameFor(data.version).firstRivalBattleFought(gb)) {
+          earlyTopUp = true;
+          problems.push("It tops up Rare Candies before the first rival battle, where the bag gets none.");
+        }
         return;
       }
       if (kind !== KIND_BURY) return;

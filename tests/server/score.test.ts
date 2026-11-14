@@ -88,6 +88,13 @@ describe("screenshotsOf", () => {
     expect(scoreRun({ reached: ["badge1"] }).screenshots).toBe(0);
   });
 
+  it("takes the rejected calls' share out of every call made, logged or rejected", () => {
+    // 94 logged calls, 4 of them failed, and 6 rejected before they ran: 10 of 100 calls failed.
+    expect(scoreRun({ reached: ["badge1"], calls: 94, wrongCalls: 10, rejected: 6 }).wrongCalls).toBe(-40);
+    // Only rejected calls: still a share of all the calls.
+    expect(scoreRun({ reached: ["badge1"], calls: 0, wrongCalls: 5, rejected: 5 }).wrongCalls).toBe(-400);
+  });
+
   it("charges failed calls by their share of the calls, not their number", () => {
     // The same 6% failed: a long run pays what a short one does.
     expect(scoreRun({ reached: ["badge1"], calls: 500, wrongCalls: 30 }).wrongCalls).toBe(-24);

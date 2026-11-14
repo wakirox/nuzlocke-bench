@@ -31,6 +31,22 @@ describe("darkTunnelOf", () => {
     expect(darkTunnelOf([DARK, failed, PAST])).toMatchObject({ result: "crossed in the dark", flashAt: null });
   });
 
+  it("sees the tunnel and the town past it when a call only passed through them", () => {
+    // In from Route 10 on a go_to, out the far side on another that ended on Route 8.
+    const goIn = { ...OUTSIDE, maps: ["ROCK_TUNNEL_1F"], where: "SOMEWHERE [ROCK_TUNNEL_1F] | battle: none" };
+    const goOut = at("ROUTE_8", { maps: ["ROCK_TUNNEL_1F", "LAVENDER_TOWN", "ROUTE_8"] }, " x1 y1");
+    expect(darkTunnelOf([OUTSIDE, goIn, DARK, goOut])).toMatchObject({ result: "crossed in the dark", calls: 2 });
+    // The whole tunnel in one call: one call, crossed.
+    const through = at("ROUTE_8", { maps: ["ROCK_TUNNEL_1F", "ROCK_TUNNEL_B1F", "LAVENDER_TOWN", "ROUTE_8"] }, " x1 y1");
+    expect(darkTunnelOf([OUTSIDE, through])).toMatchObject({ calls: 1 });
+    expect(darkTunnelOf([OUTSIDE, through])?.result).toMatch(/^(crossed|lit tools)/);
+  });
+
+  it("doesn't take Lavender before the tunnel, in the same call, for a crossing", () => {
+    const back = at("ROCK_TUNNEL_1F", { maps: ["LAVENDER_TOWN", "ROUTE_10", "ROCK_TUNNEL_1F"] });
+    expect(darkTunnelOf([back, DARK])).toMatchObject({ result: "not crossed", calls: 2 });
+  });
+
   it("reports a run that ended inside", () => {
     expect(darkTunnelOf([DARK, DARK])).toMatchObject({ result: "not crossed", calls: 2 });
   });

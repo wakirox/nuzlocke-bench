@@ -13,9 +13,12 @@ import { trackerData } from "../games/gen1/fixture";
 
 /** Red's addresses (src/games/gen1/ram.ts). */
 const RED = { partyCount: 0xd163, partySpecies: 0xd164, partyMons: 0xd16b, numBagItems: 0xd31d, bagItems: 0xd31e, badges: 0xd356 };
+/** The byte and bit of the first rival battle's event flag (0x23 of wEventFlags at 0xd747). */
+const RIVAL_FLAG = { addr: 0xd747 + (0x23 >> 3), bit: 1 << (0x23 & 7) };
 const STARTER = 0xb0;
 
-function badgeRom(): Uint8Array {
+/** rivalFought: the save is past the first rival battle (Rare Candies are topped up only after it). */
+function badgeRom({ rivalFought = true } = {}): Uint8Array {
   const rom = new Uint8Array(0x8000);
   rom.set([0x00, 0xc3, 0x50, 0x01], 0x100); // nop; jp $0150
   const st = (addr: number) => [0xea, addr & 0xff, addr >> 8]; // ld [addr], a
@@ -27,6 +30,7 @@ function badgeRom(): Uint8Array {
     0xaf, ...st(RED.partyMons + 1), ...st(RED.partyMons + 34), ...st(RED.numBagItems), ...st(RED.badges), // xor a: HP / max HP high bytes, empty bag, no badges
     ...ld(20), ...st(RED.partyMons + 2), ...st(RED.partyMons + 35), // 20 HP
     ...ld(5), ...st(RED.partyMons + 33), // Lv5
+    ...ld(rivalFought ? RIVAL_FLAG.bit : 0), ...st(RIVAL_FLAG.addr),
   ];
   const loop = [
     ...ld(0x10), 0xe0, 0x00, // select the buttons
@@ -55,13 +59,13 @@ const WON = "Won the first badge — the run's goal — with STARTERMON!";
 const F = TICKS_PER_FRAME;
 
 /** A recording the way the page makes one: power-on state, then events at CPU ticks. */
-async function record(build: (r: Recorder) => void, meta: Partial<SavedReplay["meta"]> = {}): Promise<SavedReplay> {
-  const gb = await NodeGameBoy.create(ROM);
+async function record(build: (r: Recorder) => void, meta: Partial<SavedReplay["meta"]> = {}, rom = ROM): Promise<SavedReplay> {
+  const gb = await NodeGameBoy.create(rom);
   const r = new Recorder({ start: gb.saveState() });
   gb.destroy();
   build(r);
   return {
-    ...r.log(40 * F), rom: ROM, options: SHORT_RUN.options,
+    ...r.log(40 * F), rom, options: SHORT_RUN.options,
     meta: { attempt: 1, mode: "nuzlocke", version: "red", lead: "STARTERMON", level: 5, badges: 1, outcome: WON, score: 0, recordedAt: 0, ...meta },
   };
 }
@@ -142,6 +146,18 @@ describe("run verifier", () => {
       pressA(r);
     });
     expect((await verify(burial)).problems).toEqual([expect.stringMatching(/buries party slot 1 \(STARTERMON\), which isn't dead/)]);
+  });
+
+  it("rejects Rare Candies topped up before the first rival battle, once however many there are", async () => {
+    const early = badgeRom({ rivalFought: false });
+    const rep = await record((r) => {
+      r.intervention(3 * F, KIND_TOP_UP, ITEM.RARE_CANDY);
+      r.intervention(4 * F, KIND_TOP_UP, ITEM.RARE_CANDY);
+      pressA(r);
+    }, {}, early);
+    const v = await verify(rep, { baseRom: early });
+    expect(v.ok).toBe(false);
+    expect(v.problems).toEqual([expect.stringMatching(/tops up Rare Candies before the first rival battle/)]);
   });
 
   it("re-does a top-up exactly as live: the bag gets its 99 Rare Candies", async () => {

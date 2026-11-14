@@ -63,7 +63,13 @@ than a lone starter. Giving up costs the same as wiping out, so stopping is neve
 
 Every screenshot the model asks for costs 3 points (since 2026-11-12). Failed tool calls cost 4 points per
 percentage point of the run's calls that failed (since 2026-11-13): `round(4 × 100 × failed / calls)`, so
-6% failed costs 24, in a short run or a long one.
+6% failed costs 24, in a short run or a long one. Calls the server rejects before they run (arguments that
+don't fit the tool) count as failed and as calls made, though they don't use up the budget.
+
+`report_issue` isn't one of the run's calls anywhere in the score (since 2026-11-14): not in the totals, the
+speed bonuses, the dark tunnel or the failed-call rate, as it doesn't use up the budget and the prompt calls it free.
+A call that passes through a milestone's map counts for it, even when it ends somewhere else (since 2026-11-14,
+for runs logged from then on: older logs only show where each call ended).
 
 ## A model's score
 
@@ -91,6 +97,9 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
   of their calls, yet the longer run paid 75 points more: the count was a second charge for the run's
   length, which efficiency and speed already cover. Per call, a 3-badge run also ranked below a 2-badge
   run that failed more often.
+- **report_issue is free in the score too (2026-11-14).** The budget never counted it, but the score did,
+  so reporting a problem cost a little efficiency and speed, the opposite of what the prompt promises.
+  The 20 results moved by 1 point at most.
 - **Tokens aren't scored.** They depend on the model and client more than on how well it plays.
 
 ## Open questions
