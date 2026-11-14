@@ -69,7 +69,35 @@ Then give the server `NUZLOCKE_HEADLESS=1`, e.g. in `.mcp.json`:
 | `NUZLOCKE_ROMS_DIR` | More ROM files for saves that keep the ROM by reference (default: `NUZLOCKE_ROM`'s folder) |
 | `NUZLOCKE_REPORT_ISSUE=0` | Leave out `report_issue` (on by default) |
 | `NUZLOCKE_PLAYTEST=1` | Playtest: the run tests the tools and is marked as not a benchmark result |
+| `NUZLOCKE_SERVER_TRANSCRIPT=1` | Write `transcript.jsonl` next to the run log (`NUZLOCKE_RUN_LOG` must be set): every call and result, for the page's conversation panel when another app plays ([below](#playing-from-another-agent-app)) |
 
 Without `NUZLOCKE_ROM`, call `new_run` with `rom_path` as the first step. Closing the MCP client closes
 the browser. The server also logs to `nuzlocke-bench.log` in the system's temp folder (MCP clients often hide
 its stderr). `npm run smoke:headless -- --rom path/to/red.gb` checks the whole chain.
+
+## Playing from another agent app
+
+Any app that speaks MCP can play: Antigravity, Gemini CLI, Codex, Claude Desktop… Register the server in that
+app's MCP settings with a preset, a ROM and a run folder of its own, e.g. (Antigravity: `~/.gemini/config/mcp_config.json`):
+
+```json
+{ "mcpServers": { "nuzlocke-bench": {
+  "command": "env",
+  "args": ["NUZLOCKE_HEADLESS=1", "NUZLOCKE_HEADED=fast",
+           "NUZLOCKE_ROM=/path/to/red.gb",
+           "NUZLOCKE_BENCHMARK=hardcore-nuzlocke+firstrival+hardcap",
+           "NUZLOCKE_SAVES_DIR=/path/to/nuzlocke-bench/runs/my-run/saves",
+           "NUZLOCKE_RUN_LOG=/path/to/nuzlocke-bench/runs/my-run/run-log.jsonl",
+           "NUZLOCKE_SERVER_TRANSCRIPT=1",
+           "node", "/path/to/nuzlocke-bench/mcp-server/server.mjs"] } } }
+```
+
+(`env` passes the variables because not every app passes an `env` block on.) `NUZLOCKE_HEADED=fast` opens the
+game window; leave it out to play unseen. Start the app in an empty folder, turn off its other tools where it
+can, and give it the same opening prompt `npm run bench` gives:
+
+> You are playing a Pokémon benchmark run through the nuzlocke-bench tools. Start by reading the rules with get_rules, then play until the run is over (won or lost). Every decision is yours; nobody will answer questions, so don't stop to ask — keep playing. If a tool lets you down (a result that doesn't match the screen, a map that looks wrong, an error you don't understand, something that takes many tries), say so with report_issue — it doesn't use up a tool call — then keep playing.
+
+When it stops before the run is over, answer only: "The run isn't over. Keep playing." The run log, transcript
+(calls and results; the server never sees the model's own words) and saves land in the run folder. Such a run is
+self-reported ([benchmark.md](benchmark.md#official-results)): the server can't see what else the app gave the model.
