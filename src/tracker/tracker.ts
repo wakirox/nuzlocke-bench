@@ -69,6 +69,9 @@ export interface TrackerSnapshot {
   areas: Record<string, NuzArea>;
   /** Nuzlocke: Pokémon that fainted (by uid) — dead for the rest of the run. */
   dead: DeadMon[];
+  /** Nuzlocke: the player has had Poké Balls at some point. Before that, encounters don't count; after, running out
+   *  doesn't reopen an area (missing in older saves: then a non-gift catch shows it). */
+  hadBalls?: boolean;
   /** Nuzlocke: every species that has been yours this run (for the dupes clause). */
   owned: number[];
   /** Nuzlocke: Rare Candies used — levels gained outside battle, where nothing else levels a Pokémon. */
