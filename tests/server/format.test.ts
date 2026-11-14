@@ -230,4 +230,11 @@ describe("legendFor", () => {
     for (const s of ["tall grass", "water", "spinner", "T trainer", "ledge"]) expect(key).not.toContain(s);
     expect(legendFor("No map here")).toBeNull();
   });
+
+  it("narrowGrids stays fast on a long digit run that is not a header", () => {
+    const line = `     ${"0".repeat(5000)}x`;
+    const start = performance.now();
+    expect(narrowGrids(`${line}\ny  0   .`)).toBe(`${line}\ny  0   .`);
+    expect(performance.now() - start).toBeLessThan(500);
+  });
 });

@@ -185,7 +185,7 @@ export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: rea
 export function narrowGrids(text) {
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    if (!/^ {5}(?: *-?\d+)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
+    if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
     const head = lines[i].slice(5);
     const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
     const tens = xs.map((x) => ` ${x < 0 ? "-" : x >= 10 ? Math.floor(x / 10) % 10 : " "}`).join("");
