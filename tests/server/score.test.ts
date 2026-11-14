@@ -27,13 +27,17 @@ describe("scoreRun", () => {
 
   it("gives speed points under a milestone's worth: calls per milestone, the cottage step and the dark tunnel", () => {
     const reached = ["rival1", "badge1"];
-    expect(scoreRun({ reached, objectiveCalls: { rival1: 40, badge1: 150 } }).speed).toBe(Math.round(29 * (1 - 75 / 300)));
-    expect(scoreRun({ reached, objectiveCalls: { rival1: 40, badge1: 900 } }).speed).toBe(0);
+    expect(scoreRun({ reached, calls: 150, objectiveCalls: { rival1: 40, badge1: 150 } }).speed).toBe(Math.round(29 * (1 - 75 / 300)));
+    expect(scoreRun({ reached, calls: 900, objectiveCalls: { rival1: 40, badge1: 150 } }).speed).toBe(0);
+    // Every call counts, the ones after the furthest milestone too: stuck there for 600 calls, it's slow.
+    expect(scoreRun({ reached, calls: 750, objectiveCalls: { rival1: 40, badge1: 150 } }).speed).toBe(0);
+    expect(scoreRun({ reached, calls: 300, objectiveCalls: { rival1: 40, badge1: 150 } }).speed).toBe(Math.round(29 * 0.5));
+    expect(scoreRun({ reached: [], calls: 50 }).speed).toBe(0);
     expect(scoreRun({ reached, objectiveCalls: { badge2: 400, cottageDone: 500 } }).cottageSpeed).toBe(Math.round(29 * (1 - 100 / 400)));
     expect(scoreRun({ reached, objectiveCalls: { badge2: 400 } }).cottageSpeed).toBe(0);
     expect(scoreRun({ reached, dark: { result: "crossed in the dark", calls: 750, flashAt: null } }).tunnelSpeed).toBe(Math.round(29 * 0.5));
     expect(scoreRun({ reached, dark: { result: "not crossed", calls: 300, flashAt: null } }).tunnelSpeed).toBe(0);
-    expect(Math.max(...[1, 10, 100].map((c) => scoreRun({ reached, objectiveCalls: { badge1: c } }).speed))).toBeLessThan(30);
+    expect(Math.max(...[1, 10, 100].map((c) => scoreRun({ reached, calls: c }).speed))).toBeLessThan(30);
   });
 
   it("gives points for using Flash in the dark tunnel", () => {
@@ -69,7 +73,8 @@ describe("scoreRun", () => {
   });
 
   it("has no maximum beyond what the parts give", () => {
-    expect(scoreRun({ reached: ALL, calls: 1000 }).total).toBe(1710);
+    // Everything, at 1,000 calls: the parts and the pace (1,000 calls over every milestone).
+    expect(scoreRun({ reached: ALL, calls: 1000 }).total).toBe(1710 + Math.round(29 * (1 - 1000 / ALL.length / 300)));
   });
 });
 
