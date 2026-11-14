@@ -880,6 +880,7 @@ const bridge = new AiBridge(
     },
     brief: () => (tracker && state ? brief(tracker, state) : null),
     takePoisonHurt: () => tracker?.takePoisonHurt() ?? [],
+    takeMapsEntered: () => tracker?.takeMapsEntered() ?? [],
     newEvents: () => {
       if (!tracker) return [];
       const n = Math.min(tracker.eventCount - eventsSeen, tracker.snap.events.length);

@@ -238,6 +238,8 @@ export class Tracker {
       this.rules.begin?.(s);
       return;
     }
+    // Kept short: with no AI taking them (a person playing) the list would only grow.
+    if (s.mapConst !== p.mapConst && this.mapsEntered.push(s.mapConst) > 50) this.mapsEntered.shift();
     if (this.snap.outcome) return;
     this.notePoison(s, p);
 
@@ -462,6 +464,17 @@ export class Tracker {
     const out = [...this.poisonHurt.values()].map((h) => `${h.name} hurt by poison: ${h.from}→${h.to}/${h.max} HP${h.to === 0 ? " (fainted)" : ""}`);
     this.poisonHurt.clear();
     return out;
+  }
+
+  /**
+   * Maps entered since the last takeMapsEntered(), in order: one tool call can pass through several
+   * (go_to, travel with maps > 1, a do batch), and the run log needs each of them, not just where
+   * the call ended, to see a story milestone it passed.
+   */
+  private mapsEntered: string[] = [];
+
+  takeMapsEntered(): string[] {
+    return this.mapsEntered.splice(0);
   }
 
   /** Hard level caps option: the level experience and Rare Candies should stop at now (null when off). */

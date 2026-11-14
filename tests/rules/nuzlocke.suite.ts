@@ -204,6 +204,14 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(brief(run.engine, run.s).cap).toBeNull();
       });
 
+      it("lists the maps entered since it was last asked, in order, then starts again", () => {
+        const run = new Run(game).goTo(places.route);
+        run.engine.takeMapsEntered();
+        run.goTo(places.route2).goTo(places.route);
+        expect(run.engine.takeMapsEntered()).toEqual([places.route2.mapConst, places.route.mapConst]);
+        expect(run.engine.takeMapsEntered()).toEqual([]);
+      });
+
       it("says how much poison took while walking, then starts again; and shows a poisoned Pokémon that isn't the lead", () => {
         const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route).setMon(1, { status: 0x08, hp: 10 }).step()
           .setMon(1, { hp: 9 }).step().setMon(1, { hp: 8 }).step();

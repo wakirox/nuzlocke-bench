@@ -19,6 +19,8 @@ export function createBridgeLink({ log, port, headless, logFile, onNewRun = () =
   let browser = null;
   /** The latest status line the page sent (location, outcome, badges, deaths), for the run log. */
   let lastStatus = null;
+  /** Every map the page's results said were entered since takeMapsEntered() (a call can make several bridge requests). */
+  let mapsEntered = [];
   let nextId = 1;
   const pending = new Map();
   // A bridge that can't listen (e.g. the port is taken by another server) never gets a game:
@@ -62,6 +64,7 @@ export function createBridgeLink({ log, port, headless, logFile, onNewRun = () =
         if (msg.error) p.reject(new Error(msg.error));
         else {
           if (msg.result?.status) lastStatus = msg.result.status; // for the run log
+          if (Array.isArray(msg.result?.status?.mapsEntered)) mapsEntered.push(...msg.result.status.mapsEntered);
           p.resolve(msg.result);
         }
       });
@@ -130,5 +133,6 @@ export function createBridgeLink({ log, port, headless, logFile, onNewRun = () =
     socket: () => browser,
     isConnected: () => !!browser && browser.readyState === 1,
     lastStatus: () => lastStatus,
+    takeMapsEntered: () => mapsEntered.splice(0),
   };
 }

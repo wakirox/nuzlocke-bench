@@ -442,10 +442,12 @@ function reachedBy(calls, game, value) {
   const reached = {};
   calls.forEach((c, i) => {
     const map = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];
+    // The maps the call passed through on the way count too (a log from before they were recorded has none).
+    const passed = [...(c.maps ?? []), map].filter(Boolean);
     for (const o of game.objectives) {
       if (reached[o.id] !== undefined) continue;
       const beatRival = o.rival === map && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
-      if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && map && o.maps.includes(map)) || beatRival) reached[o.id] = value(c, i);
+      if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && passed.some((m) => o.maps.includes(m))) || beatRival) reached[o.id] = value(c, i);
     }
   });
   // A log from before fights were recorded can't show rival wins: a run past a rival fought it and won.

@@ -72,3 +72,16 @@ describe("hardAreasOf", () => {
     expect(hardAreasOf([at("ROCK_TUNNEL_POKECENTER", "2:00:00")])).toEqual([]);
   });
 });
+
+describe("map milestones passed during one call", () => {
+  it("counts a milestone map the call passed through, not only the one it ended on", () => {
+    const go = { where: "ROUTE 9 [ROUTE_9] x1 y1 | battle: none", playTime: "2:00:00", maps: ["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"] };
+    const got = objectivesOf([go]);
+    expect(got.cave1).toBe("2:00:00");
+    expect(got.cottageDone).toBe("2:00:00");
+  });
+
+  it("still reads a log from before the maps were recorded", () => {
+    expect(objectivesOf([{ where: "CITY [CERULEAN_CITY] x1 y1 | battle: none", playTime: "1:00:00" }]).cave1).toBe("1:00:00");
+  });
+});

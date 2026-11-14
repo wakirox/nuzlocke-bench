@@ -38,6 +38,8 @@ export interface AiHost {
   newEvents(): string[];
   /** HP lost to poison while walking since the last call ("NOVA hurt by poison: 7→3/24 HP"). */
   takePoisonHurt(): string[];
+  /** Maps entered since the last call, in order (for the run log: milestones passed mid-call). */
+  takeMapsEntered(): string[];
   /** The active battler's moves (for fight()). */
   battleMoves(): MoveInfo[];
   /** Freshly re-read state after the game advanced. */
@@ -279,6 +281,9 @@ export class BridgeCore {
     if (saveWarning && status) status.location = `⚠️ AUTOSAVE FAILING — ${String(status.location ?? "?")}`;
     const events = this.host.newEvents();
     const poison = this.host.takePoisonHurt();
+    // For the run log only (the MCP server doesn't print it): every map this action passed through.
+    const mapsEntered = this.host.takeMapsEntered();
+    if (status && mapsEntered.length) status.mapsEntered = mapsEntered;
     return { ...extra, saveWarning, crashed, status, poison: poison.length ? poison : undefined, events: events.length ? events : undefined, screenText: this.screenText() };
   }
 
