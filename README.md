@@ -47,7 +47,7 @@ Language models playing these games isn't new ([related work](docs/related-work.
   ledges after it, the story step past the bridge), and the bench measures that instead of patching it. (For weaker
   models there's an optional `hints` group with a hint tool; its runs are never mixed with clean results.)
 - **Any model.** Claude plays through Claude Code; any other model plays straight through its API (OpenAI-style, e.g.
-  Ollama, vLLM, OpenRouter, or Anthropic's), with no system prompt and nothing but the game's tools.
+  Ollama, vLLM, OpenRouter, or Anthropic's), with nothing but the game's tools and the server's own instructions (as Claude Code gives them).
 
 ## Run it
 

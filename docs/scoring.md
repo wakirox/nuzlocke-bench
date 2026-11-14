@@ -19,8 +19,12 @@ Only these runs make the leaderboard (`OFFICIAL` in `mcp-server/benchmark.mjs`, 
   nudges. A run stopped by hand, or one nothing ended, isn't a result.
 - **Nothing that helps or steers the model:** no playtest (`--playtest`), and no narration (older runs were marked "narrated").
 
-Everything else is the runner's defaults: 3 nudges, the standard context window, the narrow grid,
-report_issue on. Watching a run (`--headed`, `--watch`) doesn't change it.
+- **The runner's defaults, on a clean harness:** Claude Code (not `--api`), the model's standard
+  context (not `[1m]`), effectiveness off, report_issue on, the narrow grid, a 200k compaction window,
+  3 nudges and the 500M-token limit; the harness a commit with the page built from it. Settings a run
+  from before they were recorded didn't record are taken as the defaults they were.
+
+Watching a run (`--headed`, `--watch`) or a watch-only observer doesn't change it.
 
 The dashboard shows these runs only, one game at a time; test runs stay in `npm run bench:report`.
 

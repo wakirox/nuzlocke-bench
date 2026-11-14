@@ -98,6 +98,29 @@ describe("dashboardRuns", () => {
     expect(reason([off("2026-11-08T10-00", { outcome: "unfinished" })])).toBe("unfinished");
   });
 
+  it("isn't official off the runner's defaults, or on a harness that isn't a clean commit", () => {
+    const off = (extra: Record<string, unknown>, a: Record<string, unknown> = {}) =>
+      dashboardRuns([row("2026-11-08T10-00", { preset: OFFICIAL.preset, game: OFFICIAL.game, outcome: "wipe: X", agent: { ...agent, ...a }, ...extra })])[0];
+    // The defaults as recorded, and settings an older run didn't record: official.
+    expect(off({}, { via: "claude-code", effectiveness: "off", reportIssue: true, compactWindow: 200000, grid: "narrow", maxNudges: 3, maxTokens: 500e6 }).notOfficial).toBeNull();
+    expect(off({ harness: "0.1.0@abc1234" }).notOfficial).toBeNull();
+    expect(off({ harness: "0.1.0@abc1234 +uncommitted changes" }).notOfficial).toBe("harness not a clean commit");
+    expect(off({ harness: "0.1.0@abc1234 (page built from def5678)" }).notOfficial).toBe("harness not a clean commit");
+    expect(off({}, { via: "api" }).notOfficial).toBe("run through the API");
+    expect(off({}, { model: "claude-sonnet-5-5[1m]" }).notOfficial).toBe("1M-token context");
+    expect(off({}, { effectiveness: "on" }).notOfficial).toBe("effectiveness shown");
+    expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
+    expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
+    expect(off({}, { compactWindow: null }).notOfficial).toBe("other context window");
+    expect(off({}, { maxNudges: 10 }).notOfficial).toBe("other nudges");
+    expect(off({}, { maxTokens: 50e6 }).notOfficial).toBe("other token limit");
+  });
+
+  it("keeps a 1M-context model apart from the standard one", () => {
+    const [run] = dashboardRuns([row("2026-11-08T10-00", { agent: { ...agent, model: "claude-sonnet-5-5[1m]" } })]);
+    expect(run.model).toBe("sonnet-5-5[1m]");
+  });
+
   it("leaves Crystal runs out: an experimental game isn't on the dashboard yet", () => {
     const runs = dashboardRuns([
       row("2026-11-08T10-00", { preset: OFFICIAL.preset, game: "crystal", outcome: "wipe: X" }),

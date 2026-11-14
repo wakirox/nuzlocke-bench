@@ -5,6 +5,7 @@
 import { OBJECTIVES, teamChange } from "./report.mjs";
 import { scoreRun } from "./score.mjs";
 import { OFFICIAL } from "./benchmark.mjs";
+import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, GIVE_UP_AFTER } from "./bench-runner.mjs";
 import { isExperimental } from "./games/index.mjs";
 
 /** Below this many calls, a run that nothing ended is a stray start, not a result. */
@@ -29,7 +30,29 @@ export function notOfficial({ date, preset, game, outcome, first, legs }) {
   if (recordOf(first)?.resumedFrom) return "not from a new game";
   if (legs.some((l) => recordOf(l)?.playtest)) return "playtest";
   if (legs.some((l) => recordOf(l)?.narrated)) return "narrated";
+  const off = legs.map(offDefaults).find(Boolean);
+  if (off) return off;
   if (!RULE_ENDINGS.has(outcome)) return outcome;
+  return null;
+}
+
+/**
+ * What a leg ran with that the official run doesn't (docs/benchmark.md, "Official results"; docs/scoring.md):
+ * a harness that isn't a commit (uncommitted changes, or a page built from elsewhere), another client
+ * than Claude Code, a 1M-token context, or a runner option off its default. Null when it's all standard.
+ * Settings a leg didn't record are taken as the defaults they were then.
+ */
+function offDefaults(leg) {
+  const r = recordOf(leg) ?? {};
+  if (/\+uncommitted changes|\(page /.test(leg.harness ?? "")) return "harness not a clean commit";
+  if (r.via === "api") return "run through the API";
+  if (/\[1m\]$/.test(String(r.model ?? ""))) return "1M-token context";
+  if (r.effectiveness === "on") return "effectiveness shown";
+  if (r.reportIssue === false) return "report_issue off";
+  if (r.grid && r.grid !== "narrow") return "other grid";
+  if (r.compactWindow !== undefined && r.compactWindow !== COMPACT_WINDOW) return "other context window";
+  if (r.maxNudges !== undefined && r.maxNudges !== GIVE_UP_AFTER) return "other nudges";
+  if (r.maxTokens !== undefined && r.maxTokens !== DEFAULT_MAX_TOKENS) return "other token limit";
   return null;
 }
 
@@ -187,7 +210,8 @@ export function dashboardRuns(rows, { names = true } = {}) {
     const dark = legs.map((l) => l.darkTunnel).find(Boolean) ?? null;
     runs.push({
       id,
-      model: String(who.model).replace(/^claude-/, "").replace(/\[1m\]$/, ""),
+      // A 1M-context run keeps its [1m]: it isn't the standard model's run (and isn't official).
+      model: String(who.model).replace(/^claude-/, ""),
       effort: who.effort ?? null,
       game: first.game ?? null,
       preset: first.preset ?? null,

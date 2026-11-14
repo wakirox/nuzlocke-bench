@@ -190,6 +190,9 @@ export const mTokens = (n) => `${(n / 1e6).toFixed(1)}M`;
  */
 export const COMPACT_WINDOW = 200_000;
 
+/** The tokens a run may use before the runner stops it (--max-tokens, in millions): the official run's. */
+export const DEFAULT_MAX_TOKENS = 500e6;
+
 /**
  * claude's environment for a run: no auto-memory, so nothing is read from or kept for other
  * sessions, and the compaction window (0: the model's own).
