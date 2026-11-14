@@ -4,6 +4,7 @@
 
 import { OBJECTIVES, teamChange } from "./report.mjs";
 import { scoreRun } from "./score.mjs";
+import { capabilitiesOf, joinToolUse } from "./capabilities.mjs";
 import { OFFICIAL } from "./benchmark.mjs";
 import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, GIVE_UP_AFTER } from "./bench-runner.mjs";
 import { isExperimental } from "./games/index.mjs";
@@ -239,12 +240,16 @@ export function dashboardRuns(rows, { names = true } = {}) {
       objectiveCalls,
       lastBattleDeaths,
       hardAreas: joinHardAreas(legs),
+      toolUse: joinToolUse(legs.map((l) => l.toolUse)),
       playtest: legs.some((l) => recordOf(l)?.playtest),
       notOfficial: notOfficial({ date: id.slice(0, 10), preset: first.preset ?? null, game: first.game ?? null, outcome, first, legs }),
       continued: legs.length > 1,
       // Hidden from the page: a stray start, or a run marked as no result in its agent.json.
       short: legs.some((l) => l.agent?.notAResult) || (calls < SHORT_RUN && ["stopped by hand", "unfinished"].includes(outcome)),
     });
+    // What the run shows about the model (capabilities.mjs): measured, not scored.
+    const run = /** @type {any} */ (runs.at(-1));
+    run.capabilities = capabilitiesOf(run);
   }
   return runs.sort((a, b) => (a.id < b.id ? 1 : -1));
 }

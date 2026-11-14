@@ -10,9 +10,10 @@ import { attempts, capsFromTranscript, darkTunnelOf, fightsFromCalls, hardAreasO
 import { locateRun, readTranscript } from "./run-folder.mjs";
 import { gameData } from "./games/index.mjs";
 import { UNCOUNTED } from "./call-budget.mjs";
+import { toolUseOf } from "./capabilities.mjs";
 
 /** The summary's format: a reader that finds another one computes the rows again. */
-export const SUMMARY_VERSION = 3;
+export const SUMMARY_VERSION = 4;
 
 const readIf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 
@@ -43,7 +44,7 @@ export function computeRows(runLogFile) {
     const row = {
       name: run.name + (runs.length > 1 ? `#${i + 1}` : ""), ...summarize(a, game), objectives: objectivesOf(a.calls, game), objectiveCalls: objectiveCallsOf(a.calls, game),
       lastBattleDeaths: lastBattleDeathsOf(a.calls), darkTunnel: darkTunnelOf(a.calls, game),
-      screenshots: screenshotsOf(a.calls), hardAreas: hardAreasOf(a.calls, game), agent, extras: last ? extras : null,
+      screenshots: screenshotsOf(a.calls), hardAreas: hardAreasOf(a.calls, game), toolUse: toolUseOf(a.calls), agent, extras: last ? extras : null,
     };
     // The big fights from the tracker's save, or else from the run log.
     if (!row.extras?.fights?.length) {
