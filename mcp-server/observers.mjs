@@ -20,6 +20,10 @@ const RESERVED = /^\/(?:$|backup(?:\/|$)|transcript(?:\/|$)|assets(?:\/|$)|index
  * `wantsFrames`, `page(p)` to hand it each page (null when one closes), and `handle(req, res)` that
  * answers the requests under its prefixes (false when a request isn't its own).
  */
+/**
+ * @param {string} path
+ * @param {{ savesDir?: any, transcript?: any, log?: (...args: any[]) => void }} [opts]
+ */
 export async function loadObserver(path, { savesDir = null, transcript = null, log = () => {} } = {}) {
   const mod = await import(pathToFileURL(path).href);
   if (typeof mod.default !== "function") throw new Error(`observer ${path}: its default export isn't a function`);

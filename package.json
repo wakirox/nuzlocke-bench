@@ -9,7 +9,7 @@
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "test": "npm run typecheck && npm run lint && vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json && tsc -p tsconfig.mjs.json",
     "lint": "eslint . --max-warnings 0",
     "test:watch": "vitest",
     "smoke": "node scripts/mcp-smoke.mjs",

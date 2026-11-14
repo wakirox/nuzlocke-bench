@@ -25,6 +25,7 @@ export function computeRows(runLogFile) {
   const savedText = readIf(join(run.saves, "run.json"));
   const saved = savedText ? JSON.parse(savedText) : null;
   // The game's story data (milestones, fight classes…) by the version the run played.
+  /** @type {any} */
   const game = gameData(saved?.data?.version);
   // What the run's folder adds: starter, catches, deaths, heals and the model's notes (runs from bench-run.mjs).
   const extras = trackerText || transcript
@@ -35,6 +36,7 @@ export function computeRows(runLogFile) {
   const runs = attempts(parseLog(readFileSync(runLogFile, "utf8")));
   return runs.map((a, i) => {
     const last = i === runs.length - 1;
+    /** @type {any} */
     const row = {
       name: run.name + (runs.length > 1 ? `#${i + 1}` : ""), ...summarize(a, game), objectives: objectivesOf(a.calls, game), objectiveCalls: objectiveCallsOf(a.calls, game),
       lastBattleDeaths: lastBattleDeathsOf(a.calls), darkTunnel: darkTunnelOf(a.calls, game),

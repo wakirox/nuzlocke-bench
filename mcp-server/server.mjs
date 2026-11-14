@@ -234,12 +234,14 @@ server.registerTool("get_state", {
   },
 }, wrap(stateResult));
 
+/** @param {{ only?: string[] }} [args] */
 async function stateResult({ only } = {}) {
   const state = await call("get_state");
   if (BUDGET && state?.run) state.run.toolCalls = `${BUDGET.used()} of ${BUDGET.max}`;
   return json(pickSections(state, only));
 }
 
+/** @param {{ legend?: any, [key: string]: any }} [args] */
 async function mapResult({ legend, ...a } = {}) {
   const r = await afterAction(await call("get_map", a), { keepMap: true });
   // The legend on request only (in every map it would cost tokens on each call), and only for
@@ -666,6 +668,7 @@ if (PRESET?.hints) {
     const state = await call("get_state");
     const runLog = RUN_LOG_FILE && existsSync(RUN_LOG_FILE) ? readFileSync(RUN_LOG_FILE, "utf8") : "";
     const calls = runLog.split("\n").filter((l) => l.trim()).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((c) => c && c.type !== "session");
+    /** @type {any} */
     const game = gameData(state?.run?.game);
     const reached = new Set(Object.keys(objectivesOf(calls, game)));
     const facts = await call("hint_facts");

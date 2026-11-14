@@ -16,6 +16,7 @@ const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
  * The ROM files a run can use, by SHA-256: `rom` (the run's --rom) and the other .gb/.gbc files in
  * its folder and in `dirs`. Each entry holds the file's base64, as the saves store it.
  */
+/** @param {{ rom?: string, dirs?: string[] }} [opts] */
 export function knownRoms({ rom, dirs = [] } = {}) {
   const files = new Set();
   for (const d of [...(rom ? [dirname(rom)] : []), ...dirs]) {

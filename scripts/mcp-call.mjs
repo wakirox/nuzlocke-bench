@@ -7,6 +7,7 @@ const [tool = "get_state", rawArgs = "{}"] = process.argv.slice(2);
 const client = new Client({ name: "mcp-call", version: "0.0.1" });
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ["mcp-server/server.mjs"], stderr: "ignore" }));
 
+/** @type {any} */
 let result;
 for (let i = 0; ; i++) {
   result = await client.callTool({ name: tool, arguments: JSON.parse(rawArgs) });
