@@ -40,19 +40,21 @@ export function joinToolUse(legs) {
 const pct = (n, of) => (of > 0 ? Math.round((1000 * n) / of) / 10 : null);
 
 /**
- * The calls each story step took, as { milestone id: calls } in story order: from the milestone before it
- * (or the start) to it, for the milestones reached. A long step is where the model didn't know, or
- * couldn't find, what came next.
+ * The calls each story step took, as { milestone id: calls } in the order the run reached them: from the
+ * milestone reached before it (or the start) to it. Parts of the story can be done in either order (Silph
+ * Co. before the fifth badge), so it goes by the calls, story order only breaking ties. A long step is
+ * where the model didn't know, or couldn't find, what came next.
  */
 export function stepCallsOf(objectiveCalls = {}, reached = []) {
   const got = new Set(reached);
+  const order = OBJECTIVES.map((o, i) => ({ id: o.id, at: objectiveCalls[o.id], i }))
+    .filter((o) => got.has(o.id) && o.at != null)
+    .sort((a, b) => a.at - b.at || a.i - b.i);
   const steps = {};
   let before = 0;
-  for (const o of OBJECTIVES) {
-    const at = objectiveCalls[o.id];
-    if (!got.has(o.id) || at == null) continue;
-    steps[o.id] = Math.max(0, at - before);
-    before = at;
+  for (const o of order) {
+    steps[o.id] = o.at - before;
+    before = o.at;
   }
   return steps;
 }
