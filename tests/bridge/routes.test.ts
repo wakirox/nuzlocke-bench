@@ -56,4 +56,15 @@ describe("route book", () => {
     const reloaded = new RouteBook(JSON.parse(JSON.stringify(book.routes)));
     expect(reloaded.plan("PALLET_TOWN", "ROUTE_1")).toEqual(["ROUTE_1"]);
   });
+
+  it("refuses map names that would write to Object.prototype", () => {
+    const book = new RouteBook();
+    for (const bad of ["__proto__", "constructor", "prototype"]) {
+      expect(() => book.note(bad, "ROUTE_1", { exit: "up" })).toThrow("Not a map name.");
+      expect(() => book.note("ROUTE_1", bad, { exit: "up" })).toThrow("Not a map name.");
+      expect(book.forget(bad, "ROUTE_1")).toBe(false);
+    }
+    expect(({} as Record<string, unknown>).ROUTE_1).toBeUndefined();
+    expect(book.list()).toEqual([]);
+  });
 });

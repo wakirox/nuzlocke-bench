@@ -8,6 +8,9 @@ import { clamp, type BridgeCore } from "./bridge-core";
 import type { Menus } from "./menus";
 
 const FRAMES_PER_TILE = 16;
+/** The text matched literally inside a RegExp (a move name comes from the model). */
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** Field moves that take you off the map. */
 const LEAVES_THE_MAP = new Set(["DIG", "TELEPORT"]);
 
@@ -44,7 +47,7 @@ export class Travel {
       return cursor();
     };
     // The submenu box on the right: "▶CUT", "STATS", "SWITCH", "CANCEL".
-    const listed = () => this.core.screenText().some((l) => new RegExp(`[│▶ ]${move}\\s*│`).test(l));
+    const listed = () => this.core.screenText().some((l) => new RegExp(`[│▶ ]${escapeRegExp(move)}\\s*│`).test(l));
     for (let slot = 0; slot < party.length; slot++) {
       for (let tries = 0; tries < 12; tries++) {
         const at = await ready();
