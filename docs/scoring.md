@@ -116,6 +116,8 @@ The median of its official runs, not its best: one lucky run shouldn't carry a m
 - **Beating the Champion always scores more than losing to him would have (2026-11-14).** A finisher's deaths
   cost double, so a run with many deaths and few calls left could score less by winning (13 deaths at 5,850
   calls: 5 points less). A floor keeps what winning adds above 0; no run so far has needed it.
+  The comparison forgives the deaths in the Champion fight, as a wipe there would (since 2026-11-14): winning
+  by losing 4 of 5 to him, with 8 deaths before, scored 50 less than losing all 5.
 - **report_issue is free in the score too (2026-11-14).** The budget never counted it, but the score did,
   so reporting a problem cost a little efficiency and speed, the opposite of what the prompt promises.
   The 20 results moved by 1 point at most.

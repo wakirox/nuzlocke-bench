@@ -34,7 +34,7 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
 /**
  * A run's score and what it's made of. `reached`: its milestone ids, as in report.mjs's OBJECTIVES;
  * `objectiveCalls`: the call that first reached each; `lastBattleDeaths`: a wipe's deaths in its last
- * battle (the wipe itself, charged once as `ended`); `dark`: report.mjs's darkTunnelOf.
+ * battle (the wipe itself, charged once as `ended`), or a win's in the Champion fight (only for `winFloor`); `dark`: report.mjs's darkTunnelOf.
  * `wrongCalls` includes `rejected`: calls the server turned down before they ran, which aren't in `calls`.
  * Screenshots (-20) and failed calls (-4), each per percentage point of the calls, count for every run:
  * with a Champion reached, a clean run has to beat a messy one (docs/scoring.md). Beating the Champion
@@ -65,10 +65,10 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
     // Out of every call made: the rejected ones (in wrongCalls) never reached the run log's count.
     wrongCalls: (calls + rejected > 0 ? Math.round((100 * Math.min(wrongCalls, calls + rejected) / (calls + rejected)) * POINTS.wrongCallPoint) : 0) || 0,
   };
-  // A finisher's deaths cost double, so with many deaths and few calls left, winning could score less
-  // than wiping at the Champion: what winning adds over that (the Champion, no early end, efficiency,
-  // the deaths' extra cost) is kept above 0.
-  const winLead = finished ? POINTS.champion - POINTS.ended + parts.efficiency + deaths * (POINTS.finisherDeath - POINTS.death) : 1;
+  // A finisher's deaths cost double, and a wipe's last battle costs none, so winning by losing Pokémon in
+  // the Champion fight could score less than wiping there: what winning adds over that (the Champion, no
+  // early end, efficiency, the deaths at -30 against the ones a wipe charges) is kept above 0.
+  const winLead = finished ? POINTS.champion - POINTS.ended + parts.efficiency + deaths * POINTS.finisherDeath - Math.max(0, deaths - lastBattleDeaths) * POINTS.death : 1;
   const all = { ...parts, winFloor: winLead > 0 ? 0 : 1 - winLead };
   return { total: Object.values(all).reduce((a, b) => a + b, 0), ...all };
 }

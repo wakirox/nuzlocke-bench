@@ -6,14 +6,14 @@
 import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { throwsOf } from "./dashboard.mjs";
-import { attempts, capsFromTranscript, darkTunnelOf, fightsFromCalls, hardAreasOf, lastBattleDeathsOf, objectiveCallsOf, objectivesOf, parseLog, runExtras, screenshotsOf, summarize } from "./report.mjs";
+import { attempts, capsFromTranscript, darkTunnelOf, fightsFromCalls, finalBattleDeathsOf, hardAreasOf, lastBattleDeathsOf, objectiveCallsOf, objectivesOf, parseLog, runExtras, screenshotsOf, summarize } from "./report.mjs";
 import { locateRun, readTranscript } from "./run-folder.mjs";
 import { gameData } from "./games/index.mjs";
 import { UNCOUNTED } from "./call-budget.mjs";
 import { toolUseOf } from "./capabilities.mjs";
 
 /** The summary's format: a reader that finds another one computes the rows again. */
-export const SUMMARY_VERSION = 4;
+export const SUMMARY_VERSION = 5;
 
 const readIf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 
@@ -43,7 +43,7 @@ export function computeRows(runLogFile) {
     /** @type {any} */
     const row = {
       name: run.name + (runs.length > 1 ? `#${i + 1}` : ""), ...summarize(a, game), objectives: objectivesOf(a.calls, game), objectiveCalls: objectiveCallsOf(a.calls, game),
-      lastBattleDeaths: lastBattleDeathsOf(a.calls), darkTunnel: darkTunnelOf(a.calls, game),
+      lastBattleDeaths: lastBattleDeathsOf(a.calls), finalBattleDeaths: finalBattleDeathsOf(a.calls), darkTunnel: darkTunnelOf(a.calls, game),
       screenshots: screenshotsOf(a.calls), hardAreas: hardAreasOf(a.calls, game), toolUse: toolUseOf(a.calls), agent, extras: last ? extras : null,
     };
     // The big fights from the tracker's save, or else from the run log.

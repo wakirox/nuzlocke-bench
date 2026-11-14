@@ -480,6 +480,21 @@ export function lastBattleDeathsOf(calls) {
   return Math.max(0, (calls.at(-1)?.deaths ?? 0) - before);
 }
 
+/**
+ * Deaths in the run's last battle, wherever the run ended: for a win, the Champion fight (the run goes on
+ * a few calls after it, to the Hall of Fame). From the last call outside a battle before it to the call
+ * that ended it.
+ */
+export function finalBattleDeathsOf(calls) {
+  let end = calls.length - 1;
+  while (end >= 0 && /battle: none/.test(calls[end].where ?? "")) end--;
+  if (end < 0) return 0;
+  let i = end;
+  while (i >= 0 && !/battle: none/.test(calls[i].where ?? "")) i--;
+  const before = i >= 0 ? (calls[i].deaths ?? 0) : 0;
+  return Math.max(0, (calls[Math.min(end + 1, calls.length - 1)].deaths ?? 0) - before);
+}
+
 /** The maps a logged call was on: the ones it passed through (run-log `maps`), then where it ended. */
 function passedMaps(c) {
   const at = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];

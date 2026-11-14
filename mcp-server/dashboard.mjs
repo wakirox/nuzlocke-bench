@@ -208,6 +208,8 @@ export function dashboardRuns(rows, { names = true } = {}) {
       before += l.calls ?? 0;
     }
     const lastBattleDeaths = outcome === "wipe" ? (last.lastBattleDeaths ?? 0) + 1 : 0;  // + the last Pokémon, as above
+    // A win's deaths in the Champion fight: the ones a loss there wouldn't have charged (the score's winFloor).
+    const championDeaths = reached.has("champion") ? (last.finalBattleDeaths ?? 0) : 0;
     const dark = legs.map((l) => l.darkTunnel).find(Boolean) ?? null;
     runs.push({
       id,
@@ -226,7 +228,7 @@ export function dashboardRuns(rows, { names = true } = {}) {
       wrongCalls,
       rejected,
       realMs: legs.reduce((n, l) => n + (l.wallMs ?? 0), 0),
-      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths, dark, screenshots, wrongCalls, rejected }),
+      score: scoreRun({ reached: [...reached], deaths, outcome, calls, objectiveCalls, lastBattleDeaths: lastBattleDeaths || championDeaths, dark, screenshots, wrongCalls, rejected }),
       // Unrecorded for a leg stopped by a reboot: then it's a floor, so the page marks it.
       tokens: tokens.length ? tokens.reduce((a, b) => a + b, 0) : null,
       tokensPartial: tokens.length < legs.length,
