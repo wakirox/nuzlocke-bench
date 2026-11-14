@@ -279,7 +279,7 @@ server.registerTool("do", {
     try {
       st = normalizeStep(raw);
     } catch (e) {
-      throw new Error(`Step ${i + 1} (${raw.tool}): ${e.message}`);
+      throw new Error(`Step ${i + 1} (${raw.tool}): ${e.message}`, { cause: e });
     }
     if (FINAL_READS[st.tool] && i < steps.length - 1) throw new Error(`Step ${i + 1} (${st.tool}): a read can only be the last step (its answer is for deciding what to do next).`);
     const schema = SCHEMAS[st.tool];

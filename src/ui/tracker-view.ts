@@ -245,9 +245,9 @@ export function renderEncounters(t: Tracker, s: GameState): string {
   const list = [...rows.entries()].sort((a, b) => b[1].odds - a[1].odds).map(([species, r]) => {
     const name = esc(t.name(species));
     const types = (t.data.species[species]?.types ?? []).map(typeChip).join("");
-    let tag = "";
-    if (area) tag = area.species === species && area.status === "caught" ? `<span class="badge ok">caught</span>` : "";
-    else tag = t.isDupe(species) ? `<span class="badge warn">dupe</span>` : `<span class="badge ok">counts</span>`;
+    const tag = area
+      ? area.species === species && area.status === "caught" ? `<span class="badge ok">caught</span>` : ""
+      : t.isDupe(species) ? `<span class="badge warn">dupe</span>` : `<span class="badge ok">counts</span>`;
     const lv = r.min === r.max ? `Lv ${r.min}` : `Lv ${r.min}–${r.max}`;
     return `<tr><td>${name} ${types}</td><td class="muted">${lv}</td><td class="num">${pct(r.odds)}</td><td>${tag}</td></tr>`;
   });
