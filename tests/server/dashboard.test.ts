@@ -300,7 +300,15 @@ describe("the dashboard page", () => {
     const { readFileSync } = await import("node:fs");
     const { Script } = await import("node:vm");
     const page = readFileSync("mcp-server/dashboard-page.html", "utf8");
-    const scripts = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    // The page's own inline scripts, found by plain search (any case), not an HTML-matching regexp.
+    const lower = page.toLowerCase();
+    const scripts: string[] = [];
+    for (let at = lower.indexOf("<script"); at >= 0; at = lower.indexOf("<script", at + 1)) {
+      const open = lower.indexOf(">", at);
+      const close = lower.indexOf("</script", open);
+      if (open < 0 || close < 0) break;
+      if (!/\bsrc=/.test(lower.slice(at, open))) scripts.push(page.slice(open + 1, close));
+    }
     expect(scripts.length).toBeGreaterThan(0);
     for (const js of scripts) expect(() => new Script(js)).not.toThrow();
   });
