@@ -46,7 +46,7 @@ describe("story steps", () => {
     // Silph Co. (company) before the fifth badge: as a run reached them, not as the story lists them.
     const steps = stepCallsOf({ tower: 1500, company: 1606, rival5: 1634, badge5: 1716, badge6: 1993 }, ["tower", "company", "rival5", "badge5", "badge6"]);
     expect(steps).toEqual({ tower: 1500, company: 106, rival5: 28, badge5: 82, badge6: 277 });
-    expect(Object.values(steps).reduce((a, b) => a + b, 0)).toBe(1993);
+    expect((Object.values(steps) as number[]).reduce((a, b) => a + b, 0)).toBe(1993);
   });
 });
 
