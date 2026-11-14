@@ -49,6 +49,17 @@ describe("run summaries", () => {
     expect(readRows(log)[0].calls).toBe(2);
   });
 
+  it("leaves report_issue out of the run's calls: it's free, as the prompt says", () => {
+    const dir = runFolder();
+    const log = join(dir, "run-log.jsonl");
+    const report = { n: 3, t: "2026-11-07T18:00:03.000Z", ms: 5, tool: "report_issue", args: { text: "map looks off" }, chars: 20, error: "x" };
+    const pallet = { n: 4, t: "2026-11-07T18:00:04.000Z", ms: 5, tool: "walk", args: {}, chars: 50, where: "ROUTE 1 [ROUTE_1] x1 y1 | battle: none", badges: 0 };
+    writeFileSync(log, readFileSync(log, "utf8") + [report, pallet].map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const [row] = computeRows(log);
+    expect(row).toMatchObject({ calls: 3, errors: 1 });
+    expect(row.topTools).not.toMatch(/report_issue/);
+  });
+
   it("has no file for a loose run log from before run folders, and computes its rows", () => {
     const dir = mkdtempSync(join(tmpdir(), "runs-"));
     const log = join(dir, "2026-10-01T00-00-00-000Z.jsonl");

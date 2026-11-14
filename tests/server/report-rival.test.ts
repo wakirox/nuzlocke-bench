@@ -63,6 +63,18 @@ describe("hardAreasOf", () => {
     expect(areas).toEqual([{ id: "mansion", label: "Burned mansion", done: true, calls: 6, entries: 2, deaths: 2, seconds: 650 }]);
   });
 
+  it("ends the area at a milestone map passed mid-call, and counts an entry made mid-call", () => {
+    const via = (map: string, playTime: string, maps: string[]) => ({ ...at(map, playTime), maps });
+    const areas = hardAreasOf([
+      at("ROUTE_10", "3:00:00"),
+      via("ROCK_TUNNEL_1F", "3:00:10", ["ROCK_TUNNEL_1F"]),
+      at("ROCK_TUNNEL_B1F", "3:05:00"),
+      via("ROUTE_8", "3:09:00", ["ROCK_TUNNEL_1F", "LAVENDER_TOWN", "ROUTE_8"]),
+      at("ROUTE_8", "3:20:00"), at("ROUTE_8", "3:30:00"),
+    ]);
+    expect(areas).toEqual([{ id: "tunnel", label: "Dark tunnel", done: true, calls: 2, entries: 1, deaths: 0, seconds: 290 }]);
+  });
+
   it("runs to the end of the run when it never got through", () => {
     const [area] = hardAreasOf([at("SILPH_CO_1F", "5:00:00"), at("SILPH_CO_2F", "5:00:30")]);
     expect(area).toMatchObject({ id: "company", done: false, calls: 2, seconds: 30 });

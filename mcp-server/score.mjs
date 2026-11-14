@@ -33,13 +33,14 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
  * A run's score and what it's made of. `reached`: its milestone ids, as in report.mjs's OBJECTIVES;
  * `objectiveCalls`: the call that first reached each; `lastBattleDeaths`: a wipe's deaths in its last
  * battle (the wipe itself, charged once as `ended`); `dark`: report.mjs's darkTunnelOf.
+ * `wrongCalls` includes `rejected`: calls the server turned down before they ran, which aren't in `calls`.
  * Screenshots (-3 each) and failed calls (-4 per percentage point of the calls) count for every run: with
  * a Champion reached, a clean run has to beat a messy one (docs/scoring.md).
  */
 /**
- * @param {{ reached?: string[], deaths?: number, outcome?: string, calls?: number, objectiveCalls?: Record<string, number>, lastBattleDeaths?: number, dark?: any, screenshots?: number, wrongCalls?: number }} run
+ * @param {{ reached?: string[], deaths?: number, outcome?: string, calls?: number, objectiveCalls?: Record<string, number>, lastBattleDeaths?: number, dark?: any, screenshots?: number, wrongCalls?: number, rejected?: number }} run
  */
-export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null, screenshots = 0, wrongCalls = 0 }) {
+export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null, screenshots = 0, wrongCalls = 0, rejected = 0 }) {
   let progress = 0;
   for (const id of reached) progress += id === "champion" ? POINTS.champion : id.startsWith("badge") ? POINTS.badge : POINTS.milestone;
   const finished = reached.includes("champion");
@@ -58,7 +59,8 @@ export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, ob
     ended: !finished && ["wipe", "lost", "gave up", "out of calls"].includes(outcome) ? POINTS.ended : 0,
     disqualified: outcome === "disqualified" ? POINTS.disqualified : 0,
     screenshots: (screenshots * POINTS.screenshot) || 0,
-    wrongCalls: (calls > 0 ? Math.round((100 * Math.min(wrongCalls, calls) / calls) * POINTS.wrongCallPoint) : 0) || 0,
+    // Out of every call made: the rejected ones (in wrongCalls) never reached the run log's count.
+    wrongCalls: (calls + rejected > 0 ? Math.round((100 * Math.min(wrongCalls, calls + rejected) / (calls + rejected)) * POINTS.wrongCallPoint) : 0) || 0,
   };
   return { total: Object.values(parts).reduce((a, b) => a + b, 0), ...parts };
 }

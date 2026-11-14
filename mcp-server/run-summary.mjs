@@ -9,9 +9,10 @@ import { throwsOf } from "./dashboard.mjs";
 import { attempts, capsFromTranscript, darkTunnelOf, fightsFromCalls, hardAreasOf, lastBattleDeathsOf, objectiveCallsOf, objectivesOf, parseLog, runExtras, screenshotsOf, summarize } from "./report.mjs";
 import { locateRun, readTranscript } from "./run-folder.mjs";
 import { gameData } from "./games/index.mjs";
+import { UNCOUNTED } from "./call-budget.mjs";
 
 /** The summary's format: a reader that finds another one computes the rows again. */
-export const SUMMARY_VERSION = 2;
+export const SUMMARY_VERSION = 3;
 
 const readIf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 
@@ -33,7 +34,9 @@ export function computeRows(runLogFile) {
     : null;
   // A continued run's first lead isn't its starter: that was chosen in the run it continues.
   if (extras && agent?.resumedFrom) extras.starter = null;
-  const runs = attempts(parseLog(readFileSync(runLogFile, "utf8")));
+  // report_issue is free (call-budget.mjs, and the prompt says so): it isn't one of the run's calls
+  // for the totals, the speed, the dark tunnel or the failed-call rate.
+  const runs = attempts(parseLog(readFileSync(runLogFile, "utf8"))).map((a) => ({ ...a, calls: a.calls.filter((c) => !UNCOUNTED.has(c.tool)) }));
   return runs.map((a, i) => {
     const last = i === runs.length - 1;
     /** @type {any} */

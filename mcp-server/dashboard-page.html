@@ -297,7 +297,7 @@ function oneRun(r) {
     ["Disqualified", s.disqualified, s.disqualified ? "a rule broken" : "-"],
     ["Efficiency", s.efficiency, s.efficiency ? "calls left of the 6,000" : "only after beating the Champion"],
     ["Screenshots", s.screenshots ?? 0, `${r.screenshots ?? 0} asked for, -3 each`],
-    ["Failed calls", s.wrongCalls ?? 0, `${r.wrongCalls ?? 0}${r.calls ? ` of ${r.calls} calls (${(100 * (r.wrongCalls ?? 0) / r.calls).toFixed(1)}%)` : ""}, -4 per percentage point`],
+    ["Failed calls", s.wrongCalls ?? 0, `${r.wrongCalls ?? 0}${r.calls ? ` of ${r.calls + (r.rejected ?? 0)} calls (${(100 * (r.wrongCalls ?? 0) / (r.calls + (r.rejected ?? 0))).toFixed(1)}%)` : ""}, -4 per percentage point`],
   ];
   const captures = r.captures ?? [];
   const alive = captures.filter((c) => !c.died).length;

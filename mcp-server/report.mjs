@@ -480,13 +480,28 @@ export function lastBattleDeathsOf(calls) {
   return Math.max(0, (calls.at(-1)?.deaths ?? 0) - before);
 }
 
+/** The maps a logged call was on: the ones it passed through (run-log `maps`), then where it ended. */
+function passedMaps(c) {
+  const at = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];
+  return [...(c.maps ?? []), ...(at ? [at] : [])];
+}
+
+/** The call reached a map `is` accepts; when `after` is given, only past a map `after` accepts (in the order it went). */
+function reachedAfter(c, is, after) {
+  const maps = passedMaps(c);
+  const from = after ? maps.findIndex(after) : 0;
+  return from >= 0 && maps.slice(from).some(is);
+}
+
 export function darkTunnelOf(calls, game = GEN1) {
   const mapOf = (c) => /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];
-  const start = calls.findIndex((c) => game.darkMaps.has(mapOf(c)));
+  const start = calls.findIndex((c) => passedMaps(c).some((m) => game.darkMaps.has(m)));
   if (start < 0) return null;
-  let end = calls.findIndex((c, i) => i > start && mapOf(c) === game.afterTheDark);
+  let end = calls.findIndex((c, i) => i >= start && reachedAfter(c, (m) => m === game.afterTheDark, i === start ? (m) => game.darkMaps.has(m) : null));
   const crossed = end >= 0;
   if (!crossed) end = calls.length;
+  // A call that crossed all of it on its own is its one call.
+  end = Math.max(end, start + 1);
   const inside = calls.slice(start, end);
   const flash = inside.find((c) => !c.error && game.darkMaps.has(mapOf(c)) && /FLASH/i.test(JSON.stringify(c.args ?? {})) && /field_move|do|walk/.test(c.tool));
   const darkRules = inside.some((c) => game.darkMaps.has(mapOf(c)) && /battle: none/.test(c.where) && !/\bx\d+ y\d+/.test(c.where));
@@ -509,23 +524,23 @@ export function hardAreasOf(calls, game = GEN1) {
   const out = [];
   const reached = objectivesOf(calls, game);
   for (const area of game.hardAreas) {
-    const inside = (c) => {
-      const map = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1] ?? "";
-      return map.startsWith(area.prefix) && map !== area.not;
-    };
-    const start = calls.findIndex(inside);
+    const isInside = (m) => m.startsWith(area.prefix) && m !== area.not;
+    const inside = (c) => isInside(/\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1] ?? "");
+    const start = calls.findIndex((c) => passedMaps(c).some(isInside));
     if (start < 0) continue;
     const doneAt = reached[area.done];
     let end = calls.length;
     if (doneAt !== undefined) {
       const objective = game.objectives.find((o) => o.id === area.done);
-      const hit = calls.findIndex((c, i) => i > start && objective.maps?.includes(/\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1]));
-      if (hit >= 0) end = hit;
+      const hit = calls.findIndex((c, i) => i >= start && reachedAfter(c, (m) => !!objective.maps?.includes(m), i === start ? isInside : null));
+      // A call that went through all of it on its own is its one call.
+      if (hit >= 0) end = Math.max(hit, start + 1);
     }
     const span = calls.slice(start, end);
     if (!span.length) continue;
     let entries = 0;
-    span.forEach((c, i) => { if (inside(c) && (i === 0 || !inside(span[i - 1]))) entries++; });
+    // An entry: a call that was inside (if only passing through) after one that ended outside.
+    span.forEach((c, i) => { if (passedMaps(c).some(isInside) && (i === 0 || !inside(span[i - 1]))) entries++; });
     const times = span.map((c) => clockSeconds(c.playTime)).filter((t) => t != null);
     out.push({
       id: area.id, label: area.label, done: doneAt !== undefined, calls: span.length, entries,
