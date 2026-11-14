@@ -169,7 +169,30 @@ export function runExtras({ tracker, transcript, notes, game = GEN1 }) {
     notes: notes?.trim() || null,
     context: contextStats(transcript),
     rejected: rejectedCalls(transcript),
+    otherTools: otherToolsOf(transcript),
   };
+}
+
+/**
+ * The tools the model had besides the game's, from every session start in the transcript (Claude Code's
+ * init event; a resumed or restarted session writes another). Null when the transcript names none, so the
+ * run's tools aren't on record. The game's tools are the bench server's (mcp__nuzlocke-bench__…); a run
+ * through the API lists that server's tools by their own names, with no MCP servers of its own.
+ */
+export function otherToolsOf(transcript) {
+  let seen = false;
+  const other = new Set();
+  for (const line of (transcript ?? "").split("\n")) {
+    if (!line.includes('"init"')) continue;
+    let e;
+    try { e = JSON.parse(line); } catch { continue; }
+    if (e?.type !== "system" || e.subtype !== "init" || !Array.isArray(e.tools)) continue;
+    seen = true;
+    const direct = e.mcp_servers === undefined;
+    for (const name of e.tools) if (!(direct ? !name.startsWith("mcp__") : name.startsWith("mcp__nuzlocke-bench__"))) other.add(name);
+    for (const s of e.mcp_servers ?? []) if (s?.name !== "nuzlocke-bench") other.add(`MCP server ${s?.name}`);
+  }
+  return seen ? [...other].sort() : null;
 }
 
 /**
