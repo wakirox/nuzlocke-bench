@@ -31,6 +31,10 @@ export function notOfficial({ date, preset, game, outcome, first, legs }) {
   if (recordOf(first)?.resumedFrom) return "not from a new game";
   if (legs.some((l) => recordOf(l)?.playtest)) return "playtest";
   if (legs.some((l) => recordOf(l)?.narrated)) return "narrated";
+  // The model's tools, from each leg's transcript: the game's only (docs/benchmark.md, "Official results").
+  const tools = legs.filter((l) => l.extras !== null).map((l) => l.extras?.otherTools);
+  if (!tools.length || tools.some((t) => !Array.isArray(t))) return "tools not on record";
+  if (tools.some((t) => t.length)) return "other tools";
   const off = legs.map(offDefaults).find(Boolean);
   if (off) return off;
   if (!RULE_ENDINGS.has(outcome)) return outcome;

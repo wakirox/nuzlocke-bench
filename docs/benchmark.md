@@ -147,7 +147,9 @@ can't be checked for that, and the server being open doesn't change it. The rule
   the game's, no other MCP servers, no settings, no memory, an empty working folder, and a prompt that only says
   to read the rules and play. The harness is a commit: no uncommitted changes, and the page built from that same
   commit (the report marks a run otherwise, e.g. `0.1.0@70c0619 (page built from 296b6da)`). Each run's `transcript.jsonl` proves it: its first event lists every tool the model
-  had (all `mcp__nuzlocke-bench__…`), and every call it made is in it.
+  had (all `mcp__nuzlocke-bench__…`), and every call it made is in it. The dashboard checks it: a run whose
+  transcript lists any other tool or MCP server, at any session start, is marked "other tools", and one with no
+  tool list on record "tools not on record".
 - **A watch-only observer doesn't change that** (`--observer <module>`, see `mcp-server/observers.mjs`): it gets the
   headless page to look at and paths of its own on the game's port, nothing that plays (no bridge, tools or input),
   so the model sees exactly what it would without it. The run records its name (`observers` in `agent.json`).

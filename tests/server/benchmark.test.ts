@@ -209,7 +209,7 @@ describe("how a run was played", () => {
       { text: "STARTY (STARTERMON) died (ROCKMON Lv14, GYM). It can never battle again; it goes to Box 12 by itself once you walk on." },
     ] };
     const x = runExtras({ tracker, transcript, notes: "Shop in town A.\n" });
-    expect(x).toEqual({ starter: "STARTERMON", caught: ["BIRDMON Lv4 at ROAD"], deaths: ["STARTY (STARTERMON) died (ROCKMON Lv14, GYM)"], pcHeals: 3, fights: [], notes: "Shop in town A.", context: { compactions: [], peak: null, window: null }, rejected: 0 });
+    expect(x).toEqual({ starter: "STARTERMON", caught: ["BIRDMON Lv4 at ROAD"], deaths: ["STARTY (STARTERMON) died (ROCKMON Lv14, GYM)"], pcHeals: 3, fights: [], notes: "Shop in town A.", context: { compactions: [], peak: null, window: null }, rejected: 0, otherTools: null });
     const row = { name: "r1", play: { mapsVisited: 2, furthest: "ROAD", longestStuck: 5, routesSaved: 1, routeTrips: 1, notesWritten: 1, screenshots: 1 }, extras: x };
     expect(playTable([row])).toContain("| r1 | STARTERMON | — | 1 | 2 | ROAD | 5 | 1 / 1 | 1 | 1 | 3 | 0 | — |");
     expect(details([row])).toContain("> Shop in town A.");

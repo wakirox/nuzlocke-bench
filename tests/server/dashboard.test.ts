@@ -9,7 +9,7 @@ import { OFFICIAL } from "../../mcp-server/benchmark.mjs";
 const agent = { model: "claude-sonnet-5-5", effort: "low", tokens: { total: 5_000_000 } };
 const row = (name: string, extra: Record<string, unknown> = {}) => ({
   name, agent, preset: "full", harness: "0.1.0@abc", outcome: "unfinished", badges: 0, deaths: 0, calls: 100, playTime: "1:00:00",
-  objectives: {}, darkTunnel: null, game: "red", ...extra,
+  objectives: {}, darkTunnel: null, game: "red", extras: { otherTools: [] }, ...extra,
 });
 
 describe("outcomeKind", () => {

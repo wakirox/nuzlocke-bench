@@ -13,7 +13,7 @@ import { UNCOUNTED } from "./call-budget.mjs";
 import { toolUseOf } from "./capabilities.mjs";
 
 /** The summary's format: a reader that finds another one computes the rows again. */
-export const SUMMARY_VERSION = 5;
+export const SUMMARY_VERSION = 6;
 
 const readIf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 
