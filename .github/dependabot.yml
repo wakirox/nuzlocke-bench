@@ -9,6 +9,11 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint supports TypeScript < 6.1 only; a TypeScript 7 bump fails npm install and
+      # holds back every other update in the group. Drop this once typescript-eslint allows 7.
+      - dependency-name: typescript
+        versions: [">=7"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
