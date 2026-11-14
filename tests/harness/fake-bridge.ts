@@ -110,6 +110,7 @@ export class FakeHost {
       brief: () => ({ location: "test", battle: "", lead: null, enemy: null, outcome: this.opts.outcome ?? null }) as never,
       newEvents: () => [],
       takePoisonHurt: () => [],
+      takeMapsEntered: () => [],
       battleMoves: () => [],
       refresh: () => {},
       saveProblem: () => null,

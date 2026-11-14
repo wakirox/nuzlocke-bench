@@ -44,6 +44,21 @@ describe("run log", () => {
     expect(lines[0].error).toBeUndefined();
   });
 
+  it("records the maps a call passed through (only when there were any), and hands them to onEntry", async () => {
+    const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
+    const server = fakeServer();
+    const pending = [["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"], []];
+    const seen: unknown[] = [];
+    instrumentTools(server, { file, mapsEntered: () => pending.shift() ?? [], onEntry: async (e: { maps?: string[] }) => void seen.push(e.maps) });
+    server.registerTool("go_to", { inputSchema: {} }, async () => text("📍 ROUTE 9 [ROUTE_9] x1 y1 | battle: none"));
+    await server.tools.get("go_to")!({ map: "ROUTE_9" });
+    await server.tools.get("go_to")!({ map: "ROUTE_9" });
+    const lines = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(lines[0].maps).toEqual(["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"]);
+    expect(lines[1].maps).toBeUndefined();
+    expect(seen).toEqual([["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"], undefined]);
+  });
+
   it("hands each entry, once written, to onEntry, before the call returns; a failing onEntry doesn't fail the call", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
     const server = fakeServer();

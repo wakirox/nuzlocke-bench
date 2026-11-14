@@ -186,6 +186,7 @@ instrumentTools(server, {
   file: RUN_LOG_FILE,
   log,
   status: link.lastStatus,
+  mapsEntered: link.takeMapsEntered,
   onEntry: saveMilestones,
   session: { benchmark: PRESET, harness: harnessVersion(PROJECT_ROOT, DIST), headless: HEADLESS, ...(PLAYTEST ? { playtest: true } : {}), ...(REPORT_ISSUE ? { reportIssue: true } : {}), grid: NARROW_GRID ? "narrow" : "wide", maps: "ask", effectiveness: HIDE_EFFECTIVENESS ? "off" : "on" },
 });
@@ -290,7 +291,7 @@ server.registerTool("do", {
   const last = done[done.length - 1];
   const head = done.slice(0, -1).map((d, i) => stepSummary(i, d));
   const tail = last.result && typeof last.result === "object" && "status" in last.result
-    ? `${done.length}. ${last.tool}\n${afterAction(last.result).content[0].text}`
+    ? `${done.length}. ${last.tool}\n${afterAction(last.result, { keepMap: !!parsed[done.length - 1]?.args?.show_map }).content[0].text}`
     : stepSummary(done.length - 1, last);
   const notRun = skipped + (read ? 1 : 0);
   const note = stopped || (read && last.error) ? `⏸ Stopped ${stopped ?? `at step ${done.length} (${last.tool}): it failed`} — ${notRun} step${notRun === 1 ? "" : "s"} not run.` : null;

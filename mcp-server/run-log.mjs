@@ -46,9 +46,10 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
 /**
  * Wraps server.registerTool so every tool registered afterwards is logged to `file`
  * (null = don't log). Call before registering tools. The first line is a session header
- * (`session`: benchmark preset, harness version…); `status()` gives the latest game status.
+ * (`session`: benchmark preset, harness version…); `status()` gives the latest game status,
+ * `mapsEntered()` the maps entered since it was last called.
  */
-export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, session = null, onEntry = null }) {
+export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null }) {
   let ready = false;
   const write = (entry) => {
     if (!file) return;
@@ -84,6 +85,9 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
       if (!entry.where && game?.location) entry.where = `${game.location} | battle: ${game.battle ?? "?"}`;
       if (name === "report_issue" && !entry.where) entry.where = lastWhere;
       if (entry.where) lastWhere = entry.where;
+      // Maps the call passed through on the way (go_to, travel, do): a milestone map among them counts.
+      const passed = mapsEntered();
+      if (passed.length) entry.maps = passed;
       // A trainer battle began or ended during this call: the teams as it began, and how it went.
       const fight = status()?.lastFight;
       const fightJson = fight ? JSON.stringify(fight) : null;

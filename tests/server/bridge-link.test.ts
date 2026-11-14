@@ -29,7 +29,8 @@ async function start(reloadWaitMs = 300) {
     const ws: WebSocket = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { origin: "http://localhost:5173" } });
     ws.on("message", (data: Buffer) => {
       const msg = JSON.parse(String(data));
-      ws.send(JSON.stringify({ id: msg.id, result: { ok: msg.method } }));
+      const maps = msg.params?.maps as string[] | undefined;
+      ws.send(JSON.stringify({ id: msg.id, result: { ok: msg.method, ...(maps ? { status: { location: "x", mapsEntered: maps } } : {}) } }));
     });
     ws.on("open", () => (pages.push(ws), ok(ws)));
     ws.on("error", fail);
@@ -46,6 +47,17 @@ describe("the link to the game page", () => {
     await page();
     await connected();
     expect(await link.call("get_state")).toEqual({ ok: "get_state" });
+  });
+
+  it("gathers the maps entered across calls until they're taken", async () => {
+    const { link, page, connected } = await start();
+    await page();
+    await connected();
+    await link.call("walk", { maps: ["ROUTE_4"] });
+    await link.call("walk", { maps: ["CERULEAN_CITY", "ROUTE_9"] });
+    await link.call("get_state");
+    expect(link.takeMapsEntered()).toEqual(["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"]);
+    expect(link.takeMapsEntered()).toEqual([]);
   });
 
   it("after new_run, waits for the reloaded page instead of failing on the gap", async () => {
