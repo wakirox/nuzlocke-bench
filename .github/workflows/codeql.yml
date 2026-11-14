@@ -1,0 +1,33 @@
+name: codeql
+
+# GitHub's security scan of the JavaScript/TypeScript code: on every PR into master, on master, and weekly
+# (new queries catch old code too).
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript
+          paths-ignore: |
+            vendor
+            dist
+            node_modules
+      - uses: github/codeql-action/analyze@v4
