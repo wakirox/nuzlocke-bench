@@ -22,6 +22,7 @@ console.log("tools:", tools.map((t) => t.name).join(", "));
 
 const text = (r) => r.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
 const call = async (name, args = {}) => {
+  /** @type {any} */
   const r = await client.callTool({ name, arguments: args });
   if (r.isError) throw new Error(`${name}: ${text(r)}`);
   return r;

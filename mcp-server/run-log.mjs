@@ -49,6 +49,10 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
  * (`session`: benchmark preset, harness version…); `status()` gives the latest game status,
  * `mapsEntered()` the maps entered since it was last called.
  */
+/**
+ * @param {any} server
+ * @param {{ file: string | null, log?: (...args: any[]) => void, now?: () => number, status?: () => any, mapsEntered?: () => any[], session?: any, onEntry?: ((entry: any) => any) | null }} opts
+ */
 export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null }) {
   let ready = false;
   const write = (entry) => {

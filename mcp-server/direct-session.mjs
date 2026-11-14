@@ -30,6 +30,10 @@ export const SUMMARY_TRIES = 2;
  * 5 minutes, and a non-streamed reply starts only when it's done: a model running partly on
  * the CPU can think longer than that.
  */
+/**
+ * @param {string} url
+ * @param {{ method?: string, headers?: Record<string, string>, body?: string, signal?: AbortSignal }} [opts]
+ */
 export function postNoTimeout(url, { method = "POST", headers = {}, body, signal } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -130,6 +134,9 @@ export const contextTokens = (usage) =>
  * the model can't call a tool: the Anthropic API keeps the tools (a conversation with tool calls needs
  * them) with tool_choice none; the OpenAI API gets none, which Ollama honours where tool_choice isn't.
  */
+/**
+ * @param {{ api: string, baseUrl: string, apiKey?: string, model: string, maxOutput: number, messages: any[], tools: any[], textOnly?: boolean, fetchImpl?: (url: string, opts?: any) => Promise<any>, signal?: AbortSignal }} opts
+ */
 export async function callModel({ api, baseUrl, apiKey, model, maxOutput, messages, tools, textOnly = false, fetchImpl = postNoTimeout, signal }) {
   if (api === "anthropic") {
     const res = await fetchImpl(`${baseUrl}/v1/messages`, {
@@ -167,6 +174,15 @@ const forHistory = (api, content) => (api === "openai" ? content.filter((b) => b
  * user, system compact_boundary, result) and "exit" (code), like the claude process.
  */
 export class DirectSession extends EventEmitter {
+  /** @type {any} */ api;
+  /** @type {any} */ baseUrl;
+  /** @type {any} */ apiKey;
+  /** @type {any} */ model;
+  /** @type {any} */ server;
+  /** @type {any} */ compactWindow;
+  /** @type {any} */ maxOutput;
+  /** @type {any} */ connect;
+  /** @type {any} */ fetchImpl;
   constructor({ api, baseUrl, apiKey, model, server, compactWindow, maxOutput = 16384, connect = connectMcp, fetchImpl = postNoTimeout }) {
     super();
     Object.assign(this, { api, baseUrl: baseUrl.replace(/\/$/, ""), apiKey, model, server, compactWindow, maxOutput, connect, fetchImpl });

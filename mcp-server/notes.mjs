@@ -18,6 +18,10 @@ export const numbered = (entries) => entries.map((e, i) => `${i + 1}. ${e}`).joi
  * The notes after a write: `clear` empties the list, then `remove` takes out entries by number
  * (as last listed), then `add` puts new entries at the end. An entry is one line.
  */
+/**
+ * @param {string} current
+ * @param {{ add?: any, remove?: number[], clear?: boolean }} [opts]
+ */
 export function updateNotes(current, { add, remove, clear } = {}) {
   let entries = clear ? [] : entriesOf(current);
   if (remove?.length) {

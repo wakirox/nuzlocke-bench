@@ -11,6 +11,7 @@ const client = new Client({ name: "mcp-seq", version: "0.0.1" });
 await client.connect(new StdioClientTransport({ command: process.execPath, args: ["mcp-server/server.mjs"], env: { ...process.env }, stderr: "ignore" }));
 
 for (const [tool, args = {}] of steps) {
+  /** @type {any} */
   let r;
   for (let i = 0; ; i++) {
     r = await client.callTool({ name: tool, arguments: args });

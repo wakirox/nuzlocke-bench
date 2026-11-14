@@ -19,8 +19,14 @@ import { isLocalHost, isLocalOrigin } from "./local-guards.mjs";
 /** The file that holds one save key in the saves folder. */
 export const saveFileOf = (savesDir) => (key) => join(savesDir, `${encodeURIComponent(key)}.json`);
 
+/**
+ * The most one PUT /backup/<key> may send. A save with its ROMs (base64, sent with the run, its base
+ * ROM and each replay) is a few MB; this keeps a runaway body from filling the server's memory.
+ */
+export const MAX_BACKUP_BYTES = 64 * 1024 * 1024;
+
 /** The request handler of the bridge's HTTP server. `dist` is the built app (null: not served), `transcript` the transcript file (or null). */
-export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer = null }) {
+export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer = null, maxBackupBytes = MAX_BACKUP_BYTES }) {
   const fileOf = saveFileOf(SAVES_DIR);
 
   function handleBackup(req, res) {
@@ -75,9 +81,28 @@ export function createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcri
         return;
       }
       if (req.method === "PUT" && key) {
+        const tooBig = () => {
+          log("backup refused:", key, `over ${maxBackupBytes} bytes`);
+          res.writeHead(413, cors).end(`A save can be at most ${maxBackupBytes} bytes.`);
+        };
+        if (Number(req.headers["content-length"]) > maxBackupBytes) {
+          req.resume(); // read and drop the body, so the connection ends cleanly
+          tooBig();
+          return;
+        }
         const chunks = [];
-        req.on("data", (c) => chunks.push(c));
+        let size = 0;
+        req.on("data", (c) => {
+          size += c.length;
+          // Past the limit (a body sent without a length) the rest is read and dropped.
+          if (size <= maxBackupBytes) chunks.push(c);
+          else chunks.length = 0;
+        });
         req.on("end", () => {
+          if (size > maxBackupBytes) {
+            tooBig();
+            return;
+          }
           try {
             const body = Buffer.concat(chunks).toString("utf8");
             const value = JSON.parse(body); // only store valid JSON

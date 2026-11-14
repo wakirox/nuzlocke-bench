@@ -16,6 +16,7 @@ import { knownRoms, restoreRoms } from "../mcp-server/rom-refs.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+/** @returns {never} */
 function usage(msg) {
   if (msg) console.error(msg);
   console.error("usage: npm run verify -- <recording.json> --rom <your Red/Blue/Yellow .gb> --preset <id> [--json]");

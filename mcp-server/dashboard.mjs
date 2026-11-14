@@ -175,6 +175,7 @@ export function dashboardRuns(rows, { names = true } = {}) {
     const wrongCalls = legs.reduce((n, l) => n + (l.errors ?? 0) + (l.extras?.rejected ?? 0), 0);
     const tokens = legs.map((l) => l.agent?.tokens?.total).filter((t) => t != null);
     // Calls to each milestone across the legs (a continued leg's calls start after the ones before it).
+    /** @type {Record<string, number>} */
     const objectiveCalls = {};
     let before = 0;
     for (const l of legs) {

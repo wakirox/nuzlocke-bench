@@ -1,10 +1,11 @@
 # Tests
 
 ```bash
-npm test              # type-check src and tests, then everything that needs no ROM (this is what CI runs)
-npm run typecheck     # the type check alone (tsconfig.test.json; vitest doesn't check types)
+npm test              # type-check src, tests and the server's .mjs, then everything that needs no ROM (this is what CI runs)
+npm run typecheck     # the type check alone (tsconfig.test.json, then tsconfig.mjs.json for mcp-server/ and scripts/; vitest doesn't check types)
 npm run test:watch
 NUZLOCKE_TEST_REPLAY=saves/bestReplay.nuzlocke.json npm test   # + replay a real recorded run
+NUZLOCKE_TEST_ROMS=<folder of .gb/.gbc files> npm test         # + read real ROMs through the engine on the browser shims
 ```
 
 The tests check that the harness reports the game correctly — encounters, deaths, level caps,
@@ -22,7 +23,10 @@ data is the model's call.
 | `bridge/` | Pathfinding over hand-drawn maps | no |
 | `emulator/` | The core in Node and replay determinism, on a tiny homebrew ROM built in the test | no |
 | `server/` | MCP server pieces: headless static serving, the run log | no |
-| `rom/` | Replays of real recorded runs; skipped unless `NUZLOCKE_TEST_REPLAY` is set | yes |
+| `rom/` | The browser shims for Node's built-ins (no ROM); reading real ROMs through the engine on them (`NUZLOCKE_TEST_ROMS`); replays of real recorded runs (`NUZLOCKE_TEST_REPLAY`) | the last two |
+
+The vendored engine's `fs`, `path`, `url`, `os` and `crypto` imports run on `src/shims/` in the tests too
+(`vitest.config.ts`), as in the page's worker; the tests and the MCP server keep Node's.
 
 ## Writing a rule test
 

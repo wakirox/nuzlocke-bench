@@ -36,6 +36,9 @@ const bonus = (calls, zero) => (calls == null ? 0 : Math.round(POINTS.speed * Ma
  * Screenshots (-3 each) and failed calls (-4 per percentage point of the calls) count for every run: with
  * a Champion reached, a clean run has to beat a messy one (docs/scoring.md).
  */
+/**
+ * @param {{ reached?: string[], deaths?: number, outcome?: string, calls?: number, objectiveCalls?: Record<string, number>, lastBattleDeaths?: number, dark?: any, screenshots?: number, wrongCalls?: number }} run
+ */
 export function scoreRun({ reached = [], deaths = 0, outcome = "", calls = 0, objectiveCalls = {}, lastBattleDeaths = 0, dark = null, screenshots = 0, wrongCalls = 0 }) {
   let progress = 0;
   for (const id of reached) progress += id === "champion" ? POINTS.champion : id.startsWith("badge") ? POINTS.badge : POINTS.milestone;
