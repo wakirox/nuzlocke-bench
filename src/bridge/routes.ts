@@ -11,8 +11,6 @@ export type Link = { exit: Dir } | { door: [number, number]; push?: Dir };
 export type Routes = Record<string, Record<string, Link>>;
 
 const DIRS: Dir[] = ["up", "down", "left", "right"];
-/** Map names come from the model: these would write to Object.prototype instead of the book. */
-const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function describeLink(from: string, to: string, l: Link): string {
   return "exit" in l
@@ -27,7 +25,9 @@ export class RouteBook {
   note(from: string, to: string, how: { exit?: string; door?: [number, number]; push?: string }): Link {
     if (!from || !to) throw new Error("Give both maps, e.g. from ROUTE_1 to ROUTE_2.");
     if (from === to) throw new Error("A route links two different maps.");
-    if (UNSAFE_KEYS.has(from) || UNSAFE_KEYS.has(to)) throw new Error("Not a map name.");
+    // Map names come from the model: these would write to Object.prototype instead of the book.
+    if (from === "__proto__" || from === "constructor" || from === "prototype") throw new Error("Not a map name.");
+    if (to === "__proto__" || to === "constructor" || to === "prototype") throw new Error("Not a map name.");
     let link: Link;
     if (how.exit && !how.door) {
       if (!DIRS.includes(how.exit as Dir)) throw new Error(`exit must be one of ${DIRS.join(", ")}.`);
@@ -45,7 +45,9 @@ export class RouteBook {
   }
 
   forget(from: string, to: string): boolean {
-    if (UNSAFE_KEYS.has(from) || UNSAFE_KEYS.has(to)) return false;
+    // Map names come from the model: these would reach Object.prototype instead of the book.
+    if (from === "__proto__" || from === "constructor" || from === "prototype") return false;
+    if (to === "__proto__" || to === "constructor" || to === "prototype") return false;
     const had = !!this.routes[from]?.[to];
     if (had) {
       delete this.routes[from][to];
