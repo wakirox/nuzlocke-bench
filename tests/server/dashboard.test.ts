@@ -77,6 +77,13 @@ describe("dashboardRuns", () => {
     expect(run.score).toMatchObject({ deaths: -30, ended: -45, screenshots: -60, total: 60 - 30 - 45 - 60 + run.score.speed });
   });
 
+  it("doesn't add the wipe's last Pokémon again when the run log already counts it (since 2026-11-15)", () => {
+    const [old] = dashboardRuns([row("a", { outcome: "wipe: X", deaths: 2, objectives: { badge1: "x" } })]);
+    const [now] = dashboardRuns([row("b", { outcome: "wipe: X", deaths: 3, lastBattleDeaths: 1, wipeDeathsCounted: true, objectives: { badge1: "x" } })]);
+    expect(now.deaths).toBe(3);
+    expect(now.score.deaths).toBe(old.score.deaths); // the same run, logged before and after: the same score
+  });
+
   it("counts failed calls (run-log errors plus calls the server rejected), -4 per percentage point of the calls", () => {
     const [run] = dashboardRuns([row("a", { calls: 100, errors: 3, extras: { rejected: 2 }, objectives: { badge1: "x" } })]);
     expect(run.wrongCalls).toBe(5);

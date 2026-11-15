@@ -46,7 +46,7 @@ export function summarize({ session, calls }, game = GEN1) {
   let chars = 0, errors = 0, badges = 0, deaths = 0, violations = 0, outcome = null, busyMs = 0, playTime = null;
   // Rare Candies and level caps: null in logs from before the page reported them.
   const caps = { candies: null, candiedToCap: null, overCap: null, capViolations: null };
-  let firstRival = null;
+  let firstRival = null, wipeDeathsCounted = false;
   const first = calls[0] ? Date.parse(calls[0].t) : null;
   for (const c of calls) {
     tools[c.tool] = (tools[c.tool] ?? 0) + 1;
@@ -60,6 +60,7 @@ export function summarize({ session, calls }, game = GEN1) {
       badges = c.badges;
     }
     if (c.deaths != null) deaths = c.deaths;
+    if (c.wipeDeathsCounted) wipeDeathsCounted = true;
     if (c.violations != null) violations = c.violations;
     for (const k of Object.keys(caps)) if (c[k] != null) caps[k] = c[k];
     if (c.firstRival) firstRival = c.firstRival;
@@ -76,6 +77,7 @@ export function summarize({ session, calls }, game = GEN1) {
     disqualified: /^disqualified/.test(outcome ?? ""),
     badges,
     deaths,
+    ...(wipeDeathsCounted ? { wipeDeathsCounted } : {}),
     violations,
     playTime,
     splits,

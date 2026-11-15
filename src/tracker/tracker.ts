@@ -325,6 +325,7 @@ export class Tracker {
       // battle flag before the team is seen down). Poison only when no battle was on either.
       const foe = s.battle > 0 && s.enemy ? s.enemy : p.battle !== 0 && p.enemy ? p.enemy : null;
       const killer = foe ? `${this.name(foe.species)} Lv${foe.level}` : s.battle === 0 && p.battle === 0 ? "poison" : "unknown";
+      rules.faints?.(s, p);  // the last Pokémon to fall is a death too (before 2026-11-15 the run ended first)
       this.endRun({ kind: "wipe", detail: `Team wiped by ${killer} at ${this.mapName(s)}.` });
       return;
     }
