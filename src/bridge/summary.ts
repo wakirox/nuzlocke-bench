@@ -209,6 +209,8 @@ export function brief(t: Tracker, s: GameState) {
     /** For the run log (not shown in tool results). */
     badges: popcount(s.badges),
     deaths: t.snap.dead.length,
+    /** A wipe's deaths include its last Pokémon (logs from before 2026-11-15 left it out; the dashboard adds it). */
+    wipeDeathsCounted: t.snap.outcome?.kind === "wipe" ? true : undefined,
     violations: t.snap.violations.length,
     candies: t.snap.candies,
     candiedToCap: t.snap.candiedToCap.length,

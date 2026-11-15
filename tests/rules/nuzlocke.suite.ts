@@ -175,14 +175,26 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route)
           .trainerBattle(ids.wildA).sendOut(1).faint(1).sendOut(0).endBattle().step();
         expect(brief(run.engine, run.s).dead).toBe("SPIKE"); // fainted, second in the party
-        run.setMon(1, { hp: 10 }).setMon(0, { hp: 0 }).step(); // healed, and the first one is down
-        expect(brief(run.engine, run.s).dead).toBe("SPIKE (the game sends it out first)");
+        run.setMon(1, { hp: 10 }).setMon(0, { hp: 0 }).step(); // healed, and the first one is down: a wipe (the dead don't stand)
+        expect(brief(run.engine, run.s).dead).toBe(`SPIKE (the game sends it out first), ${run.s.party[0].nickname}`); // the last one counts too
       });
 
       it("ends the run when the whole party has fainted — a loss, not a broken rule", () => {
         const run = new Run(game).goTo(places.route).trainerBattle(ids.wildA, 9).faint(0);
         expect(run.engine.snap.outcome).toMatchObject({ kind: "wipe" });
         expect(run.violations()).toEqual([]);
+      });
+
+      it("counts the wipe's last Pokémon as dead too, once, with what killed it", () => {
+        // Before 2026-11-15 the run ended before the last one was recorded: a wipe after one death showed 1, not 2.
+        const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route)
+          .trainerBattle(ids.wildA, 7).sendOut(1).faint(1).sendOut(0).faint(0);
+        expect(run.engine.snap.outcome).toMatchObject({ kind: "wipe" });
+        expect(run.engine.snap.dead.map((d) => d.nickname)).toEqual(["SPIKE", run.s.party[0].nickname]);
+        expect(run.engine.snap.dead[1].cause).toMatch(/Lv7$/);
+        expect(run.events("warning").filter((e) => / died \(/.test(e))).toHaveLength(2);
+        run.step(); // a later poll doesn't count it again
+        expect(run.engine.snap.dead).toHaveLength(2);
       });
 
       it("with the first rival battle option, losing that fight isn't a death or a wipe; later faints are", () => {

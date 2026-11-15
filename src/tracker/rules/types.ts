@@ -21,6 +21,8 @@ export interface RuleModule {
   partyPoll?(s: GameState, p: GameState): void;
   /** In battle, the player's last-used move changed to `move`. */
   moveUsed?(s: GameState, p: GameState, move: number): void;
+  /** Faints become deaths; the tracker calls it before a wipe ends the run, so the last one counts too. */
+  faints?(s: GameState, p: GameState): void;
   /** After the wipe check (a wipe ends the poll before this); may end the run. */
   afterWipeCheck?(s: GameState, p: GameState): void;
   /** A catch or gift was recorded. */

@@ -62,8 +62,8 @@ A run keeps what it reached, however it ended.
 A rival milestone counts when that fight is won. Runs logged before fights were recorded (2026-10-15)
 get one when they reached a later milestone: an assumption, as the log can't show it. An early optional rival fight isn't a milestone.
 
-A wipe's last Pokémon counts as a death in the run's stats (the run log doesn't count it, as the run ends
-first). The deaths in a wipe's last battle, from the last call made outside a battle, are the wipe itself:
+A wipe's last Pokémon counts as a death in the run's stats: the run log counts it since 2026-11-15
+(`wipeDeathsCounted`); for older logs, where the run ended before it was counted, the stats add it. The deaths in a wipe's last battle, from the last call made outside a battle, are the wipe itself:
 the score charges them once as the early end, not per Pokémon, so a big team that wipes doesn't cost more
 than a lone starter. Giving up costs the same as wiping out, so stopping is never the cheaper way out.
 

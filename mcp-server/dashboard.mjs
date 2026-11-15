@@ -196,8 +196,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
     const furthest = OBJECTIVES.reduce((at, o, i) => (reached.has(o.id) ? i : at), -1);
     const calls = legs.reduce((n, l) => n + (l.calls ?? 0), 0);
     const outcome = outcomeKind(last.outcome, last.agent);
-    // The run log leaves out a wipe's last Pokémon: the run ends before it's counted.
-    const deaths = (last.deaths ?? 0) + (outcome === "wipe" ? 1 : 0);
+    // Run logs from before 2026-11-15 leave out a wipe's last Pokémon (the run ended before it was counted).
+    const lastMissing = outcome === "wipe" && !last.wipeDeathsCounted ? 1 : 0;
+    const deaths = (last.deaths ?? 0) + lastMissing;
     const screenshots = legs.reduce((n, l) => n + (l.screenshots ?? 0), 0);
     // Calls that failed: errors in the run log, and calls the server rejected (only in the transcript).
     const rejected = legs.reduce((n, l) => n + (l.extras?.rejected ?? 0), 0);
@@ -211,7 +212,7 @@ export function dashboardRuns(rows, { names = true } = {}) {
       for (const [k, v] of Object.entries(l.objectiveCalls ?? {})) if (objectiveCalls[k] === undefined && v != null) objectiveCalls[k] = before + v;
       before += l.calls ?? 0;
     }
-    const lastBattleDeaths = outcome === "wipe" ? (last.lastBattleDeaths ?? 0) + 1 : 0;  // + the last Pokémon, as above
+    const lastBattleDeaths = outcome === "wipe" ? (last.lastBattleDeaths ?? 0) + lastMissing : 0;  // + the last Pokémon, as above
     // A win's deaths in the Champion fight: the ones a loss there wouldn't have charged (the score's winFloor).
     const championDeaths = reached.has("champion") ? (last.finalBattleDeaths ?? 0) : 0;
     const dark = legs.map((l) => l.darkTunnel).find(Boolean) ?? null;

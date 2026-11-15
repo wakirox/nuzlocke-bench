@@ -225,17 +225,7 @@ export class NuzlockeRules implements RuleModule {
       }
       this.boxNickPending = null;
     }
-    for (const now of s.party) {
-      const was = p.party.find((m) => m.uid && m.uid === now.uid);
-      if (!was || was.hp === 0 || now.hp > 0 || this.isDead(now)) continue;
-      // First rival battle option: a faint there isn't a death (the game heals the party after it).
-      if (this.t.options.firstRivalFree && s.firstRivalFought === false) continue;
-      // The foe: this poll's, or the last one's when the battle has just closed (see the tracker's wipe).
-      const foe = s.battle > 0 && s.enemy ? s.enemy : p.battle !== 0 && p.enemy ? p.enemy : null;
-      const cause = foe ? `${this.t.name(foe.species)} Lv${foe.level}` : s.battle === 0 && p.battle === 0 ? "poison" : "unknown";
-      snap.dead.push({ uid: now.uid, species: now.species, level: now.level, nickname: now.nickname, cause, t: Date.now() });
-      this.t.log("warning", `${this.monLabel(now)} died (${cause}, ${this.t.mapName(s)}). It can never battle again.`);
-    }
+    this.faints(s, p);
     // Out of battle only: a level-up in a gym leader fight is followed by the badge that raises the cap.
     const cap = this.leagueUnderway(s) ? null : this.levelCap(s);
     if (s.battle !== 0) return;
@@ -256,6 +246,23 @@ export class NuzlockeRules implements RuleModule {
         snap.overCap.push(key);
         this.t.log("warning", `${this.monLabel(m)} is Lv${m.level}, over the level cap (Lv${cap.level}, ${cap.who}'s highest) — it may stay in the party, but must not battle (lead or be sent out) until the cap goes up.`);
       }
+    }
+  }
+
+  /** Faints this poll become deaths (with what caused them); also called before a wipe ends the run, so the
+   *  last Pokémon to fall is counted too. A Pokémon already dead isn't counted again. */
+  faints(s: GameState, p: GameState): void {
+    const snap = this.t.snap;
+    for (const now of s.party) {
+      const was = p.party.find((m) => m.uid && m.uid === now.uid);
+      if (!was || was.hp === 0 || now.hp > 0 || this.isDead(now)) continue;
+      // First rival battle option: a faint there isn't a death (the game heals the party after it).
+      if (this.t.options.firstRivalFree && s.firstRivalFought === false) continue;
+      // The foe: this poll's, or the last one's when the battle has just closed (see the tracker's wipe).
+      const foe = s.battle > 0 && s.enemy ? s.enemy : p.battle !== 0 && p.enemy ? p.enemy : null;
+      const cause = foe ? `${this.t.name(foe.species)} Lv${foe.level}` : s.battle === 0 && p.battle === 0 ? "poison" : "unknown";
+      snap.dead.push({ uid: now.uid, species: now.species, level: now.level, nickname: now.nickname, cause, t: Date.now() });
+      this.t.log("warning", `${this.monLabel(now)} died (${cause}, ${this.t.mapName(s)}). It can never battle again.`);
     }
   }
 
