@@ -8,6 +8,8 @@ import { clamp, type BridgeCore } from "./bridge-core";
 import type { Menus } from "./menus";
 
 const FRAMES_PER_TILE = 16;
+/** How long a walk waits out a scene that has taken the controls (30 s of game time). */
+const SCENE_FRAMES = 1800;
 /** The text matched literally inside a RegExp (a move name comes from the model). */
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -374,11 +376,16 @@ export class Travel {
           // (once it has finished printing).
           const box = this.core.textBox(await this.core.settledScreen());
           if (!box.open) {
-            // A trainer who has seen you walks over before anything shows: give that a moment,
-            // so the walk says what happened instead of "blocked". (The direction is let go first.)
+            // A trainer who has seen you walks over before anything shows, and a scene (a ship
+            // leaving the dock) plays with the controls taken: wait while the game holds them, so the
+            // walk says what happened instead of "blocked". (The direction is let go first.)
             gb.setButton(dir, false);
-            for (let f = 0; f < 90 && !this.core.host.position().battle; f += 6) {
+            let held = 0;
+            for (let f = 0; (f < 90 || (this.core.host.position().scripted && f < SCENE_FRAMES)) && !this.core.host.position().battle; f += 6) {
               await gb.runFrames(6, 6);
+              const now = this.core.host.position();
+              if (now.scripted) held = f + 6;
+              if (now.map !== last.map) { stopped = "entered a new map"; break; }
               const later = this.core.textBox(this.core.screenText());
               if (later.open) {
                 stopped = `stopped by a scripted event: a text box opened${later.lines.length ? ` ("${later.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
@@ -386,6 +393,13 @@ export class Travel {
               }
             }
             if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+            if (stopped === "arrived" && held >= 90) {
+              const at = this.core.host.position();
+              const where = at.x !== last.x || at.y !== last.y ? `; it moved you to (${at.x}, ${at.y})` : "";
+              stopped = this.core.host.position().scripted
+                ? `a scene has the controls (still going after ${Math.round(held / 60)} s) — wait, then walk again`
+                : `a scene had the controls for ${Math.round(held / 60)} s${where}; it's over — walk again`;
+            }
             if (stopped !== "arrived") break;
           }
           stopped = box.open
@@ -400,15 +414,23 @@ export class Travel {
     // Warps fade out/in and load the new map; give that time to finish so the
     // returned coordinates and map view are the new map's.
     await gb.runFrames(stopped === "entered a new map" ? 120 : 4);
-    {
-      // Wait until the player stops moving: ledge hops finish on their own, and
-      // leaving through a door the game walks you one step out.
+    // Wait until the player stops moving: ledge hops finish on their own, and
+    // leaving through a door the game walks you one step out.
+    const settle = async () => {
       for (let i = 0, still = 0; i < 60 && still < 12; i++) {
         const before = this.core.host.position();
         await gb.runFrames(2, 2);
         const after = this.core.host.position();
         still = before.x === after.x && before.y === after.y ? still + 2 : 0;
       }
+    };
+    await settle();
+    // A warp can start after the last step (a door the game walks you onto): its new map id shows
+    // before the map has loaded. Wait for it, so the result shows the new map, not half of each.
+    if (stopped !== "entered a new map" && this.core.host.position().map !== last.map) {
+      stopped = "entered a new map";
+      await gb.runFrames(120);
+      await settle();
     }
     return { moved, stopped };
   }
