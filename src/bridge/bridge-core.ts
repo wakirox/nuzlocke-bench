@@ -6,7 +6,7 @@ import type { GameVersion } from "../rom/types";
 import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
-import { litSquares, trainerList, renderDarkView, renderView, type SightOptions } from "./overworld";
+import { litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 
 export interface Brief {
@@ -238,6 +238,12 @@ export class BridgeCore {
       : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom);
   }
 
+  /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
+  private screenView() {
+    const screen = this.view(false);
+    return this.host.rom() ? sealFromWholeMap(screen, this.view(true)) : screen;
+  }
+
   /**
    * A map no bigger than about two screens (a house, a shop, a Pokémon Center): get_map shows it
    * whole by default, since the screen around you there is mostly wall and can hide half the room.
@@ -251,8 +257,8 @@ export class BridgeCore {
 
   mapText(full = false): string {
     if (!this.host.version() || this.host.position().battle) return "(in battle — no map)";
-    if (this.dark()) return renderDarkView(this.view(false), litSquares(this.screenPixels()));
-    const v = this.view(full);
+    if (this.dark()) return renderDarkView(this.screenView(), litSquares(this.screenPixels()));
+    const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
     const trainers = this.host.mapTrainers()
