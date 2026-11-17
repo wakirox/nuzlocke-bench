@@ -1,6 +1,6 @@
 import type { SpeciesData } from "../rom/types";
 import type { BattleMonState, GameState, MonState } from "../games/types";
-import { areaKey, type Tracker } from "../tracker/tracker";
+import { areaKey, type NuzArea, type Tracker } from "../tracker/tracker";
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -226,23 +226,44 @@ const SLOT_ODDS = [51, 51, 39, 25, 25, 25, 13, 13, 11, 3];
 const SLOT_ODDS_GEN2 = [30, 30, 20, 10, 5, 4, 1].map((p) => (p * 256) / 100);
 
 /**
- * The current map's wild Pokémon (grass/cave table): species, levels and how likely each is per
- * encounter, plus the chance of an encounter per step.
+ * The current map's wild Pokémon where the player is: the surfing table while surfing, the
+ * grass/cave table otherwise. Species, levels and how likely each is per encounter, plus the
+ * chance of an encounter per step.
  */
 export function renderEncounters(t: Tracker, s: GameState): string {
-  if (!s.started || !s.grassMons.length || s.grassRate === 0) return "";
+  if (!s.started) return "";
+  const [mons, rate] = s.surfing ? [s.waterMons, s.waterRate] : [s.grassMons, s.grassRate];
+  if (rate === 0 || !mons.some((m) => m.species)) return "";
+  const area = t.snap.areas[areaKey(s.mapConst)];
+  const pct = (n: number) => `${((n / 256) * 100).toFixed(n < 13 ? 1 : 0)}%`;
+  const odds = t.data.version === "crystal" ? SLOT_ODDS_GEN2 : SLOT_ODDS;
   const rows = new Map<number, { odds: number; min: number; max: number }>();
-  s.grassMons.forEach((m, i) => {
+  mons.forEach((m, i) => {
     if (!m.species) return;
     const r = rows.get(m.species) ?? { odds: 0, min: m.level, max: m.level };
-    r.odds += (t.data.version === "crystal" ? SLOT_ODDS_GEN2 : SLOT_ODDS)[i] ?? 0;
+    r.odds += odds[i] ?? 0;
     r.min = Math.min(r.min, m.level);
     r.max = Math.max(r.max, m.level);
     rows.set(m.species, r);
   });
-  const area = t.snap.areas[areaKey(s.mapConst)];
-  const pct = (n: number) => `${((n / 256) * 100).toFixed(n < 13 ? 1 : 0)}%`;
-  const list = [...rows.entries()].sort((a, b) => b[1].odds - a[1].odds).map(([species, r]) => {
+  const status = area
+    ? `<span class="badge ${area.status === "caught" ? "ok" : "bad"}">${area.status === "caught" ? `caught ${esc(t.name(area.species))}` : area.status === "missed" ? "encounter spent" : "encounter in progress"}</span>`
+    : `<span class="badge ok">encounter available</span>`;
+  return `<section class="card encounters">
+    <div class="title-row"><h3>Wild Pokémon <span class="muted">${esc(t.mapName(s))}${s.surfing ? " · surfing" : ""}</span></h3><div>${status}</div></div>
+    <table class="enc"><tbody>${encounterRows(t, rows, area, pct).join("")}</tbody></table>
+    <div class="sub muted">Encounter chance per step ${s.surfing ? "while surfing" : "in grass/caves"}: ${pct(rate)} · fishing not listed</div>
+  </section>`;
+}
+
+/** A table's rows, most likely first, each tagged with whether catching it would count here. */
+function encounterRows(
+  t: Tracker,
+  rows: Map<number, { odds: number; min: number; max: number }>,
+  area: NuzArea | undefined,
+  pct: (n: number) => string,
+): string[] {
+  return [...rows.entries()].sort((a, b) => b[1].odds - a[1].odds).map(([species, r]) => {
     const name = esc(t.name(species));
     const types = (t.data.species[species]?.types ?? []).map(typeChip).join("");
     let tag: string;
@@ -251,14 +272,6 @@ export function renderEncounters(t: Tracker, s: GameState): string {
     const lv = r.min === r.max ? `Lv ${r.min}` : `Lv ${r.min}–${r.max}`;
     return `<tr><td>${name} ${types}</td><td class="muted">${lv}</td><td class="num">${pct(r.odds)}</td><td>${tag}</td></tr>`;
   });
-  const status = area
-    ? `<span class="badge ${area.status === "caught" ? "ok" : "bad"}">${area.status === "caught" ? `caught ${esc(t.name(area.species))}` : area.status === "missed" ? "encounter spent" : "encounter in progress"}</span>`
-    : `<span class="badge ok">encounter available</span>`;
-  return `<section class="card encounters">
-    <div class="title-row"><h3>Wild Pokémon <span class="muted">${esc(t.mapName(s))}</span></h3><div>${status}</div></div>
-    <table class="enc"><tbody>${list.join("")}</tbody></table>
-    <div class="sub muted">Encounter chance per step in grass/caves: ${pct(s.grassRate)} · water and fishing not listed</div>
-  </section>`;
 }
 
 /** Wild battle: may this one be caught (the area's first encounter)? */

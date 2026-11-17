@@ -248,11 +248,18 @@ function stagesObj(st: number[]) {
   return { atk: st[0], def: st[1], spd: st[2], spc: st[3], acc: st[4], eva: st[5], ...(st.length > 6 ? { spdef: st[6] } : {}) };
 }
 
-/** An area whose encounter is unused: which grass Pokémon would count (not dupes). */
-function thisAreaNote(t: Tracker, s: GameState): string {
-  if (!s.grassMons.length) return "first encounter still available (no grass/cave encounters on this map)";
-  const species = [...new Set(s.grassMons.map((m) => m.species))];
-  const fresh = species.filter((id) => !t.isDupe(id)).map((id) => t.name(id));
-  if (!fresh.length) return `every Pokémon here is a dupe (${species.map((id) => t.name(id)).join(", ")}) — nothing to catch, skip it`;
-  return `first encounter still available — would count: ${fresh.join(", ")}`;
+/** An area whose encounter is unused: which wild Pokémon would count (not dupes), in the grass and while surfing. */
+export function thisAreaNote(t: Tracker, s: GameState): string {
+  const kinds = (mons: { species: number }[]) => [...new Set(mons.map((m) => m.species).filter(Boolean))];
+  const grass = kinds(s.grassMons);
+  const water = s.waterRate > 0 ? kinds(s.waterMons) : [];
+  if (!grass.length && !water.length) return "first encounter still available (no grass, cave or surfing encounters on this map)";
+  const names = (ids: number[]) => ids.map((id) => t.name(id)).join(", ");
+  const fresh = (ids: number[]) => ids.filter((id) => !t.isDupe(id));
+  const [g, w] = [fresh(grass), fresh(water)];
+  if (!g.length && !w.length) return `every Pokémon here is a dupe (${names([...new Set([...grass, ...water])])}) — nothing to catch, skip it`;
+  if (!water.length) return `first encounter still available — would count: ${names(g)}`;
+  if (!grass.length) return `first encounter still available — would count while surfing: ${names(w)}`;
+  const part = (ids: number[], where: string) => (ids.length ? `${names(ids)} (${where})` : `nothing ${where === "grass" ? "in the grass" : "while surfing"}: all dupes`);
+  return `first encounter still available — would count: ${part(g, "grass")}; ${part(w, "surfing")}`;
 }

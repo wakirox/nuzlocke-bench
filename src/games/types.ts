@@ -97,6 +97,12 @@ export interface GameState {
   grassMons: { level: number; species: number }[];
   /** Wild encounter rate of the current map's grass/cave table (chance per step = rate / 256). */
   grassRate: number;
+  /** The current map's surfing table (Gen 1; empty where there's none, or the game isn't read for it). */
+  waterMons: { level: number; species: number }[];
+  /** Its encounter rate per step while surfing (rate / 256). */
+  waterRate: number;
+  /** The player is surfing (Gen 1), so wild Pokémon come from the surfing table, not the grass. */
+  surfing?: boolean;
   hofTeams: number;
   /** The kind of battle (Gen 2's wBattleType: tutorial, can-lose…), where the game has one. */
   battleType?: number;

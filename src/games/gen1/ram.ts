@@ -155,7 +155,31 @@ export function poisonedParty(mem: MemoryReader, version: GameVersion): Map<stri
 
 const bcd = (v: number) => (v >> 4) * 10 + (v & 0x0f);
 
-export function readGameState(mem: MemoryReader, version: GameVersion): GameState {
+/** Each version's wild data pointer table (public/config/gen1_offsets.ini): a pointer a map, into its own bank. */
+const WILD_TABLE: Partial<Record<GameVersion, number>> = { red: 0xceeb, blue: 0xceeb, yellow: 0xcb95 };
+
+/**
+ * The surfing encounters of map `map`, from the ROM. A map's wild data is a grass rate, ten
+ * (level, species) slots when that rate isn't 0, then the same for water. The copy the game keeps
+ * in memory shares its space with the opponent's team: trainer battles overwrite it (16 of 392
+ * reads on a sea route in one run), so the ROM is the source here.
+ */
+export function waterEncounters(rom: Uint8Array, version: GameVersion, map: number): { rate: number; mons: { level: number; species: number }[] } {
+  const none = { rate: 0, mons: [] };
+  const table = WILD_TABLE[version];
+  if (table === undefined || table + map * 2 + 1 >= rom.length) return none;
+  const ptr = rom[table + map * 2] | (rom[table + map * 2 + 1] << 8);
+  if (ptr < 0x4000 || ptr >= 0x8000) return none;
+  let off = Math.floor(table / 0x4000) * 0x4000 + (ptr - 0x4000);
+  if (rom[off++] > 0) off += 20; // the grass table
+  const rate = rom[off++] ?? 0;
+  if (!rate || off + 20 > rom.length) return none;
+  const mons = [];
+  for (let i = 0; i < 10; i++) mons.push({ level: rom[off + i * 2], species: rom[off + i * 2 + 1] });
+  return { rate, mons };
+}
+
+export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }, version: GameVersion): GameState {
   const A = addressesFor(version);
   const consts = version === "yellow" ? MAP_CONSTANTS_Y : MAP_CONSTANTS_RB;
 
@@ -191,6 +215,8 @@ export function readGameState(mem: MemoryReader, version: GameVersion): GameStat
   if (mem.read8(A.grassRate) > 0) {
     for (let i = 0; i < 10; i++) grassMons.push({ level: grass[i * 2], species: grass[i * 2 + 1] });
   }
+  const rom = mem.romBytes?.();
+  const water = rom ? waterEncounters(rom, version, mem.read8(A.curMap)) : { rate: 0, mons: [] };
 
   const owned = mem.readBytes(A.pokedexOwned, 19);
   let dexOwned = 0;
@@ -229,6 +255,9 @@ export function readGameState(mem: MemoryReader, version: GameVersion): GameStat
     enemyUsedMove: mem.read8(A.enemyUsedMove),
     grassMons,
     grassRate: mem.read8(A.grassRate),
+    waterMons: water.mons,
+    waterRate: water.rate,
+    surfing: mem.read8(A.walkBikeSurf) === 2,
     hofTeams: mem.read8(A.numHoFTeams),
     options: mem.read8(A.options),
     boxText: readBoxText(mem),
