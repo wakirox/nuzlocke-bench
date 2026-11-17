@@ -216,6 +216,25 @@ export function sealedLowerFloor(v: OverworldView): Set<number> {
   return sealed;
 }
 
+/**
+ * A screen's view with the whole map's sealed lower-floor patches (sealedLowerFloor) drawn as rock.
+ * A screen can't tell a closed patch from one that goes on past its edge, so the whole map decides:
+ * otherwise the screen (lit, or the dark view) shows the top of every thick rock band as lower floor
+ * that the whole map draws as rock (the dark tunnel's walls, 27 walks into them in one run).
+ */
+export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): OverworldView {
+  const sealed = sealedLowerFloor(whole);
+  if (!sealed.size) return screen;
+  const WW = whole.grid[0]?.length ?? 0;
+  const WH = whole.grid.length;
+  const isSealed = (r: number, c: number) => {
+    const wc = screen.originX + c - whole.originX;
+    const wr = screen.originY + r - whole.originY;
+    return wc >= 0 && wc < WW && wr >= 0 && wr < WH && sealed.has(wr * WW + wc);
+  };
+  return { ...screen, grid: screen.grid.map((line, r) => line.map((ch, c) => (isSealed(r, c) ? "#" : ch))) };
+}
+
 export function renderView(view: OverworldView): string {
   // Closed patches of a cave's lower floor are drawn as rock (and drop out of the cliff edges list).
   const closed = sealedLowerFloor(view);
