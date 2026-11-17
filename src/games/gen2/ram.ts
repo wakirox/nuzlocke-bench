@@ -267,6 +267,9 @@ export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }): 
     enemyUsedMove: rd(mem, A.curEnemyMove),
     grassMons: wild.mons,
     grassRate: wild.rate,
+    // Surfing tables aren't read on Crystal yet.
+    waterMons: [],
+    waterRate: 0,
     hofTeams: rd(mem, A.hallOfFameCount),
     options: rd(mem, A.options),
     boxText: readBoxText(mem),

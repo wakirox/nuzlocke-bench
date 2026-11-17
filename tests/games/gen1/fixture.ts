@@ -99,7 +99,7 @@ export function gen1Fixture(version: GameVersion = "red"): GameFixture {
       badges: 0, money: 3000, playTime: { h: 0, m: 10, s: 0 }, party: [mon()], boxCount: 0, dexOwned: 1,
       bag: [{ id: ITEM.POKE_BALL, qty: 5 }, { id: ITEM.POTION, qty: 3 }],
       battle: 0, battleMon: null, activeIndex: 0, enemy: null, enemyTrainer: null, playerUsedMove: 0, enemyUsedMove: 0,
-      grassMons: [], grassRate: 0, hofTeams: 0, options: 0x40, boxText: "",
+      grassMons: [], grassRate: 0, waterMons: [], waterRate: 0, hofTeams: 0, options: 0x40, boxText: "",
       ...over,
     }),
   };
