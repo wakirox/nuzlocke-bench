@@ -260,6 +260,9 @@ export function thisAreaNote(t: Tracker, s: GameState): string {
   if (!g.length && !w.length) return `every Pokémon here is a dupe (${names([...new Set([...grass, ...water])])}) — nothing to catch, skip it`;
   if (!water.length) return `first encounter still available — would count: ${names(g)}`;
   if (!grass.length) return `first encounter still available — would count while surfing: ${names(w)}`;
-  const part = (ids: number[], where: string) => (ids.length ? `${names(ids)} (${where})` : `nothing ${where === "grass" ? "in the grass" : "while surfing"}: all dupes`);
-  return `first encounter still available — would count: ${part(g, "grass")}; ${part(w, "surfing")}`;
+  // One encounter for the whole area: whichever comes first, in the grass or on the water, is it.
+  const one = "first encounter still available (one for this area, in the grass or on the water: whichever comes first)";
+  if (!g.length) return `${one} — would count: ${names(w)} while surfing (everything in the grass is a dupe)`;
+  if (!w.length) return `${one} — would count: ${names(g)} in the grass (everything on the water is a dupe)`;
+  return `${one} — would count: ${names(g)} in the grass, or ${names(w)} while surfing`;
 }

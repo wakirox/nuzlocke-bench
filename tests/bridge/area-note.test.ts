@@ -22,11 +22,14 @@ describe("this area's note", () => {
     expect(note({ waterRate: 5, waterMons: slots(SEAMON, OWNED) })).toBe("first encounter still available — would count while surfing: SEAMON");
   });
 
-  it("names both where a map has grass and water", () => {
+  it("names both where a map has grass and water, as one encounter for the area", () => {
+    const one = "first encounter still available (one for this area, in the grass or on the water: whichever comes first)";
     expect(note({ grassMons: slots(GRASSMON), grassRate: 25, waterRate: 5, waterMons: slots(SEAMON) }))
-      .toBe("first encounter still available — would count: GRASSMON (grass); SEAMON (surfing)");
+      .toBe(`${one} — would count: GRASSMON in the grass, or SEAMON while surfing`);
     expect(note({ grassMons: slots(OWNED), grassRate: 25, waterRate: 5, waterMons: slots(SEAMON) }))
-      .toBe("first encounter still available — would count: nothing in the grass: all dupes; SEAMON (surfing)");
+      .toBe(`${one} — would count: SEAMON while surfing (everything in the grass is a dupe)`);
+    expect(note({ grassMons: slots(GRASSMON), grassRate: 25, waterRate: 5, waterMons: slots(OWNED) }))
+      .toBe(`${one} — would count: GRASSMON in the grass (everything on the water is a dupe)`);
   });
 
   it("says when every Pokémon here, grass and water, is a dupe", () => {
