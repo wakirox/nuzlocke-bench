@@ -547,10 +547,12 @@ export function pathToEdge(
   const onEdge = (c: number, r: number) =>
     (dir === "up" && r === 0) || (dir === "down" && r === H - 1) || (dir === "left" && c === 0) || (dir === "right" && c === W - 1);
   const [, dx, dy] = STEPS.find(([d]) => d === dir)!;
-  // The connected map decides whether you can cross: its square just past the edge must be open.
+  // The connected map decides whether you can cross: its square just past the edge must be open,
+  // or water when you reach the edge swimming (a sea route carries on into the next map's sea).
   const crossable = (c: number, r: number) => {
     if (!v.beyond) return true;
     const ch = v.beyond(c + v.originX + dx, r + v.originY + dy);
+    if (ch === "~") return !!v.surfing && onWater(v, c, r);
     return ch === "." || ch === '"' || LEDGE_DIR[ch] === dir;
   };
   const goal = (c: number, r: number) => onEdge(c, r) && v.grid[r][c] !== "D" && crossable(c, r);
