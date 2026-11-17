@@ -203,6 +203,40 @@ describe("pathToEdge", () => {
     ]);
     expect(pathToEdge(v, "up")).toEqual({ dirs: ["up", "up"] });
   });
+
+  // A sea route: the edge is water and so is the next map's square past it.
+  const sea = (surfing: boolean) => {
+    const v = view([
+      "#~~#",
+      "#~~#",
+      "#@~#",
+      "####",
+    ]);
+    v.surfing = surfing;
+    v.beyond = () => "~";
+    return v;
+  };
+
+  it("crosses into the next map's water while surfing", () => {
+    expect(pathToEdge(sea(true), "up")).toEqual({ dirs: ["up", "up"] });
+  });
+
+  it("doesn't cross into water without surfing", () => {
+    expect(pathToEdge(sea(false), "up")).toBeNull();
+  });
+
+  it("doesn't cross into water from the shore, even after surfing there", () => {
+    const v = view([
+      "#.~#",
+      "#.~#",
+      "#@~#",
+      "####",
+    ]);
+    v.surfing = true;
+    v.grid[2][1] = "~"; // the player swims at the start, then lands on the shore column
+    v.beyond = (x) => (x === OX + 1 ? "~" : "#");
+    expect(pathToEdge(v, "up")).toBeNull();
+  });
 });
 
 describe("toSegments", () => {
