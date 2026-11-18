@@ -50,6 +50,8 @@ export interface FakeHostOptions {
   seen?: SeenMaps | null;
   /** Trainers on the map (mapTrainers). */
   trainers?: { x: number; y: number; name: string; beaten: boolean }[];
+  /** The current map's size in squares (mapSize; 10×9 by default, a screen). */
+  mapSize?: { w: number; h: number };
 }
 
 export class FakeHost {
@@ -90,12 +92,18 @@ export class FakeHost {
       isDark: () => false,
       readView: () => this.opts.view,
       readFullMap: () => this.opts.view,
+      mapSize: () => this.opts.mapSize ?? { w: 10, h: 9 },
     } as unknown as GameAdapter;
   }
 
   /** Replaces the screen shown now (for onPress hooks). */
   show(rows: string[]): void {
     this.rows = rows;
+  }
+
+  /** Moves the player (the fields given change; the rest stay): what the bridge's position reads see next. */
+  moveTo(p: Partial<Position>): void {
+    this.opts.position = { ...this.opts.position, ...p };
   }
 
   private press(b: Button): void {

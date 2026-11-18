@@ -139,7 +139,41 @@ export class BridgeCore {
     await gb.runFrames(hold);
     buttons.forEach((b) => gb.setButton(b, false));
     if (gap) await gb.runFrames(gap);
+    this.noteSeen();
   }
+
+  /** Where noteSeen last saw the player. */
+  private seenAt: { map: number; x: number; y: number } | null = null;
+
+  /**
+   * Adds what the player sees now to the run's memory of the maps (SeenMaps): the screen around
+   * them (not in the dark or a battle), or, when the map changed since the last look, the door gone
+   * through (both ends). Called after every press and every step of a walk, since the page's own
+   * state poll runs too seldom while the bridge drives the game.
+   */
+  noteSeen(): void {
+    const seen = this.host.seen?.();
+    if (!seen || !this.host.version()) return;
+    const p = this.host.position();
+    if (p.battle || p.inWorld === false) return;
+    const last = this.seenAt;
+    this.seenAt = { map: p.map, x: p.x, y: p.y };
+    if (last && last.map !== p.map) {
+      // Just warped: the coordinates and screen may not be the new map's yet. The arrival is
+      // taken at the next look, once the game has settled there.
+      this.warpedFrom = last;
+      return;
+    }
+    if (this.warpedFrom) {
+      const from = this.warpedFrom;
+      this.warpedFrom = null;
+      seen.wentThrough(from.map, from.x, from.y, p.map, p.x, p.y);
+    } else if (last && last.x === p.x && last.y === p.y) return;
+    if (!this.dark()) seen.sawScreen(p.map, p.x, p.y);
+  }
+
+  /** Where the player stood before a warp whose arrival noteSeen hasn't taken yet. */
+  private warpedFrom: { map: number; x: number; y: number } | null = null;
 
   /** The bottom text box (Gen 1: rows 12–17) if one is on screen, as its text lines. */
   textBox(lines: string[]): { open: boolean; lines: string[] } {
@@ -258,9 +292,10 @@ export class BridgeCore {
     const v = full ? sealFromWholeMap(raw, raw) : raw;
     const seen = this.host.seen?.();
     if (!seen || this.dark()) return v;
+    this.noteSeen();
     const pos = this.host.position();
     if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
-    return seen.fog(v, pos.map);
+    return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1);
   }
 
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */

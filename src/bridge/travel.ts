@@ -349,6 +349,7 @@ export class Travel {
           drawn = performance.now();
         }
         const p = this.core.host.position();
+        if (p.map !== last.map || p.x !== last.x || p.y !== last.y) this.core.noteSeen();
         if (p.battle) { stopped = "a battle started"; break; }
         if (p.map !== last.map) { stopped = "entered a new map"; break; }
         if (p.x !== last.x || p.y !== last.y) {

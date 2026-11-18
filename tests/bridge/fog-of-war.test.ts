@@ -6,6 +6,7 @@ import { findPath, renderView, type Door, type OverworldView } from "../../src/b
 import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import { gen1Adapter } from "../../src/games/gen1";
+import type { Position } from "../../src/games/types";
 import { FakeHost, screenRows, type FakeHostOptions } from "../harness/fake-bridge";
 
 const MAP = 1;
@@ -89,6 +90,27 @@ describe("SeenMaps: doors", () => {
   });
 });
 
+describe("SeenMaps: a building's bottom-row doormat", () => {
+  it("knows a bottom-row door that leads outdoors, without going through it", () => {
+    // The doormat on a building's bottom row is the way out: the player sees where it leads.
+    const s = new SeenMaps();
+    for (const to of ["ROUTE_1", "PALLET_TOWN", "CERULEAN_CITY", "CINNABAR_ISLAND", "INDIGO_PLATEAU"]) {
+      expect(s.knowsDoor(MAP, door(3, 8, to), 8)).toBe(true);
+    }
+  });
+
+  it("doesn't know one a row higher, or one on the bottom row that leads indoors", () => {
+    const s = new SeenMaps();
+    expect(s.knowsDoor(MAP, door(3, 7, "ROUTE_1"), 8)).toBe(false);
+    expect(s.knowsDoor(MAP, door(3, 8, "REDS_HOUSE_2F"), 8)).toBe(false);
+    expect(s.knowsDoor(MAP, door(3, 8, "MT_MOON_1F"), 8)).toBe(false);
+  });
+
+  it("doesn't know it without being told where the bottom row is", () => {
+    expect(new SeenMaps().knowsDoor(MAP, door(3, 8, "ROUTE_1"))).toBe(false);
+  });
+});
+
 describe("SeenMaps.fog", () => {
   // The seen screen is around (10, 10): x 6–15, y 6–14. The view is x 4–7, y 10–12, so x 4 and 5 are unseen.
   // Doors: (5,11) is unseen; (7,12) is seen but not known; (7,10) is known (gone through).
@@ -123,6 +145,17 @@ describe("SeenMaps.fog", () => {
   it("lists a door shown as ? in the map text as → ?", () => {
     // A door the run hasn't been through reads as "→ ?" to the model, not as a place.
     expect(renderView(fogged([door(7, 12, "SECRET", 3, 4)]))).toContain("Doors (D): (7,12) → ?.");
+  });
+});
+
+describe("SeenMaps.fog: the bottom row", () => {
+  it("keeps a bottom-row door that leads outdoors when given the bottom row, and shows ? without it", () => {
+    // The door is on the map's bottom row (y 10) and seen; the view is one row, so it is that row.
+    const s = new SeenMaps();
+    s.sawScreen(MAP, 10, 10);
+    const v: OverworldView = { grid: [["@", "."]], originX: 6, originY: 10, pc: 0, pr: 0, doors: [door(7, 10, "ROUTE_1")] };
+    expect(s.fog(v, MAP, 10).doors).toEqual([door(7, 10, "ROUTE_1")]);
+    expect(s.fog(v, MAP).doors).toEqual([{ x: 7, y: 10, to: "?", tx: null, ty: null }]);
   });
 });
 
@@ -209,5 +242,63 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     ]).mapText(true);
     expect(text).toContain("Trainers (T): (8,8) BUG CATCHER.");
     expect(text).not.toContain("LASS");
+  });
+});
+
+describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
+  // The player starts on MAP at (7,1), in the world; the position is changed with moveTo.
+  function movable(seen: SeenMaps, position: Partial<Position> = {}) {
+    const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: MAP, x: 7, y: 1, ...position }, seen });
+    return { host, core: new BridgeCore(host.asHost()) };
+  }
+
+  it("marks the screen seen at each new position", () => {
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    core.noteSeen();
+    host.moveTo({ x: 9 });
+    core.noteSeen();
+    // The screen around (9,1) reaches x 14; the one around (7,1) stopped at x 12.
+    expect(seen.has(MAP, 14, 1)).toBe(true);
+    expect(seen.has(MAP, 15, 1)).toBe(false);
+  });
+
+  it("records a warp's door on the next look on the new map, once the arrival has settled", () => {
+    // The first look after a warp may read the arrival before it's settled, so the door waits for the next.
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    core.noteSeen();
+    host.moveTo({ map: 2, x: 3, y: 3 });
+    core.noteSeen();
+    expect(seen.knowsDoor(2, door(3, 3, "MT_MOON_B1F"))).toBe(false);
+    core.noteSeen();
+    expect(seen.knowsDoor(2, door(3, 3, "MT_MOON_B1F"))).toBe(true);
+    expect(seen.knowsDoor(MAP, door(7, 1, "MT_MOON_B1F"))).toBe(true);
+  });
+
+  it("marks nothing in a battle", () => {
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen, { battle: true });
+    core.noteSeen();
+    host.moveTo({ x: 9 });
+    core.noteSeen();
+    expect(seen.has(MAP, 7, 1)).toBe(false);
+  });
+
+  it("marks nothing when the player isn't in the world (a menu or title screen)", () => {
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    host.moveTo({ inWorld: false });
+    core.noteSeen();
+    expect(seen.has(MAP, 7, 1)).toBe(false);
+  });
+
+  it("is called by tap, so a press that moves the player marks where it went", async () => {
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    host.moveTo({ x: 20, y: 5 });
+    expect(seen.has(MAP, 20, 5)).toBe(false);
+    await core.tap("right");
+    expect(seen.has(MAP, 20, 5)).toBe(true);
   });
 });

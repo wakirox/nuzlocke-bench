@@ -20,6 +20,9 @@ export interface SeenData {
 /** Buildings a player knows from outside (their roofs and signs say so): their doors are named at once. */
 const KNOWN_FROM_OUTSIDE = /POKECENTER|(^|_)MART($|_1F)|_GYM$|DEPT_STORE_1F/;
 
+/** Maps out in the open: a town, a city, a route. */
+const OUTDOORS = /^(ROUTE_\d+|[A-Z_]+_(TOWN|CITY|ISLAND|PLATEAU))$/;
+
 export class SeenMaps {
   readonly data: SeenData;
   /** Something new was seen since the last take (so the page saves it). */
@@ -53,8 +56,11 @@ export class SeenMaps {
   }
 
   /** Whether the run knows where this door leads: been through it (or out of it), or it's a building a player knows. */
-  knowsDoor(map: number, d: Door): boolean {
+  knowsDoor(map: number, d: Door, bottomRow?: number): boolean {
     if (KNOWN_FROM_OUTSIDE.test(d.to)) return true;
+    // A doormat on a building's bottom row leads back out into the open: a player sees it's the
+    // way out (the run may have started upstairs, never having come in by it).
+    if (bottomRow != null && d.y === bottomRow && OUTDOORS.test(d.to)) return true;
     // Next to the square too: the poll can catch the player a step before the warp, and a wide door's squares go to one place.
     return (this.data.doors[map] ?? []).some(([x, y]) => Math.abs(x - d.x) + Math.abs(y - d.y) <= 1);
   }
@@ -68,13 +74,13 @@ export class SeenMaps {
 
   /**
    * The view as the run knows it: squares never on screen are "?", and doors it hasn't been through
-   * lead to "?". `map` is the view's map; the current screen counts as seen.
+   * lead to "?". `map` is the view's map; `bottomRow` its last row (y), for doormats out.
    */
-  fog(view: OverworldView, map: number): OverworldView {
+  fog(view: OverworldView, map: number, bottomRow?: number): OverworldView {
     const grid = view.grid.map((row, r) => row.map((ch, c) => (this.has(map, view.originX + c, view.originY + r) ? ch : "?")));
     const doors = view.doors
       ?.filter((d) => this.has(map, d.x, d.y))
-      .map((d) => (this.knowsDoor(map, d) ? d : { ...d, to: "?", tx: null, ty: null }));
+      .map((d) => (this.knowsDoor(map, d, bottomRow) ? d : { ...d, to: "?", tx: null, ty: null }));
     return { ...view, grid, doors };
   }
 }
