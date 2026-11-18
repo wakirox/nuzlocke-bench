@@ -20,4 +20,39 @@ describe("cliffsOf", () => {
     expect(grid?.cliffs).toEqual([{ axis: "y", at: 8, from: 10, to: 11 }]);
     expect(grid?.x0).toBe(10);
   });
+
+  it("parses compact 5-square-block maps, expanding collapsed rows, bottom rulers and shorter Cliffs", () => {
+    const lines = [
+      "Map exits: up.",
+      "       5     10",
+      "y  1   #.@.. I.C",
+      "y  2-4 #.... ...",
+      "y  5   #S... .D.",
+      "       5     10",
+      "Cliffs: y2|3 x8–10; x7|8 y3–4.",
+      "Points: I (10,1); C (12,1); S (6,5).",
+    ];
+    const grid = findGrid(lines)!;
+    expect(grid.x0).toBe(5);
+    expect(grid.ys).toEqual([1, 2, 3, 4, 5]);
+    expect(grid.cells).toHaveLength(5);
+    expect(grid.cells[0].join("")).toBe("#.@..I.C");
+    expect(grid.cells[1].join("")).toBe("#.......");
+    expect(grid.cells[3].join("")).toBe("#.......");
+    expect(grid.cells[4].join("")).toBe("#S....D.");
+    expect(grid.start).toBe(1);
+    expect(grid.end).toBe(6); // includes the repeated bottom ruler, stops before Cliffs
+    expect(grid.cliffs).toEqual([
+      { axis: "y", at: 2, from: 8, to: 10 },
+      { axis: "x", at: 7, from: 3, to: 4 },
+    ]);
+
+    // Screen crop whose first column isn't labelled directly (x=14 before 15) and negative x.
+    const crop = findGrid(["         15    20", "y  4   # ..@.. ...."])!;
+    expect(crop.x0).toBe(14);
+    expect(crop.cells[0]).toHaveLength(10);
+    const neg = findGrid(["       -2 0     5", "y -2--1 ## ..... ."])!;
+    expect(neg.x0).toBe(-2);
+    expect(neg.ys).toEqual([-2, -1]);
+  });
 });

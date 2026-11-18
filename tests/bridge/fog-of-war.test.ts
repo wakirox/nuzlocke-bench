@@ -290,6 +290,30 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(text).toContain("Trainers (T): (8,8) BUG CATCHER.");
     expect(text).not.toContain("LASS");
   });
+
+  it("compactGrids keeps unseen squares as ? (untrimmed) and omits unseen targets from Points", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { compactGrids } = await import("../../mcp-server/format.mjs");
+    // Player at (10,10): x 6–15, y 6–14 are seen; column 0 (x=5) and row 9 (y=15) are unseen.
+    const grid = Array.from({ length: 10 }, () => Array<string>(12).fill("."));
+    grid[4][5] = "@";
+    grid[2][3] = "I"; // (8,8): seen item
+    grid[0][0] = "C"; // (5,6): unseen Cut tree
+    grid[9][2] = "P"; // (7,15): unseen PC
+    grid[9][3] = "B"; // (8,15): unseen boulder
+    grid[9][4] = "o"; // (9,15): unseen floor switch
+    grid[9][5] = "S"; // (10,15): unseen sign/switch
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const compact = compactGrids(new BridgeCore(host.asHost()).mapText(true));
+    expect(compact).toContain("Points: I (8,8).");
+    expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
+    // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
+    expect(compact).toContain("y 15   ?????");
+  });
 });
 
 describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {

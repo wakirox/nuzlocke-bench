@@ -107,4 +107,28 @@ describe("tool catalog and registry", () => {
       ["advance_text", false],
     ]);
   });
+
+  it("formats compact maps and trims legend symbols to the emitted grid when grid is compact", async () => {
+    const map = [
+      "       0  1  2  3  4  5",
+      "y  0   #  #  #  #  #  #",
+      "y  1   @  .  .  .  .  I",
+    ].join("\n");
+    const server = fakeServer();
+    registerTools(server, {
+      call: async () => ({ status: { location: "AREA_1", battle: "none" }, map, screenText: [] }),
+      link: { waitForReload: async () => {} },
+      autoStart: { pending: () => null },
+      formatter: createFormatter({ mapsOnRequest: true }),
+      notes: { read: () => "", write: () => {} },
+      wrapLog: (_n: string, h: Handler) => h,
+      grid: "compact",
+    });
+    const res = await server.tools.get("get_map")!({ legend: true });
+    const text = res.content.map((c) => c.text).join("\n");
+    expect(text).toContain("y  1   @.... I");
+    expect(text).toContain("Points: I (5,1).");
+    expect(text).toContain("Legend: @ you, I item ball");
+    expect(text).not.toContain("# blocked");
+  });
 });

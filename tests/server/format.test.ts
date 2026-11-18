@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { MAP_LEGEND, NAMING_HINT, createFormatter, hideEffectiveness, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences } from "../../mcp-server/format.mjs";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGrids, createFormatter, hideEffectiveness, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences } from "../../mcp-server/format.mjs";
 import { renderView } from "../../src/bridge/overworld";
 
 const SCREEN = ["┌──────────────────┐", "│Wild BASEMON      │", "│appeared!         │", "└──────────────────┘"];
@@ -253,5 +253,49 @@ describe("legendFor", () => {
     const start = performance.now();
     expect(narrowGrids(`${line}\ny  0   .`)).toBe(`${line}\ny  0   .`);
     expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("compactGrids groups 5-square blocks, trims rock margins to 5s, collapses plain rows, and writes Cliffs + Points", () => {
+    expect(COMPACT_GRID_NOTE).toContain("5-column blocks");
+    // 16 columns (x 0..15): columns 0..5 and 13..15 are all #, so left snaps to x=5 and right trims to x=12.
+    // Row 0 and row 6 are all # (trimmed); rows 2..4 are identical plain floor (collapsed to y  2-4);
+    // rows 1 and 5 have interactive squares (@, I, C, S, D), which never collapse even if repeated.
+    const wide = renderView({
+      grid: [
+        [..."################"],
+        [..."######.@..I.C###"],
+        [..."######.......###"],
+        [..."######.......###"],
+        [..."######.......###"],
+        [..."######S....D.###"],
+        [..."################"],
+      ],
+      originX: 0, originY: 0, pc: 7, pr: 1,
+      exits: ["up"],
+      doors: [{ x: 11, y: 5, to: "HOUSE", tx: 2, ty: 7 }],
+      tiles: Array.from({ length: 7 }, (_, r) => Array.from({ length: 16 }, (_, c) => (r >= 3 && c >= 8 && c <= 10 ? 2 : 1))),
+      stepBlocked: (a, b) => a !== b,
+    });
+    const out = compactGrids(wide);
+    expect(out).toBe([
+      "Map exits: up, plus 1 door (D).",
+      "       5     10",
+      "y  1   #.@.. I.C",
+      "y  2-4 #.... ...",
+      "y  5   #S... .D.",
+      "Cliffs: y2|3 x8–10; x7|8 y3–5; x10|11 y3–5.",
+      "Doors (D): (11,5) → HOUSE (2,7).",
+      "Points: I (10,1); C (12,1); S (6,5).",
+    ].join("\n"));
+    expect(legendFor(out)).toContain("I item ball");
+
+    // Tall maps (>= 16 emitted grid lines) repeat the ruler at the bottom.
+    const tall = renderView({
+      grid: Array.from({ length: 18 }, (_, r) => (r % 2 === 0 ? [..."..@......."] : [..."#.#......."])),
+      originX: 0, originY: 0, pc: 2, pr: 0,
+    });
+    const tallLines = compactGrids(tall).split("\n");
+    expect(tallLines[0]).toBe("       0     5");
+    expect(tallLines.at(-1)).toBe("       0     5");
   });
 });

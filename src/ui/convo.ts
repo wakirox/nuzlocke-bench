@@ -33,7 +33,7 @@ export function summaryOf(text: string, error = false): string {
   // An error: the failed step of a batch ("2. walk_to ✗ No path…"), else its first line.
   if (error) return lines.find((l) => l.includes("✗")) ?? lines[0];
   // Not a heading ("Map:"), a map row or a map's column numbers either.
-  const said = (l: string) => !STATUS.test(l) && !BARE_STEP.test(l) && !/^[\w ]{1,24}:$/.test(l) && !/^y\s*-?\d+ /.test(l) && !/^[\d\s-]+$/.test(l);
+  const said = (l: string) => !STATUS.test(l) && !BARE_STEP.test(l) && !/^[\w ]{1,24}:$/.test(l) && !/^y\s*-?\d+(?:--?\d+)? /.test(l) && !/^[\d\s-]+$/.test(l);
   return lines.find(said) ?? lines[0];
 }
 

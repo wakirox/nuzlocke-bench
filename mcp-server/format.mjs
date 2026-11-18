@@ -37,7 +37,7 @@ export const MAP_LEGEND = `Map legend: ${LEGEND.map(([, text]) => text).join(", 
 
 /** The legend for just the symbols on the map(s) in `text` (get_map legend=true), or null. */
 export function legendFor(text) {
-  const squares = new Set(text.split("\n").filter((l) => /^y\s*-?\d+ /.test(l)).flatMap((l) => [...l.slice(5)]));
+  const squares = new Set(text.split("\n").filter((l) => /^y\s*-?\d+(?:--?\d+)? /.test(l)).flatMap((l) => [...l.replace(/^y\s*-?\d+(?:--?\d+)? +/, "")]));
   const entries = LEGEND.filter(([chars]) => [...chars].some((ch) => squares.has(ch)));
   return entries.length ? `Legend: ${entries.map(([, t]) => t).join(", ")}.` : null;
 }
@@ -181,6 +181,98 @@ export function plainErrorScreen(text) {
 
 /** With narrow grids (the default), said once in get_map's description. */
 export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
+
+/** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
+export const COMPACT_GRID_NOTE = " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); identical plain rows collapse as y14-17, all-# outer margins are trimmed, and Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders and holes.";
+
+const COMPACT_POINTS = ["I", "C", "S", "P", "$", "H", "B", "o", "O"];
+const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
+const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
+const mod5 = (x) => ((x % 5) + 5) % 5;
+
+/**
+ * The compact grid (NUZLOCKE_GRID=compact): 5-square blocks with a space before every x divisible
+ * by 5, one x ruler line (repeated at the bottom on tall maps), all-# outer margins trimmed (left
+ * edge snapped to a multiple of 5), identical consecutive non-interactive rows collapsed (y14-17),
+ * a Points line for seen targets, and a shorter Cliffs line.
+ */
+export function compactGrids(text) {
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
+    const head = lines[i].slice(5);
+    const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
+    const x0 = xs[0];
+    let j = i + 1;
+    const rawRows = [];
+    for (; j < lines.length && /^y[ \d-]{3} /.test(lines[j]); j++) {
+      const cells = Array.from({ length: xs.length }, (_, k) => lines[j][5 + 3 * k + 2]);
+      rawRows.push({ y: Number(lines[j].slice(1, 4)), cells });
+    }
+    const bySym = new Map(COMPACT_POINTS.map((s) => [s, []]));
+    for (const row of rawRows) {
+      for (let c = 0; c < xs.length; c++) bySym.get(row.cells[c])?.push(`(${x0 + c},${row.y})`);
+    }
+    const pointParts = COMPACT_POINTS.flatMap((s) => (bySym.get(s).length ? [`${s} ${bySym.get(s).join(", ")}`] : []));
+    const pointsLine = pointParts.length ? `Points: ${pointParts.join("; ")}.` : null;
+
+    let rMin = rawRows.findIndex((r) => r.cells.some((ch) => ch !== "#"));
+    let rMax = rawRows.length - 1;
+    if (rMin < 0) {
+      rMin = 0;
+    } else {
+      while (rMax > rMin && rawRows[rMax].cells.every((ch) => ch === "#")) rMax--;
+    }
+    let cMin = xs.length;
+    let cMax = -1;
+    for (let r = rMin; r <= rMax; r++) {
+      for (let c = 0; c < xs.length; c++) {
+        if (rawRows[r].cells[c] !== "#") {
+          if (c < cMin) cMin = c;
+          if (c > cMax) cMax = c;
+        }
+      }
+    }
+    if (cMax < 0) {
+      cMin = 0;
+      cMax = xs.length - 1;
+    }
+    const xStart = Math.max(x0, Math.floor((x0 + cMin) / 5) * 5);
+    const cStart = xStart - x0;
+    const trimmedXs = xs.slice(cStart, cMax + 1);
+    const col = [7];
+    for (let k = 1; k < trimmedXs.length; k++) col.push(col[k - 1] + (mod5(trimmedXs[k]) === 0 ? 2 : 1));
+    const mults = trimmedXs.flatMap((x, k) => (mod5(x) === 0 ? [k] : []));
+    const ticks = !mults.length || (mults[0] > 0 && col[mults[0]] - 7 > String(trimmedXs[0]).length) ? [0, ...mults] : mults;
+    let ruler = "";
+    for (const k of ticks) ruler = ruler.padEnd(col[k], " ") + String(trimmedXs[k]);
+
+    const collapsed = [];
+    for (let r = rMin; r <= rMax; r++) {
+      const blocks = rawRows[r].cells.slice(cStart, cMax + 1).map((ch, k) => (k > 0 && mod5(trimmedXs[k]) === 0 ? ` ${ch}` : ch)).join("");
+      const prev = collapsed[collapsed.length - 1];
+      if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !INTERACTIVE.test(blocks)) prev.yEnd = rawRows[r].y;
+      else collapsed.push({ y0: rawRows[r].y, yEnd: rawRows[r].y, blocks });
+    }
+    const rowTag = (y0, y1) => (y0 === y1 ? `y${String(y0).padStart(3)}   ` : `y${`${y0}-${y1}`.padStart(5)} `);
+    const gridLines = collapsed.map((g) => rowTag(g.y0, g.yEnd) + g.blocks);
+    const out = [ruler, ...gridLines, ...(gridLines.length >= 16 ? [ruler] : [])];
+    lines.splice(i, j - i, ...out);
+    let after = i + out.length;
+    if (lines[after]?.startsWith(CLIFF_PREFIX)) {
+      lines[after] = "Cliffs: " + lines[after].slice(CLIFF_PREFIX.length)
+        .replace(/([xy]-?\d+)\|[xy](-?\d+) at ([xy]-?\d+(?:–-?\d+)?)/g, "$1|$2 $3");
+      after++;
+    }
+    if (lines[after]?.startsWith("Doors (D): ")) after++;
+    if (pointsLine) {
+      lines.splice(after, 0, pointsLine);
+      after++;
+    }
+    i = after - 1;
+  }
+  return lines.join("\n");
+}
 
 /**
  * The narrow grid: one space between squares instead of two. A square stays its own token (no
