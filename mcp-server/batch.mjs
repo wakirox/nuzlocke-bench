@@ -32,8 +32,43 @@ export function normalizeStep(step) {
   return { tool, args: { ...rest, ...(args ?? {}) } };
 }
 
-/** Why the batch can't go on after this step's result, or null. */
-export function stopReason(r) {
+/**
+ * Why a walk's report says it ended before getting where it was going ("up 2/6 — stopped: blocked…",
+ * "stopped short: the only way on crosses…", "3 legs → stopped: NOVA is hurt by poison"), or null.
+ * Crossing into the next map is how a walk out of a map ends, and a battle is caught on its own.
+ * Of an exit_map's retries (" | retry: ") only the last says where it ended.
+ */
+export function walkCutShort(walk) {
+  if (typeof walk !== "string") return null;
+  const last = walk.split(" | retry: ").at(-1);
+  const why = [...last.matchAll(/\bstopped(?: short)?:? (.+?)(?= —|; | \(ran from|$)/g)].at(-1)?.[1].trim();
+  if (!why || /^(?:entered a new map|a battle started)/.test(why)) return null;
+  return why.split(/\. (?=[A-Za-z])/)[0];
+}
+
+/** The legs of a walk's path ("U1 R4", "up 3, right 2"), read the way the walk tool reads them. */
+const pathLegs = (path) => [...String(path ?? "").matchAll(/\b(up|down|left|right|u|d|l|r)\s*(\d+)?/gi)].length;
+
+/**
+ * Why a step's own tool ended where the next steps weren't planned from, or null: a walk that crossed
+ * into the next map with legs of its path still to go, or a hunt that ended without a battle.
+ */
+function endedEarly(r, step) {
+  if (step?.tool === "walk" && typeof r.walk === "string" && / — stopped: entered a new map/.test(r.walk)) {
+    const ran = r.walk.split(" — ")[0].split(", ").length;
+    const legs = pathLegs(step.args?.path);
+    if (ran < legs) return `entered a new map with ${legs - ran} leg${legs - ran > 1 ? "s" : ""} of the path left`;
+  }
+  if (step?.tool === "hunt") return "the hunt ended without a battle";
+  return null;
+}
+
+/**
+ * Why the batch can't go on after this step's result, or null.
+ * @param {any} r
+ * @param {{ tool: string, args?: any } | null} [step] the step that gave it
+ */
+export function stopReason(r, step = null) {
   if (!r || typeof r !== "object") return null;
   const s = r.status ?? {};
   if (s.outcome) return "the run ended";
@@ -41,8 +76,13 @@ export function stopReason(r) {
   if (r.saveWarning) return "autosave is failing";
   if (s.battle && s.battle !== "none") return "in battle";
   if (r.stopped) return `the step stopped early (${r.stopped})`;
+  // The next steps were planned from where this one should have ended.
+  const short = walkCutShort(r.walk);
+  if (short) return `the walk stopped short (${short})`;
+  // fight_trainer that talked to someone but started no battle.
+  if (typeof r.note === "string" && /^No battle started\b/.test(r.note)) return "no battle started";
   if (r.events?.some((e) => /^\[(warning|violation)\]/.test(e))) return "a rule event";
-  return null;
+  return endedEarly(r, step);
 }
 
 /**
@@ -61,7 +101,7 @@ export async function runBatch(steps, exec) {
       return { done, stopped: i < steps.length - 1 ? `at step ${i + 1} (${tool}): it failed` : null, skipped: steps.length - i - 1 };
     }
     done.push({ tool, result });
-    const why = stopReason(result);
+    const why = stopReason(result, { tool, args });
     if (why && i < steps.length - 1) return { done, stopped: `after step ${i + 1} (${tool}): ${why}`, skipped: steps.length - i - 1 };
   }
   return { done, stopped: null, skipped: 0 };

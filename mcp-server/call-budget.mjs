@@ -28,8 +28,21 @@ export function callBudget({ max, dir }) {
       writeFileSync(file, String(used));
       return { last: used === max };
     },
+    /** Gives back the call just taken: it was refused before the game ran (a batch's bad arguments). */
+    refund() {
+      if (used <= 0) return;
+      used--;
+      writeFileSync(file, String(used));
+    },
   };
 }
+
+/**
+ * Marks a refused call's result as not counting, like a tool's own argument errors, which the
+ * SDK rejects before any budget is taken. limitCalls gives the call back; the run log
+ * (run-log.mjs instrumentTools, the outer wrapper) records it as uncounted and drops the mark.
+ */
+export const UNCOUNTED_RESULT = "uncountedCall";
 
 /** A result with the run's end added, unless it already says the run ended. */
 export function endRun(result, max) {
@@ -48,6 +61,11 @@ export function limitCalls(server, budget) {
     const turn = budget.take();
     if (turn.spent) return { content: [{ type: "text", text: outOfCalls(budget.max) }] };
     const result = await handler(...cbArgs);
+    // Kept marked for the run log, which wraps this and drops the mark.
+    if (result?.[UNCOUNTED_RESULT]) {
+      budget.refund();
+      return result;
+    }
     return turn.last ? endRun(result, budget.max) : result;
   });
 }

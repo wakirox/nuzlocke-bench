@@ -183,6 +183,15 @@ describe("plain screen text", () => {
     expect(plainScreen(keys)).toEqual(["Menu: ▶A B C D E F G H I / × ( ) : ; [ ] PK MN"]);
   });
 
+  it("counts a contraction tile ('s, 't, 'll…) as one square, so a box row with one keeps its right border", () => {
+    // 18 squares inside the border each: a contraction is two characters on one square.
+    const box = ["┌──────────────────┐", "│IT's MOM's PC.      │", "│You can't, you'll   │", "└──────────────────┘"];
+    expect(plainScreen(box)).toEqual(["Text: IT's MOM's PC. / You can't, you'll"]);
+    // After a gender sign or a digit too.
+    const names = ["┌──────────────────┐", "│NIDORAN♂'s attack  │", "│PORYGON2's attack  │", "└──────────────────┘"];
+    expect(plainScreen(names)).toEqual(["Text: NIDORAN♂'s attack / PORYGON2's attack"]);
+  });
+
   it("says how to type a name under an open naming keyboard, wherever its cursor is, and only there", () => {
     const keys = (row: string) => ["┌──────────────────┐", row, "│ × ( ) : ; [ ] PK MN│", "└──────────────────┘"];
     expect(screenText(keys("│▶A B C D E F G H I│"))).toContain(NAMING_HINT);
