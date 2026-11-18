@@ -8,6 +8,8 @@
 // stdout gives one "init" event, then "step_update" events (step_type user_input, agent_response, tool…, each
 // ACTIVE then DONE), then a "result" event per turn, with the session's usage so far.
 
+import { activeToolNames } from "./tool-catalog.mjs";
+
 /** The game's server name in agy's workspace: its tools reach the model as mcp_bench_<tool>. */
 export const AGY_SERVER = "bench";
 
@@ -51,8 +53,8 @@ export function agyWorkspaceConfig(server, toolNames) {
   return { mcpServers: { [AGY_SERVER]: { command, args, env, tools: Object.fromEntries(toolNames.map((t) => [t, { eager: true }])) } } };
 }
 
-/** The game's tool names, from the server's source (every registerTool call). */
-export const serverToolNames = (source) => [...new Set([...source.matchAll(/registerTool\(\s*"([a-z_]+)"/g)].map((m) => m[1]))];
+/** The game's tool names offered under `env` (`preset`, `reportIssue`), from the tool catalog. */
+export const serverToolNames = (env = {}) => activeToolNames(env);
 
 /** agy's name for a game tool (mcp_bench_get_state) as Claude Code names it (mcp__nuzlocke-bench__get_state); null if it isn't one. */
 export function gameToolName(agyName) {

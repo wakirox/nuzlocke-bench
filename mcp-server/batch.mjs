@@ -5,21 +5,9 @@
 // everything that happened up to there.
 
 import { plainErrorScreen, sentences } from "./format.mjs";
+import { BATCH_TOOLS, FINAL_READ_TOOLS, stepToolError } from "./tool-catalog.mjs";
 
-/** Tools a batch may run. Reads (get_state, get_map…) aren't here: their output is for deciding. */
-export const BATCH_TOOLS = [
-  "walk", "walk_to", "travel", "exit_map", "go_to", "note_route", "advance_text", "choose", "press", "wait",
-  "use_item", "rare_candy", "make_lead", "field_move", "fight_trainer", "hunt", "fight", "switch_pokemon", "throw_ball",
-];
-
-/** Tools that only read: they answer the model, so they're called on their own, never as a step. */
-const READS = ["get_state", "get_map", "get_screen", "read_screen_text", "get_rules", "notes", "routes", "policies"];
-
-/** What's wrong with a step's tool name, in words the model can act on. */
-export function stepToolError(name) {
-  if (READS.includes(name)) return `${name} can't be a step: reads answer you, so call ${name} on its own (before or after the do). Only get_map or get_state may end a batch.`;
-  return `${JSON.stringify(name)} isn't a step. Steps can be: ${BATCH_TOOLS.join(", ")}.`;
-}
+export { BATCH_TOOLS, FINAL_READ_TOOLS, stepToolError };
 
 /**
  * A step as { tool, args }. Arguments written next to `tool` ({ tool: "walk_to", x: 6, y: 3 }) are

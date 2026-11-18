@@ -287,9 +287,9 @@ function agyWorkspace() {
 
 function agyPlayer() {
   // The game's server, the workspace's only one.
-  const server = join(root, "mcp-server", "server.mjs");
   mkdirSync(join(agy.dir, ".agents"), { recursive: true });
-  writeFileSync(join(agy.dir, ".agents", "mcp_config.json"), JSON.stringify(agyWorkspaceConfig(config.mcpServers["nuzlocke-bench"], serverToolNames(readFileSync(server, "utf8"))), null, 2));
+  const tools = serverToolNames({ preset: benchmarkPreset(preset), reportIssue: report || playtest });
+  writeFileSync(join(agy.dir, ".agents", "mcp_config.json"), JSON.stringify(agyWorkspaceConfig(config.mcpServers["nuzlocke-bench"], tools), null, 2));
   const child = spawn(agy.bin, agyArgs({ model, effort }), { cwd: agy.dir, stdio: ["pipe", "pipe", "inherit"] });
   child.stdin.on("error", (e) => console.error(`agy's input: ${e.message}`));
   // agy's own events, as they came: the transcript has them in claude's shape.
