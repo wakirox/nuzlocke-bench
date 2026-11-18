@@ -1,6 +1,7 @@
 // Overworld pathfinding on hand-drawn maps (the same characters get_map shows the model).
 
 import { describe, expect, it } from "vitest";
+import { sideWallBlocks } from "../../src/games/gen2/overworld";
 import { cropView, findPath, markWatched, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlockedBy, wayBlocker, type Dir, type OverworldView } from "../../src/bridge/overworld";
 import { tilePairBlocked } from "../../src/games/gen1/overworld";
 
@@ -212,6 +213,19 @@ describe("trainers just off the view", () => {
     expect(v.watched!.size).toBe(0);
   });
 
+  it("stops at a tree to cut or a counter between it and the view, as inside it", () => {
+    for (const solid of ["C", "="]) {
+      const v = view(["@..", "...", "..."]);
+      v.beyond = (x) => (x === OX - 1 ? solid : ".");
+      markWatched(v, [trainer], [], 5);
+      expect(v.watched!.size).toBe(0);
+    }
+    const inside = view(["@..", "S..", "..."]);
+    inside.beyond = () => ".";
+    markWatched(inside, [trainer], [], 5);
+    expect(inside.watched!.size).toBe(0);
+  });
+
   it("watches nothing past the view when there's no map to say what's there", () => {
     const v = view(["@..", "...", "..."]);
     markWatched(v, [trainer], [], 5);
@@ -221,8 +235,12 @@ describe("trainers just off the view", () => {
 
 describe("watched water", () => {
   // A swimmer's gaze over the sea: a watched "~" shows as "!", an unwatched one as "~".
-  it("shows a watched water square as !", () => {
-    expect(renderView(view(["@~~", "~~~"], [[1, 0]]))).toContain("y 20   @  !  ~");
+  it("shows a watched water square as ! while surfing", () => {
+    expect(renderView({ ...view(["@~~", "~~~"], [[1, 0]]), surfing: true })).toContain("y 20   @  !  ~");
+  });
+
+  it("keeps watched water as ~ on foot: a gaze over a pond isn't a way across it", () => {
+    expect(renderView(view(["@~~", "~~~"], [[1, 0]]))).toContain("y 20   @  ~  ~");
   });
 
   it("shows water nobody watches as ~", () => {
@@ -464,6 +482,16 @@ describe("surfing past a cliff pair (Gen 1: water tile 14 against land tile 46)"
     expect(findPath(pond(), OX, OY + 1)!.dirs).toEqual(["down"]);
     const free = { ...pond(), swimBlocked: undefined };  // without the pair the step is fine
     expect(findPath(free, OX + 1, OY)!.dirs).toEqual(["right"]);
+  });
+
+  it("Crystal: a one-sided wall stops a swimmer too", () => {
+    // Water at x0 and x1, the square at x1 a right-facing wall (0xb0): no swimming right out of it.
+    const v = view(["@~~"]);
+    v.surfing = true;
+    v.tiles = [[0x20, 0xb0, 0x20]];
+    v.swimBlocked = sideWallBlocks;
+    expect(findPath(v, OX + 2, OY)).toBeNull();
+    expect(findPath(v, OX + 1, OY)!.dirs).toEqual(["right"]);
   });
 
   it("lists that water and land pair among the cliff edges", () => {

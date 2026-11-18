@@ -126,6 +126,11 @@ export interface ScreenLayout {
   safariMenu: { labels: [string, string] };
   /** How many pockets the bag shows one at a time (left/right switches pocket): 1 in Gen 1, 4 in Crystal. */
   bagPockets: number;
+  /**
+   * Every map tile reads as "·" in the screen text, so any other tile is a menu or text (Gen 1: its
+   * tilesets sit below the font). Not Crystal: its second tile bank reads as letters.
+   */
+  mapTilesReadAsDots?: boolean;
   /** The balls throw_ball offers, by the short name the model gives → the item's name in the bag. */
   balls: Record<string, string>;
   /** What the game says when a field move has nothing to be used on. */

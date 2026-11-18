@@ -12,7 +12,7 @@ const SYMBOLS: Record<string, [string, string]> = {
   '"': ["#4caf50", "tall grass"],
   "~": ["#3b82f6", "water"],
   "*": ["#bfe8f5", "ice (you slide)"],
-  v:["#a0703c", "ledge (hop down)"],
+  v: ["#a0703c", "ledge (hop down)"],
   "<": ["#a0703c", "ledge (hop left)"],
   ">": ["#a0703c", "ledge (hop right)"],
   "@": ["#ff3b30", "you"],

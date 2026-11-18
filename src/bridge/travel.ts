@@ -164,7 +164,15 @@ export class Travel {
   async goTo(map: string): Promise<unknown> {
     if (!map) throw new Error("Which map? e.g. ROUTE_1");
     const log: string[] = [this.core.mapName()];
-    await this.travelTo(map, log);
+    // The hops' own results aren't seen (only their walks are kept): show_map is for the result at
+    // the end, so they mustn't use up a map's first full view.
+    const asked = this.core.mapAsked;
+    this.core.mapAsked = false;
+    try {
+      await this.travelTo(map, log);
+    } finally {
+      this.core.mapAsked = asked;
+    }
     return this.core.result({ walk: log.join(" → "), map: this.core.mapText() });
   }
 
@@ -497,6 +505,7 @@ export class Travel {
     const full = this.core.view(true);
     const ledge = ledgeTarget(full, x, y);
     if (ledge) throw new Error(ledge);
+    const toHole = full.grid[y - full.originY]?.[x - full.originX] === "O";
     let route = findPath(full, x, y, this.core.sight());
     const crossed = route?.crosses ?? [];
     if (!route) {
@@ -547,6 +556,14 @@ export class Travel {
         walk: `${route.dirs.length ? report.replace(/ — arrived$/, "") + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at (${sx}, ${sy})${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
         map: this.core.mapText(),
       });
+    }
+    // A hole asked for: the fall (a spin or a drop, buttons ignored) changes the map well after the
+    // step lands. Wait it out and report the floor below, with nothing pressed during it.
+    const onHole = this.core.host.position();
+    if (route && toHole && !onHole.battle && onHole.map === startMap && onHole.x === x && onHole.y === y) {
+      await this.core.awaitWarp();
+      const fell = this.core.host.position().map !== startMap;
+      return this.core.result({ walk: `${report}${fell ? `, then fell through the hole to ${this.core.mapName()}` : " (the hole didn't take you down)"}`, map: this.core.mapText() });
     }
     // A doormat at the map's edge takes you out only when you press toward the edge: do that. With
     // interact too: on a door square there's nothing to talk to, so going through is what's meant.
