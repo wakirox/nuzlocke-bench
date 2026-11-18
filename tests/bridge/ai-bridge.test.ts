@@ -141,14 +141,19 @@ describe("a new map's first full view", () => {
   it("is shown whole only to a call that asked for the map", () => {
     const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: 7 } });
     const bridge = new AiBridge(host.asHost(), () => {});
-    const core = (bridge as unknown as { core: { mapAsked: boolean; mapText: () => string; result: (extra: Record<string, unknown>) => { map?: unknown } } }).core;
+    const core = (bridge as unknown as { core: { mapAsked: boolean; mapText: () => string; view: () => unknown; result: (extra: Record<string, unknown>) => { map?: unknown } } }).core;
     core.mapText = () => "WHOLE MAP";
-    // A move's result without show_map: its map is left out, and it doesn't use up the map's first full view.
+    core.view = () => ({ grid: [["@", "."]], originX: 0, originY: 0, pc: 0, pr: 0, exits: ["up"], doors: [] });
+    // A move's result without show_map: its map is left out (the MCP server keeps only its exits line),
+    // and it doesn't use up the map's first full view.
     core.mapAsked = false;
-    expect(core.result({ map: "short" }).map).toBe("short");
+    expect(core.result({ map: "short" }).map).toBe("Map exits: up.\nshort");
+    expect(core.result({ map: "short" }).map).toBe("Map exits: up.\nshort");
     core.mapAsked = true;
     expect(core.result({ map: "short" }).map).toBe("WHOLE MAP");
-    // Once shown, the map isn't shown whole again.
+    // Once shown, the map isn't shown whole again, and its exits are in what was shown.
+    expect(core.result({ map: "short" }).map).toBe("short");
+    core.mapAsked = false;
     expect(core.result({ map: "short" }).map).toBe("short");
   });
 });

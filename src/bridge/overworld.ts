@@ -40,7 +40,7 @@ export interface OverworldView {
 export interface Door { x: number; y: number; to: string; tx: number | null; ty: number | null; push?: Dir }
 
 /** Whether the step from square (c, r) to (nc, nr) crosses a tile-pair edge (a cliff edge). */
-function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
+export function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
   if (!v.tiles || !v.stepBlocked) return false;
   return v.stepBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
@@ -50,6 +50,12 @@ function swimPairBlocked(v: OverworldView, c: number, r: number, nc: number, nr:
   if (!v.tiles || !v.swimBlocked) return false;
   return v.swimBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
+
+/**
+ * What a trainer's gaze stops at: walls and anything solid standing in the way (a gate, a counter,
+ * a tree to cut, a sign or PC, a boulder) and people (N, $ clerk, H nurse, T trainer, I item ball).
+ */
+const BLOCKS_SIGHT = new Set(["#", "G", "=", "C", "S", "P", "B", "N", "$", "H", "T", "I"]);
 
 /** The four ways a trainer can face, as [dx, dy]: down, up, left, right. */
 const FACINGS: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
@@ -76,12 +82,12 @@ export function markWatched(v: OverworldView, trainers: TrainerSprite[], beaten:
         if (r < 0 || r >= H || c < 0 || c >= W) {
           // Past the view's edge (a trainer just off screen looking in): the map says whether the
           // gaze gets through there; without the map it can't be told, so it stops.
+          // (The map there shows no people: only what the map itself has stops it.)
           const past = v.beyond?.(t.x + dx * k, t.y + dy * k);
-          if (past == null || past === "#") break;
+          if (past == null || BLOCKS_SIGHT.has(past)) break;
           continue;
         }
-        const ch = v.grid[r][c];
-        if (ch === "#" || ch === "G" || ch === "=" || ch === "N" || ch === "$" || ch === "H" || ch === "B" || ch === "T" || ch === "I") break;
+        if (BLOCKS_SIGHT.has(v.grid[r][c])) break;
         watched.add(r * W + c);
         const who = watchers.get(r * W + c) ?? [];
         if (!who.some(([x, y]) => x === t.x && y === t.y)) who.push([t.x, t.y]);
@@ -189,19 +195,45 @@ const LIT_PIXELS = 8;
  * framed ┌┐└┘). In the dark a box is bright, but what's under it can't be seen: litSquares alone
  * read the whole box as lit cave (Rock Tunnel's rocks shown through a sign's text).
  */
-export function boxedSquares(lines: string[]): boolean[][] {
+export function boxedSquares(rawLines: string[], allTextIsUi = false): boolean[][] {
   const out = Array.from({ length: 9 }, () => Array<boolean>(10).fill(false));
+  // Not the screen's 18 rows (a note such as "(Screen is faded to white…)"): nothing to place.
+  if (rawLines.length !== 18) return out;
+  const lines = rawLines.map(oneTilePerChar);
+  const cover = (top: number, left: number, bottom: number, right: number) => {
+    for (let r = top >> 1; r <= bottom >> 1 && r < 9; r++) for (let c = left >> 1; c <= right >> 1 && c < 10; c++) out[r][c] = true;
+  };
   for (let top = 0; top < lines.length; top++) {
     for (let left = lines[top].indexOf("┌"); left >= 0; left = lines[top].indexOf("┌", left + 1)) {
       const right = lines[top].indexOf("┐", left + 1);
       if (right < 0) continue;
+      // Down its sides to the bottom border, or to where a box drawn over it starts (that one is
+      // covered in its own right): a menu under the bag has lost its └.
       let bottom = top + 1;
-      while (bottom < lines.length && lines[bottom][left] !== "└") bottom++;
-      if (bottom >= lines.length) continue;
-      for (let r = top >> 1; r <= bottom >> 1 && r < 9; r++) for (let c = left >> 1; c <= right >> 1 && c < 10; c++) out[r][c] = true;
+      while (bottom < lines.length - 1 && (lines[bottom][left] === "│" || lines[bottom][right] === "│")) bottom++;
+      cover(top, left, bottom, right);
     }
   }
+  // Where every map tile reads as "·" (Gen 1), any other tile is a menu or text, framed or not
+  // (the party screen, the Pokédex): its square can't be seen.
+  if (allTextIsUi) {
+    lines.forEach((line, row) => [...line].forEach((ch, col) => {
+      if (ch !== "·" && (row >> 1) < 9 && (col >> 1) < 10) out[row >> 1][col >> 1] = true;
+    }));
+  }
   return out;
+}
+
+/**
+ * A screen line with one character per tile: the reader writes a few tiles as two characters
+ * (PK, MN, and the contractions 's 't 'll…; see mcp-server/format.mjs oneSquare).
+ */
+function oneTilePerChar(line: string): string {
+  const TILE = "";
+  return line
+    .replace(/PKMN/g, TILE + TILE)
+    .replace(/(?<![A-Z])(?:PK|MN)(?=MN|[^A-Za-z]|$)/g, TILE)
+    .replace(/(?<=[A-Za-z0-9é♂♀])'[dlmrstv]/g, TILE);
 }
 
 /**
@@ -224,7 +256,7 @@ export function trainerList(trainers: { x: number; y: number; name: string; beat
  */
 export function sealedLowerFloor(v: OverworldView): Set<number> {
   const sealed = new Set<number>();
-  if (!v.tiles || !v.lowerFloor) return sealed;
+  if (!v.exits || !v.tiles || !v.lowerFloor) return sealed;
   const H = v.grid.length;
   const W = v.grid[0]?.length ?? 0;
   const lower = (c: number, r: number) => v.grid[r][c] === "." && v.lowerFloor!(v.tiles![r][c]);
@@ -243,7 +275,8 @@ export function sealedLowerFloor(v: OverworldView): Set<number> {
           const nc = c + dx, nr = r + dy;
           if (nr < 0 || nr >= H || nc < 0 || nc >= W) continue;
           const ch = v.grid[nr][nc];
-          if (ch === "#" || pairBlocked(v, c, r, nc, nr)) continue;
+          // Water is a way in only where a swimmer can get ashore (Gen 1: not against a cliff).
+          if (ch === "#" || (ch === "~" ? swimPairBlocked(v, nc, nr, c, r) : pairBlocked(v, c, r, nc, nr))) continue;
           if (lower(nc, nr)) {
             if (!seen.has(nr * W + nc)) { seen.add(nr * W + nc); todo.push([nc, nr]); }
           } else open = true;  // a step onto anything else (upper floor, a door, a person…): a way in
@@ -262,8 +295,7 @@ export function sealedLowerFloor(v: OverworldView): Set<number> {
  * that the whole map draws as rock (the dark tunnel's walls, 27 walks into them in one run).
  */
 export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): OverworldView {
-  // Not a whole map (no ROM: view(true) falls back to the screen): it can't tell either.
-  if (!whole.exits) return screen;
+  // Not a whole map (no ROM: view(true) falls back to the screen): it can't tell either (sealedLowerFloor checks).
   const sealed = sealedLowerFloor(whole);
   if (!sealed.size) return screen;
   const WW = whole.grid[0]?.length ?? 0;
@@ -288,31 +320,16 @@ export function renderView(view: OverworldView): string {
   const cols = v.grid[0]?.length ?? 0;
   const header = "     " + Array.from({ length: cols }, (_, c) => String(v.originX + c).padStart(3)).join("");
   const W = v.grid[0]?.length ?? 0;
-  // Water too: a swimmer's gaze over the sea is what walk_to and travel steer around.
-  const shown = (ch: string, r: number, c: number) => ((ch === "." || ch === '"' || ch === "~") && v.watched?.has(r * W + c) ? "!" : ch);
+  // Water too while surfing: a swimmer's gaze over the sea is what walk_to and travel steer around.
+  // On foot the water stays water (a gaze over a pond isn't a way across it).
+  const shown = (ch: string, r: number, c: number) => ((ch === "." || ch === '"' || (ch === "~" && !!v.surfing)) && v.watched?.has(r * W + c) ? "!" : ch);
   const levelled = (ch: string, r: number, c: number) => {
     const out = shown(ch, r, c);
     return out === "." && v.tiles && v.lowerFloor?.(v.tiles[r][c]) ? "," : out;
   };
   const rows = v.grid.map((line, r) => `y${String(v.originY + r).padStart(3)} ` + line.map((ch, c) => levelled(ch, r, c).padStart(3)).join(""));
-  // Doors are listed as a player sees them: whether one can be walked to from here isn't said (a
-  // player works that out from the map, or by trying), the user's rule: the same information a human has.
-  // A wide door (a gate, a cave mouth) is several squares in a row that lead to the same place: list it once.
-  const runs: { from: Door; to: Door; key: string }[] = [];
-  for (const d of v.doors ?? []) {
-    const key = `${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`;
-    const last = runs[runs.length - 1];
-    const next = last && last.key === key &&
-      ((d.y === last.to.y && d.y === last.from.y && d.x === last.to.x + 1) || (d.x === last.to.x && d.x === last.from.x && d.y === last.to.y + 1));
-    if (next) last.to = d;
-    else runs.push({ from: d, to: d, key });
-  }
-  // The exits line counts the doors too: it's all an action result shows of the map, and "left" alone
-  // read as a dead end on a route whose way on is a house door (Haiku at Bill's, 2026-11-08).
-  const doorCount = runs.length ? `${runs.length} door${runs.length === 1 ? "" : "s"}` : "";
-  const exits = !v.exits ? null
-    : v.exits.length ? `Map exits: ${v.exits.join(", ")}${doorCount ? `, plus ${doorCount} (D)` : ""}.`
-    : `Map exits: none (${doorCount ? `only ${doorCount} (D)` : "doors only"}).`;
+  const runs = doorRuns(v);
+  const exits = exitsLine(v);
   const doors = runs.length
     ? `Doors (D): ${runs.map((r) => `(${r.from.x},${r.from.y})${r.to === r.from ? "" : `–(${r.to.x},${r.to.y})`} → ${r.key}`).join("; ")}.`
     : null;
@@ -324,6 +341,38 @@ export function renderView(view: OverworldView): string {
     ...(edges ? [edges] : []),
     ...(doors ? [doors] : []),
   ].join("\n");
+}
+
+/**
+ * The view's doors, as a player sees them: whether one can be walked to from here isn't said (a
+ * player works that out from the map, or by trying), the user's rule: the same information a human has.
+ * A wide door (a gate, a cave mouth) is several squares in a row that lead to the same place: listed once.
+ */
+function doorRuns(v: OverworldView): { from: Door; to: Door; key: string }[] {
+  const runs: { from: Door; to: Door; key: string }[] = [];
+  for (const d of v.doors ?? []) {
+    const key = `${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`;
+    const last = runs[runs.length - 1];
+    const next = last && last.key === key &&
+      ((d.y === last.to.y && d.y === last.from.y && d.x === last.to.x + 1) || (d.x === last.to.x && d.x === last.from.x && d.y === last.to.y + 1));
+    if (next) last.to = d;
+    else runs.push({ from: d, to: d, key });
+  }
+  return runs;
+}
+
+/**
+ * "Map exits: up, left, plus 2 doors (D)." for a whole map's view (null for the screen's, which has
+ * no exits). It counts the doors too: it's all an action result shows of the map, and "left" alone
+ * read as a dead end on a route whose way on is a house door (Haiku at Bill's, 2026-11-08).
+ */
+export function exitsLine(v: OverworldView): string | null {
+  if (!v.exits) return null;
+  const n = doorRuns(v).length;
+  const doorCount = n ? `${n} door${n === 1 ? "" : "s"}` : "";
+  return v.exits.length
+    ? `Map exits: ${v.exits.join(", ")}${doorCount ? `, plus ${doorCount} (D)` : ""}.`
+    : `Map exits: none (${doorCount ? `only ${doorCount} (D)` : "doors only"}).`;
 }
 
 /**

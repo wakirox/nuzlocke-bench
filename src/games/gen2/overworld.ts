@@ -22,7 +22,7 @@ export const OW = {
   mapScriptsBank: 0xd1a3, mapEventsPointer: 0xd1a6, mapConnections: 0xd1a8,
   warpCount: 0xdbfb, warpsPointer: 0xdbfc, bgEventCount: 0xdc01, bgEventsPointer: 0xdc02, objectEventCount: 0xdc04,
   objectStructs: 0xd4d6, mapObjects: 0xd71e, playerState: 0xd95d,
-  /** wBackupWarpNumber, then wBackupMapGroup, wBackupMapNumber (6 bytes before wMapGroup). */
+  /** wBackupWarpNumber, then wBackupMapGroup, wBackupMapNumber (wMapGroup is at 0xdcb5). */
   backupWarp: 0xdcac,
 };
 const OBJECT_LENGTH = 0x28;
@@ -381,7 +381,8 @@ function readArea(mem: MemoryReader, rom: Uint8Array, playerX: number, playerY: 
   decorate(mem, rom, grid, x0, y0, playerX, playerY);
   const doors = mapDoors(mem, rom).filter((d) => d.x >= x0 && d.x < x0 + W && d.y >= y0 && d.y < y0 + H && grid[d.y - y0][d.x - x0] !== "#");
   const view: OverworldView = {
-    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, doors, stepBlocked: sideWallBlocks,
+    // Surfing, the game checks the one-sided walls the same way as on foot.
+    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, doors, stepBlocked: sideWallBlocks, swimBlocked: sideWallBlocks,
     beyond: (x, y) => (open(x, y) === null ? "#" : classifyAt(rom, open, x, y)),
     surfing: SURFING.has(rd(mem, OW.playerState)),
   };

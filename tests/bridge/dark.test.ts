@@ -88,6 +88,29 @@ describe("text boxes and menus over the dark view", () => {
     expect(shown(boxedSquares(boxScreen(12, 0, 17, 19)))).toEqual([...Array(6).fill(".........."), ...Array(3).fill("xxxxxxxxxx")]);
   });
 
+  it("covers a menu whose bottom border a box over it has drawn over (the bag over the start menu)", () => {
+    // The start menu at tile columns 10-19, rows 0-15; a text box at rows 12-17 over its bottom.
+    const menu = boxScreen(0, 10, 15, 19);
+    const box = boxScreen(12, 0, 17, 19);
+    const both = menu.map((row, y) => (y >= 12 ? box[y] : row));
+    expect(shown(boxedSquares(both))).toEqual([...Array(6).fill(".....xxxxx"), ...Array(3).fill("xxxxxxxxxx")]);
+  });
+
+  it("counts a two-character tile (PK, 's) as one column", () => {
+    // A box at tile columns 2-11 titled PKMN: written out, PK, MN and 's take two characters each.
+    const screen = boxScreen(0, 2, 3, 11);
+    screen[0] = "  ┌─PKMN─────┐" + " ".repeat(8);
+    screen[1] = "  │PKMN's      │" + " ".repeat(8);
+    expect(shown(boxedSquares(screen)).slice(0, 3)).toEqual([".xxxxx....", ".xxxxx....", ".........."]);
+  });
+
+  it("where map tiles read as ·, covers any square showing other tiles (a full-screen menu with no frame)", () => {
+    const party = Array.from({ length: 18 }, (_, y) => (y < 12 ? (y === 1 ? "  NOVA    Lv23      " : " ".repeat(20)) : "·".repeat(20)));
+    expect(shown(boxedSquares(party, true))).toEqual([...Array(6).fill("xxxxxxxxxx"), ...Array(3).fill("..........")]);
+    // Not where map tiles can read as letters (Crystal): there only framed boxes count.
+    expect(shown(boxedSquares(party))).toEqual(Array(9).fill(".........."));
+  });
+
   it("covers only the squares of a small menu box", () => {
     // Tile rows 0-7, columns 10-19: square rows 0-3, square columns 5-9.
     expect(shown(boxedSquares(boxScreen(0, 10, 7, 19)))).toEqual([...Array(4).fill(".....xxxxx"), ...Array(5).fill("..........")]);

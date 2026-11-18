@@ -49,6 +49,15 @@ describe("run summaries", () => {
     expect(readRows(log)[0].calls).toBe(2);
   });
 
+  it("leaves a call refused before it ran out of the run's calls, as the budget does, and counts it as refused", () => {
+    const dir = runFolder();
+    const log = join(dir, "run-log.jsonl");
+    const refused = { n: 3, t: "2026-11-07T18:00:03.000Z", ms: 5, tool: "do", args: {}, chars: 40, error: "Step 1 (walk_to): x: expected number", uncounted: true };
+    writeFileSync(log, readFileSync(log, "utf8") + JSON.stringify(refused) + "\n");
+    const [row] = computeRows(log);
+    expect(row).toMatchObject({ calls: 2, errors: 1, refused: 1 });
+  });
+
   it("leaves report_issue out of the run's calls: it's free, as the prompt says", () => {
     const dir = runFolder();
     const log = join(dir, "run-log.jsonl");
