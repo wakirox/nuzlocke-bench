@@ -61,6 +61,41 @@ describe("walk_to through the fog", () => {
     const { travel } = fakeWorld(wall, [1, 1], seen);
     await expect(travel.walkTo(7, 1, false)).rejects.toThrow(/no walk from where you stand reaches it/);
   });
+
+  it("never leaks '#' over unseen '?' squares inside a sealed lower-floor patch on an off-screen error map", async () => {
+    // Columns 5..9 of row 1 are a closed lower-floor patch (tile 1, cliff-edged from floor tile 0):
+    // sealedLowerFloor seals all 5 squares to '#' on the raw map before fogging.
+    // Screens seen around (1,1) (x <= 6) and (18,1) (x >= 14) leave x = 7..13 unseen ('?').
+    const cave = ["################", "....#.....#....#", "################"];
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 1, 1);
+    seen.sawScreen(MAP, 18, 1);
+    const { host, travel } = fakeWorld(cave, [1, 1], seen);
+    const baseFull = host.adapter.readFullMap.bind(host.adapter);
+    host.adapter.readFullMap = (...args) => {
+      const v = baseFull(...args);
+      return {
+        ...v,
+        tiles: cave.map((row, r) => [...row].map((_, c) => (r === 1 && c >= 5 && c <= 9 ? 1 : 0))),
+        lowerFloor: (t: number) => t === 1,
+        stepBlocked: (a: number, b: number) => a !== b,
+      };
+    };
+
+    let errText = "";
+    try {
+      await travel.walkTo(14, 1, false);
+    } catch (e) {
+      errText = (e as Error).message;
+    }
+    expect(errText).toMatch(/No path to \(14, 1\)/);
+    const row1 = errText.split("\n").find((l) => l.trimStart().startsWith("y  1")) ?? "";
+    const cells = row1.trim().replace(/^y\s+\d+\s+/, "").split(/\s+/);
+    // Seen part of the sealed patch (x=5, 6) shows as '#'; unseen part (x=7, 8, 9) must stay '?'.
+    expect(cells[5]).toBe("#");
+    expect(cells[6]).toBe("#");
+    expect(cells.slice(7, 10)).toEqual(["?", "?", "?"]);
+  });
 });
 
 describe("exit_map through the fog", () => {
