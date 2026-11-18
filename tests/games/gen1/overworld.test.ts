@@ -2,7 +2,7 @@
 // screen, a person the game has taken away must not count as standing there.
 
 import { describe, expect, it } from "vitest";
-import { closedGateSquares, spriteHidden, spriteRole, trainerSprites } from "../../../src/games/gen1/overworld";
+import { closedGateSquares, readFullMap, readView, spriteHidden, spriteRole, trainerSprites } from "../../../src/games/gen1/overworld";
 import { addressesFor } from "../../../src/games/gen1/ram";
 import type { MemoryReader } from "../../../src/games/types";
 import type { GameVersion } from "../../../src/rom/types";
@@ -146,5 +146,36 @@ describe("spriteRole", () => {
 
   it("marks nothing when the game's map-bank lookup isn't found", () => {
     expect(spriteRole(memFor("red", 1), new Uint8Array(4 * 0x4000), "red", 1)).toBeNull();
+  });
+});
+
+describe("the edge of a map with no connection (Gen 1)", () => {
+  // A one-block map (2×2 squares) of floor, with the border blocks (tile 0, scenery) around it, in
+  // a tileset whose blocks are at $8000. `conn` is wCurMapConnections: which edges have a map beside them.
+  const map = (conn: number) => {
+    const A = addressesFor("red");
+    const { m, mem } = ram();
+    m[A.curMapWidth] = 1; m[A.curMapHeight] = 1; m[A.mapConnections] = conn;
+    m[A.collisionPtr] = 0x00; m[A.collisionPtr + 1] = 0x01;  // the passable tiles at $0100 (bank 0)
+    m[A.grassTile] = 0x7f;
+    m[A.tilesetBank] = 2; m[A.tilesetBlocksPtr] = 0x00; m[A.tilesetBlocksPtr + 1] = 0x40;
+    m[0xc6e8 + 3 * 7 + 3] = 1;  // wOverworldMap: the map's own block (the border blocks stay 0)
+    const rom = new Uint8Array(0x100000);
+    rom.set([0x00, 0x20, 0xff], 0x100);  // passable: 0 (the border's scenery) and 0x20 (floor)
+    rom.fill(0x20, 0x8010, 0x8020);  // block 1: all floor
+    return { mem, rom };
+  };
+
+  it("draws the squares past an edge with no connection as rock", () => {
+    const { mem, rom } = map(0);
+    const view = readView(mem, "red", 1, 1, [], rom);
+    expect(view.grid[3][2]).toBe("#");  // (-1, 0): west, nothing connected
+    expect(view.grid[3][3]).toBe(".");  // (0, 0): the map's own floor
+    expect(readFullMap(mem, rom, "red", 1, 1).beyond!(2, 0)).toBe("#");  // east, nothing connected
+  });
+
+  it("shows the squares past a connected edge as the neighbouring map's scenery", () => {
+    const { mem, rom } = map(2);  // west connected
+    expect(readView(mem, "red", 1, 1, [], rom).grid[3][2]).toBe(".");
   });
 });

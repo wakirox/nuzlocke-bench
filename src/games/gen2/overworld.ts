@@ -22,6 +22,8 @@ export const OW = {
   mapScriptsBank: 0xd1a3, mapEventsPointer: 0xd1a6, mapConnections: 0xd1a8,
   warpCount: 0xdbfb, warpsPointer: 0xdbfc, bgEventCount: 0xdc01, bgEventsPointer: 0xdc02, objectEventCount: 0xdc04,
   objectStructs: 0xd4d6, mapObjects: 0xd71e, playerState: 0xd95d,
+  /** wBackupWarpNumber, then wBackupMapGroup, wBackupMapNumber (wMapGroup is at 0xdcb5). */
+  backupWarp: 0xdcac,
 };
 const OBJECT_LENGTH = 0x28;
 const MAPOBJECT_LENGTH = 16;
@@ -279,6 +281,9 @@ function currentWarps(mem: MemoryReader, rom: Uint8Array): { x: number; y: numbe
   const at = romOff(rd(mem, OW.mapScriptsBank), rd16le(mem, OW.warpsPointer));
   return Array.from({ length: n }, (_, i) => {
     const o = at + i * 5;
+    // Warp number -1 (a shared map's way back: every Pokémon Center's 2F stairs): the game goes to
+    // wBackupWarpNumber / wBackupMapGroup / wBackupMapNumber instead (home/warp_connection.asm).
+    if (rom[o + 2] === 0xff) return { y: rom[o], x: rom[o + 1], warp: rd(mem, OW.backupWarp), map: (rd(mem, OW.backupWarp + 1) << 8) | rd(mem, OW.backupWarp + 2) };
     return { y: rom[o], x: rom[o + 1], warp: rom[o + 2], map: (rom[o + 3] << 8) | rom[o + 4] };
   });
 }
@@ -287,7 +292,8 @@ function currentWarps(mem: MemoryReader, rom: Uint8Array): { x: number; y: numbe
 export function romWarps(rom: Uint8Array, map: number): [number, number][] {
   const group = map >> 8;
   const number = map & 0xff;
-  if (!group || !number) return [];
+  // Crystal has 26 map groups (MapGroupPointers): anything else isn't a map.
+  if (!group || !number || group > 26) return [];
   const groupTable = romOff(0x25, word(rom, MAP_GROUP_POINTERS + (group - 1) * 2));
   const header = groupTable + (number - 1) * 9;
   const attrs = romOff(rom[header], word(rom, header + 3));
@@ -375,7 +381,8 @@ function readArea(mem: MemoryReader, rom: Uint8Array, playerX: number, playerY: 
   decorate(mem, rom, grid, x0, y0, playerX, playerY);
   const doors = mapDoors(mem, rom).filter((d) => d.x >= x0 && d.x < x0 + W && d.y >= y0 && d.y < y0 + H && grid[d.y - y0][d.x - x0] !== "#");
   const view: OverworldView = {
-    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, doors, stepBlocked: sideWallBlocks,
+    // Surfing, the game checks the one-sided walls the same way as on foot.
+    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, doors, stepBlocked: sideWallBlocks, swimBlocked: sideWallBlocks,
     beyond: (x, y) => (open(x, y) === null ? "#" : classifyAt(rom, open, x, y)),
     surfing: SURFING.has(rd(mem, OW.playerState)),
   };

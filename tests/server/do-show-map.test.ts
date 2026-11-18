@@ -62,4 +62,11 @@ describe("do with show_map", () => {
       expect(not).toContain("Map: not shown (get_map shows it)");
     });
   }, 30_000);
+
+  it("shows the map once when the batch ends with get_map, even if its last move asked too", async () => {
+    await withServer(async (client) => {
+      const r = textOf(await client.callTool({ name: "do", arguments: { steps: [{ tool: "walk", args: { path: "U1", show_map: true } }, { tool: "get_map" }] } }));
+      expect(r.split("#.@#").length - 1).toBe(1);
+    });
+  }, 30_000);
 });

@@ -1,6 +1,7 @@
 // Overworld pathfinding on hand-drawn maps (the same characters get_map shows the model).
 
 import { describe, expect, it } from "vitest";
+import { sideWallBlocks } from "../../src/games/gen2/overworld";
 import { cropView, findPath, markWatched, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlockedBy, wayBlocker, type Dir, type OverworldView } from "../../src/bridge/overworld";
 import { tilePairBlocked } from "../../src/games/gen1/overworld";
 
@@ -190,6 +191,60 @@ describe("trainers' sight is the player's call", () => {
     const v = view([".T.", "...", ".@."]);
     markWatched(v, [{ index: 1, x: OX + 1, y: OY, dx: 0, dy: 1, onScreen: true, sight: false }], [], 5);
     expect(v.watched?.size ?? 0).toBe(0);
+  });
+});
+
+describe("trainers just off the view", () => {
+  // The view is map x OX..OX+2; the trainer stands two squares left of it (column -2), looking right, reach 5.
+  const trainer = { index: 1, x: OX - 2, y: OY + 1, dx: 1, dy: 0, onScreen: false, sight: true };
+
+  it("watches the view squares in its line up to reach, when the map past the edge is open", () => {
+    const v = view(["@..", "...", "..."]);
+    v.beyond = () => ".";
+    markWatched(v, [trainer], [], 5);
+    // Row 1, columns 0..2: the squares at reach 2 to 4 (reach 5 is past the view's right edge).
+    expect([...v.watched!].sort((a, b) => a - b)).toEqual([3, 4, 5]);
+  });
+
+  it("stops at a wall between it and the view", () => {
+    const v = view(["@..", "...", "..."]);
+    v.beyond = (x) => (x === OX - 1 ? "#" : ".");  // the square just off the view is rock
+    markWatched(v, [trainer], [], 5);
+    expect(v.watched!.size).toBe(0);
+  });
+
+  it("stops at a tree to cut or a counter between it and the view, as inside it", () => {
+    for (const solid of ["C", "="]) {
+      const v = view(["@..", "...", "..."]);
+      v.beyond = (x) => (x === OX - 1 ? solid : ".");
+      markWatched(v, [trainer], [], 5);
+      expect(v.watched!.size).toBe(0);
+    }
+    const inside = view(["@..", "S..", "..."]);
+    inside.beyond = () => ".";
+    markWatched(inside, [trainer], [], 5);
+    expect(inside.watched!.size).toBe(0);
+  });
+
+  it("watches nothing past the view when there's no map to say what's there", () => {
+    const v = view(["@..", "...", "..."]);
+    markWatched(v, [trainer], [], 5);
+    expect(v.watched!.size).toBe(0);
+  });
+});
+
+describe("watched water", () => {
+  // A swimmer's gaze over the sea: a watched "~" shows as "!", an unwatched one as "~".
+  it("shows a watched water square as ! while surfing", () => {
+    expect(renderView({ ...view(["@~~", "~~~"], [[1, 0]]), surfing: true })).toContain("y 20   @  !  ~");
+  });
+
+  it("keeps watched water as ~ on foot: a gaze over a pond isn't a way across it", () => {
+    expect(renderView(view(["@~~", "~~~"], [[1, 0]]))).toContain("y 20   @  ~  ~");
+  });
+
+  it("shows water nobody watches as ~", () => {
+    expect(renderView(view(["@~~", "~~~"]))).toContain("y 20   @  ~  ~");
   });
 });
 
@@ -410,6 +465,40 @@ describe("surfing", () => {
   });
 });
 
+describe("surfing past a cliff pair (Gen 1: water tile 14 against land tile 46)", () => {
+  // The surfer is on water at the top left. The land square to its right (tile 46) is walled in, so
+  // it can only be reached by stepping from the water, which the pair blocks.
+  const pair = (a: number, b: number) => (a === 14 && b === 46) || (a === 46 && b === 14);
+  const pond = () => {
+    const v = view(["@.#", ".##"]);
+    v.surfing = true;
+    v.tiles = [[14, 46, 0x20], [0x20, 0x20, 0x20]];
+    v.swimBlocked = pair;
+    return v;
+  };
+
+  it("can't step from the water onto that land, but can go another way", () => {
+    expect(findPath(pond(), OX + 1, OY)).toBeNull();
+    expect(findPath(pond(), OX, OY + 1)!.dirs).toEqual(["down"]);
+    const free = { ...pond(), swimBlocked: undefined };  // without the pair the step is fine
+    expect(findPath(free, OX + 1, OY)!.dirs).toEqual(["right"]);
+  });
+
+  it("Crystal: a one-sided wall stops a swimmer too", () => {
+    // Water at x0 and x1, the square at x1 a right-facing wall (0xb0): no swimming right out of it.
+    const v = view(["@~~"]);
+    v.surfing = true;
+    v.tiles = [[0x20, 0xb0, 0x20]];
+    v.swimBlocked = sideWallBlocks;
+    expect(findPath(v, OX + 2, OY)).toBeNull();
+    expect(findPath(v, OX + 1, OY)!.dirs).toEqual(["right"]);
+  });
+
+  it("lists that water and land pair among the cliff edges", () => {
+    expect(renderView(pond())).toContain("Cliff edges (both sides look walkable, but you can't step across): x10|x11 at y20.");
+  });
+});
+
 describe("walking to a ledge", () => {
   it("says it's a one-way ledge, which way it hops and where to aim instead", async () => {
     const { ledgeTarget } = await import("../../src/bridge/overworld");
@@ -506,6 +595,18 @@ describe("holes in the floor", () => {
     const p = findPath(v, OX + 3, OY + 1)!;
     for (const [c, r] of follow(v, p.dirs)) expect(v.grid[r][c]).not.toBe("O");
     expect(p.dirs).toHaveLength(4);
+  });
+
+  it("walks onto a hole asked for, as it does a door", () => {
+    const v = view(["#####", "#@O.#", "#...#", "#####"]);
+    const p = findPath(v, OX + 2, OY + 1)!;
+    expect(p.dirs).toEqual(["right"]);
+    expect(follow(v, p.dirs).at(-1)).toEqual([2, 1]);
+  });
+
+  it("finds no way past a hole in a corridor, rather than through it", () => {
+    const v = view(["#####", "#@O.#", "#####"]);
+    expect(findPath(v, OX + 3, OY + 1)).toBeNull();
   });
 });
 

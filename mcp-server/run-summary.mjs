@@ -37,12 +37,18 @@ export function computeRows(runLogFile) {
   if (extras && agent?.resumedFrom) extras.starter = null;
   // report_issue is free (call-budget.mjs, and the prompt says so): it isn't one of the run's calls
   // for the totals, the speed, the dark tunnel or the failed-call rate.
-  const runs = attempts(parseLog(readFileSync(runLogFile, "utf8"))).map((a) => ({ ...a, calls: a.calls.filter((c) => !UNCOUNTED.has(c.tool)) }));
+  // A call refused before any of it ran (logged `uncounted`, call-budget.mjs) isn't one either: like the
+  // calls the server rejected for their arguments, it only counts as a failed call (`refused`).
+  const runs = attempts(parseLog(readFileSync(runLogFile, "utf8"))).map((a) => ({
+    ...a,
+    calls: a.calls.filter((c) => !UNCOUNTED.has(c.tool) && !c.uncounted),
+    refused: a.calls.filter((c) => c.uncounted).length,
+  }));
   return runs.map((a, i) => {
     const last = i === runs.length - 1;
     /** @type {any} */
     const row = {
-      name: run.name + (runs.length > 1 ? `#${i + 1}` : ""), ...summarize(a, game), objectives: objectivesOf(a.calls, game), objectiveCalls: objectiveCallsOf(a.calls, game),
+      name: run.name + (runs.length > 1 ? `#${i + 1}` : ""), ...summarize(a, game), refused: a.refused, objectives: objectivesOf(a.calls, game), objectiveCalls: objectiveCallsOf(a.calls, game),
       lastBattleDeaths: lastBattleDeathsOf(a.calls), finalBattleDeaths: finalBattleDeathsOf(a.calls), darkTunnel: darkTunnelOf(a.calls, game),
       screenshots: screenshotsOf(a.calls), hardAreas: hardAreasOf(a.calls, game), toolUse: toolUseOf(a.calls), agent, extras: last ? extras : null,
     };

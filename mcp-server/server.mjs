@@ -22,7 +22,7 @@ import { createRequestHandler, saveFileOf } from "./http-routes.mjs";
 import { loadObserver } from "./observers.mjs";
 import { entriesOf, NOTES_MAX, notesStore, numbered, updateNotes } from "./notes.mjs";
 import { instrumentTools } from "./run-log.mjs";
-import { callBudget, limitCalls } from "./call-budget.mjs";
+import { UNCOUNTED_RESULT, callBudget, limitCalls } from "./call-budget.mjs";
 import { harnessVersion } from "./provenance.mjs";
 import { MAP_LEGEND, NARROW_GRID_NOTE, createFormatter, hideEffectiveness, json, legendFor, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
 import { applyPreset, benchmarkPreset } from "./benchmark.mjs";
@@ -90,6 +90,10 @@ const ROMS = knownRoms({ rom: process.env.NUZLOCKE_ROM, dirs: process.env.NUZLOC
 const DIST = HEADLESS ? distDir(PROJECT_ROOT) : null;
 // The conversation panel: bench-run writes the model's transcript next to the run log.
 const TRANSCRIPT = process.env.NUZLOCKE_RUN_LOG && process.env.NUZLOCKE_RUN_LOG !== "off" ? join(dirname(process.env.NUZLOCKE_RUN_LOG), "transcript.jsonl") : null;
+// A client the bench doesn't run itself (another agent app): the server writes that transcript itself, calls
+// and results only (NUZLOCKE_SERVER_TRANSCRIPT=1, needs NUZLOCKE_RUN_LOG). Such a run is self-reported.
+const SERVER_TRANSCRIPT = process.env.NUZLOCKE_SERVER_TRANSCRIPT === "1" ? TRANSCRIPT : null;
+if (process.env.NUZLOCKE_SERVER_TRANSCRIPT === "1" && !TRANSCRIPT) log("NUZLOCKE_SERVER_TRANSCRIPT needs NUZLOCKE_RUN_LOG: no transcript written");
 // A watch-only observer (bench-run --observer): it may look at the run, never play it (observers.mjs).
 let observer = null;
 if (HEADLESS && process.env.NUZLOCKE_OBSERVER) {
@@ -188,7 +192,8 @@ instrumentTools(server, {
   status: link.lastStatus,
   mapsEntered: link.takeMapsEntered,
   onEntry: saveMilestones,
-  session: { benchmark: PRESET, harness: harnessVersion(PROJECT_ROOT, DIST), headless: HEADLESS, ...(PLAYTEST ? { playtest: true } : {}), ...(REPORT_ISSUE ? { reportIssue: true } : {}), grid: NARROW_GRID ? "narrow" : "wide", maps: "ask", effectiveness: HIDE_EFFECTIVENESS ? "off" : "on" },
+  transcript: SERVER_TRANSCRIPT,
+  session: { benchmark: PRESET, harness: harnessVersion(PROJECT_ROOT, DIST), headless: HEADLESS, ...(PLAYTEST ? { playtest: true } : {}), ...(SERVER_TRANSCRIPT ? { serverTranscript: true } : {}), ...(REPORT_ISSUE ? { reportIssue: true } : {}), grid: NARROW_GRID ? "narrow" : "wide", maps: "ask", effectiveness: HIDE_EFFECTIVENESS ? "off" : "on" },
 });
 
 // A benchmark preset's tool-call budget (call-budget.mjs): counted after the run log, so the log
@@ -216,9 +221,13 @@ const wrap = (fn) => async (args) => {
     if (autoStart.pending()) await Promise.race([autoStart.pending(), new Promise((r) => setTimeout(r, 60_000))]);
     return narrow(await fn(args ?? {}));
   } catch (e) {
-    return narrow({ isError: true, content: [{ type: "text", text: plainErrorScreen(e.message ?? String(e)) }] });
+    const text = plainErrorScreen(e.message ?? String(e)) + (e?.uncounted && BUDGET ? "\n(Nothing ran, so this call doesn't count.)" : "");
+    // Marked with or without a budget: the run log records it as uncounted (and drops the mark).
+    return narrow({ isError: true, content: [{ type: "text", text }], ...(e?.uncounted ? { [UNCOUNTED_RESULT]: true } : {}) });
   }
 };
+/** An error for a call refused before any of it ran: like a tool's own bad arguments, it doesn't count against the call budget. */
+const refused = (message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { uncounted: true });
 
 // Maps are shown on request: a move's result leaves the area's map out unless the model asks for it here.
 const SHOW_MAP = z.boolean().optional().describe("Also show the area's map after moving (otherwise only get_map shows it)");
@@ -279,16 +288,25 @@ server.registerTool("do", {
     try {
       st = normalizeStep(raw);
     } catch (e) {
-      throw new Error(`Step ${i + 1} (${raw.tool}): ${e.message}`, { cause: e });
+      throw refused(`Step ${i + 1} (${raw.tool}): ${e.message}`, e);
     }
-    if (FINAL_READS[st.tool] && i < steps.length - 1) throw new Error(`Step ${i + 1} (${st.tool}): a read can only be the last step (its answer is for deciding what to do next).`);
+    if (FINAL_READS[st.tool] && i < steps.length - 1) throw refused(`Step ${i + 1} (${st.tool}): a read can only be the last step (its answer is for deciding what to do next).`);
     const schema = SCHEMAS[st.tool];
     const r = schema ? schema.safeParse(st.args ?? {}) : { success: true, data: st.args ?? {} };
-    if (!r.success) throw new Error(`Step ${i + 1} (${st.tool}): ${r.error.issues.map((x) => `${x.path.join(".") || "args"}: ${x.message}`).join("; ")}`);
+    if (!r.success) throw refused(`Step ${i + 1} (${st.tool}): ${r.error.issues.map((x) => `${x.path.join(".") || "args"}: ${x.message}`).join("; ")}`);
     return { tool: st.tool, args: r.data };
   });
   const read = FINAL_READS[parsed[parsed.length - 1].tool] ? parsed.pop() : null;
-  if (!parsed.length) throw new Error(`A batch needs at least one action before ${read.tool}: call ${read.tool} on its own.`);
+  if (!parsed.length) throw refused(`A batch needs at least one action before ${read.tool}: call ${read.tool} on its own.`);
+  // Only the last step's map is shown: show_map on an earlier one would use up a new map's first
+  // full view (the bridge shows a map whole once) on a result nobody sees. A get_map at the end
+  // shows the map itself, so then no step's show_map is kept (it would print a second map above it).
+  for (const st of read?.tool === "get_map" ? parsed : parsed.slice(0, -1)) {
+    if (st.args?.show_map) {
+      const { show_map: _, ...rest } = st.args;
+      st.args = rest;
+    }
+  }
   const { done, stopped, skipped } = await runBatch(parsed, (tool, args) => call(tool, args));
   const last = done[done.length - 1];
   const head = done.slice(0, -1).map((d, i) => stepSummary(i, d));
@@ -336,8 +354,9 @@ server.registerTool("press", {
     buttons: z.string().describe("Space- or comma-separated tokens"),
     hold_frames: z.number().int().min(1).max(600).optional().describe("Frames each press is held (default 6)"),
     wait_frames: z.number().int().min(0).max(600).optional().describe("Frames to wait after each press (default 20)"),
+    show_map: SHOW_MAP,
   },
-}, wrap(async (a) => afterAction(await call("press", a))));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("press", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("walk", {
   title: "Walk a path",
@@ -350,7 +369,7 @@ server.registerTool("walk", {
     direction: z.enum(["up", "down", "left", "right"]).optional(),
     tiles: z.number().int().min(1).max(30).optional(),
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk", { ...a, show_map }), { keepMap: !!show_map })));
 
 // Per-call override of the standing `trainers` policy (see the policies tool).
 const TRAINERS = z.enum(["ignore", "avoid"]).optional()
@@ -362,7 +381,7 @@ server.registerTool("go_to", {
     "nothing is known in advance. Stops at battles and says where a noted route didn't work.",
   inputSchema: {
     show_map: SHOW_MAP, map: z.string(), trainers: TRAINERS },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("go_to", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("go_to", { ...a, show_map }), { keepMap: !!show_map })));
 
 const DIR = z.enum(["up", "down", "left", "right"]);
 server.registerTool("notes", {
@@ -425,7 +444,7 @@ server.registerTool("travel", {
     maps: z.number().int().min(1).max(6).optional(),
     trainers: TRAINERS,
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("travel", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("travel", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("walk_to", {
   title: "Walk to",
@@ -439,7 +458,7 @@ server.registerTool("walk_to", {
     interact: z.boolean().optional(),
     trainers: TRAINERS,
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk_to", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk_to", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("get_map", {
   title: "Map around you",
@@ -460,7 +479,7 @@ server.registerTool("exit_map", {
     "Pathfinds over the whole map. Fails if the map has no exit that way (then look for a door D).",
   inputSchema: {
     show_map: SHOW_MAP, direction: z.enum(["up", "down", "left", "right"]), trainers: TRAINERS },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("exit_map", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("exit_map", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("advance_text", {
   title: "Advance dialogue",
@@ -511,17 +530,18 @@ server.registerTool("throw_ball", {
   description: "In a wild battle: throw the ball you choose and report the result. " +
     "On a catch it answers the nickname prompt with `nickname` (Nuzlocke: always give one).",
   inputSchema: {
-    nickname: z.string().max(10).optional().describe("Nickname for the catch (letters)"),
-    ball: z.enum(["poke", "great", "ultra", "master"]).describe("Which ball to throw"),
+    nickname: z.string().regex(/^[A-Za-z]{1,10}$/, "letters A–Z only, up to 10").optional().describe("Nickname for the catch (letters A–Z, up to 10)"),
+    ball: z.enum(["poke", "great", "ultra", "master", "safari"]).optional().describe("Which ball to throw (in the game reserve its own balls are thrown: safari, or leave it out)"),
   },
 }, wrap(async (a) => afterAction(await call("throw_ball", a))));
 
 server.registerTool("use_item", {
   title: "Use an item",
-  description: "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody). Closes the menus after.",
+  description: "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody), and on one of its moves for items that ask which (ETHER, PP UP). Closes the menus after.",
   inputSchema: {
-    item: z.string().describe('Item name, e.g. "SUPER POTION", "REPEL"'),
+    item: z.string().describe('Item name as the bag lists it, e.g. "SUPER POTION", "REPEL"'),
     pokemon: z.string().optional().describe("Target: nickname, species or slot"),
+    move: z.string().optional().describe("For items used on one move (ETHER, PP UP…): the move's name"),
   },
 }, wrap(async (a) => afterAction(await call("use_item", a))));
 

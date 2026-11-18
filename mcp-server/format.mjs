@@ -6,7 +6,7 @@
 const LEGEND = [
   ["@", "@ you"],
   ["T", "T trainer (a solid square; it doesn't step aside, beaten or not; unbeaten ones fight you on sight)"],
-  ["!", "! a walkable square an unbeaten trainer is watching: stepping on it starts that trainer's battle, it isn't a wall (paths go around these only with trainers: avoid)"],
+  ["!", "! a walkable square (or water, for a swimmer's gaze) an unbeaten trainer is watching: stepping on it starts that trainer's battle, it isn't a wall (paths go around these only with trainers: avoid)"],
   ["I", "I item ball (or another item lying there to pick up, like a fossil)"],
   ["N", "N person"],
   ["$", "$ shop clerk (talk to them to buy or sell; across a counter like any person)"],
@@ -15,12 +15,12 @@ const LEGEND = [
   ["B", "B boulder"],
   ["o", "o floor switch"],
   [",", ", a cave's lower floor (. is its upper floor)"],
-  ["O", "O hole in the floor (paths avoid it)"],
+  ["O", "O hole in the floor (paths avoid it; walk_to it to drop through)"],
   ["D", "D door/warp"],
   ["G", "G a closed gate (solid)"],
   ["S", "S something you read or use by facing it and pressing A (a sign, a switch…)"],
   ["P", "P a PC (used only from the square below it, facing up: stand there and press A)"],
-  ["C", "C tree you can Cut (face it, then @cut)"],
+  ["C", "C tree you can Cut (face it, then field_move CUT)"],
   ["=", "= counter (a person behind it is talked to across it)"],
   ["#", "# blocked"],
   [".", ". walkable"],
@@ -50,11 +50,15 @@ const BORDER = new Set([..."┌┐└┘─│"]);
  * to the smallest box around it. Text outside every box comes last. Rows matter in the few 2-D
  * menus (the battle menu, the naming keyboard): pressing down moves to the next row.
  */
-// Tiles the screen reader writes as two letters (PK, MN, 'r, 'm): one square each, so the columns
-// line up again; written back out as the letters.
-const TILES = [["PK", "\uE0E1"], ["MN", "\uE0E2"], ["'r", "\uE0E4"], ["'m", "\uE0E5"]];
-const oneSquare = (l) => TILES.reduce((s, [t, c]) => s.replace(new RegExp(`(?<![A-Z])${t}(?=MN|[^A-Za-z]|$)`, "g"), c), l.replace(/PKMN/g, "\uE0E1\uE0E2"));
-const letters = (l) => TILES.reduce((s, [t, c]) => s.split(c).join(t), l);
+// Tiles the screen reader writes as two characters (PK, MN, and the contractions 'd 'l 'm 'r 's 't 'v):
+// one square each, so the columns line up again; written back out as the characters.
+const TILES = [["PK", "\uE0E1"], ["MN", "\uE0E2"]];
+// A contraction tile follows a letter (IT's, MOM's, you're, I'm), a digit or gender sign (PORYGON2's,
+// NIDORAN\u2642's) and can be followed by one (you'll, you've).
+const CONTRACTIONS = [..."dlmrstv"].map((ch, i) => [`'${ch}`, String.fromCharCode(0xe0f0 + i)]);
+const oneSquare = (l) => CONTRACTIONS.reduce((s, [t, c]) => s.replace(new RegExp(`(?<=[A-Za-z0-9\u00E9\u2642\u2640])${t}`, "g"), c),
+  TILES.reduce((s, [t, c]) => s.replace(new RegExp(`(?<![A-Z])${t}(?=MN|[^A-Za-z]|$)`, "g"), c), l.replace(/PKMN/g, "\uE0E1\uE0E2")));
+const letters = (l) => [...TILES, ...CONTRACTIONS].reduce((s, [t, c]) => s.split(c).join(t), l);
 
 export function plainScreen(rawLines) {
   const lines = rawLines.map(oneSquare);
@@ -147,7 +151,7 @@ export function plainScreen(rawLines) {
  */
 export function hideEffectiveness(text) {
   return text
-    .replace(/ (?:\d+(?:\.\d+)?×|no effect)(?= \d+pp)/g, "")
+    .replace(/ (?:\d+(?:\.\d+)?×|no effect)(?= \d+(?:\/\d+)?pp)/g, "")
     .replace(/,"effectiveness(?:VsYou)?":[^,}\]]*/g, "")
     .replace(/"effectiveness(?:VsYou)?":[^,}\]]*,?/g, "");
 }

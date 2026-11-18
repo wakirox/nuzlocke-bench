@@ -24,9 +24,17 @@ const PAIR_COLLISIONS: [number, number, number][] = [
   [0x03, 0x20, 0x2e], [0x03, 0x5e, 0x2e], [0x03, 0x5f, 0x2e],
 ];
 
+// pret TilePairCollisionsWater: the same while surfing (water $14 against a cliff, no way ashore).
+const WATER_PAIR_COLLISIONS: [number, number, number][] = [[0x03, 0x14, 0x2e], [0x03, 0x48, 0x2e], [0x11, 0x14, 0x05]];
+
+const pairIn = (table: [number, number, number][], tileset: number, a: number, b: number) =>
+  table.some(([ts, x, y]) => ts === tileset && ((a === x && b === y) || (a === y && b === x)));
+
 /** Whether a step between these two collision tiles is blocked on this tileset (a cliff edge). */
-export const tilePairBlocked = (tileset: number) => (a: number, b: number): boolean =>
-  PAIR_COLLISIONS.some(([ts, x, y]) => ts === tileset && ((a === x && b === y) || (a === y && b === x)));
+export const tilePairBlocked = (tileset: number) => (a: number, b: number): boolean => pairIn(PAIR_COLLISIONS, tileset, a, b);
+
+/** The same for a step taken surfing (the game checks the water table then). */
+export const tilePairBlockedSurfing = (tileset: number) => (a: number, b: number): boolean => pairIn(WATER_PAIR_COLLISIONS, tileset, a, b);
 
 /** How far a trainer's gaze is assumed to reach (Gen 1 engage distances are 1–5). */
 const SIGHT = 5;
@@ -445,7 +453,7 @@ export function readView(
   const originX = playerX - PLAYER_COL;
   const originY = playerY - PLAYER_ROW;
   decorate(mem, version, grid, originX, originY, playerX, playerY, rom);
-  const view: OverworldView = { grid, originX, originY, pc: PLAYER_COL, pr: PLAYER_ROW, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), surfing: rules.surfing };
+  const view: OverworldView = { grid, originX, originY, pc: PLAYER_COL, pr: PLAYER_ROW, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), surfing: rules.surfing };
   markWatched(view, trainerSprites(mem, version, playerX, playerY), beaten, SIGHT);
   return view;
 }
@@ -479,12 +487,17 @@ export function readFullMap(
 
 /**
  * Tile id of any map square from wOverworldMap (the map's blocks plus a 3-block border that
- * holds the connected maps' edge strips), or null outside even the border.
+ * holds the connected maps' edge strips), or null outside even the border, and past an edge with
+ * no connection: the border there is only filler (the sea around Cinnabar), not a place to walk.
  */
 function tileReader(mem: MemoryReader, rom: Uint8Array, version: GameVersion): (x: number, y: number, part?: "bl" | "tl" | "tr") => number | null {
   const A = addressesFor(version);
   const h = mem.read8(A.curMapHeight);
   const w = mem.read8(A.curMapWidth);
+  // wCurMapConnections: bit 3 north, 2 south, 1 west, 0 east.
+  const conn = mem.read8(A.mapConnections);
+  const closedOff = (x: number, y: number) =>
+    (y < 0 && !(conn & 8)) || (y >= h * 2 && !(conn & 4)) || (x < 0 && !(conn & 2)) || (x >= w * 2 && !(conn & 1));
   const bank = mem.read8(A.tilesetBank);
   const ptr = mem.read8(A.tilesetBlocksPtr) | (mem.read8(A.tilesetBlocksPtr + 1) << 8);
   const blocksOff = bank * 0x4000 + (ptr - 0x4000);
@@ -492,6 +505,7 @@ function tileReader(mem: MemoryReader, rom: Uint8Array, version: GameVersion): (
   const blocks = mem.readBytes(OVERWORLD_MAP, (h + MAP_BORDER * 2) * stride);
   // A square is 2×2 of the block's 4×4 tiles; "bl" (its bottom-left) classifies it.
   return (x, y, part = "bl") => {
+    if (closedOff(x, y)) return null;
     const bx = Math.floor(x / 2) + MAP_BORDER;
     const by = Math.floor(y / 2) + MAP_BORDER;
     if (bx < 0 || by < 0 || bx >= stride || by >= h + MAP_BORDER * 2) return null;
@@ -542,7 +556,7 @@ function readArea(
   };
   const doors = mapDoors(mem, rom, version).filter((d) => grid[d.y - y0]?.[d.x - x0] !== "#" && d.y >= y0 && d.y < y0 + H && d.x >= x0 && d.x < x0 + W);
   const view: OverworldView = {
-    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), beyond, doors,
+    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), beyond, doors,
     surfing: rules.surfing,
   };
   markWatched(view, trainerSprites(mem, version, playerX, playerY), beaten, SIGHT);

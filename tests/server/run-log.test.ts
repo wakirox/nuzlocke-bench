@@ -1,11 +1,13 @@
 // The per-call run log the MCP server writes (mcp-server/run-log.mjs).
 
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
 import { instrumentTools, logEntry } from "../../mcp-server/run-log.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { feedEvents } from "../../mcp-server/transcript-feed.mjs";
 
 type Handler = (...a: unknown[]) => Promise<unknown>;
 
@@ -113,5 +115,34 @@ describe("run log", () => {
     expect(logEntry({ n: 1, name: "get_state", args: {}, started: 0, ended: 5, result: text(state) }).outcome).toBe("victory: Became Champion");
     const shot = { content: [{ type: "image", data: "", mimeType: "image/png" }, { type: "text", text: "x" }] };
     expect(logEntry({ n: 2, name: "get_screen", args: {}, started: 0, ended: 1, result: shot })).toMatchObject({ images: 1, chars: 1 });
+  });
+
+  it("writes calls and results as a transcript the conversation panel reads, when asked (a client bench-run doesn't run)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "runlog-"));
+    const transcript = join(dir, "transcript.jsonl");
+    const server = fakeServer();
+    instrumentTools(server, { file: join(dir, "run.jsonl"), transcript });
+    server.registerTool("walk", { inputSchema: {} }, async () => text("📍 ROUTE_1 (5,6) | battle: none"));
+    server.registerTool("get_screen", {}, async () => ({ content: [{ type: "text", text: "Screen" }, { type: "image", data: "AAAA", mimeType: "image/png" }] }));
+    server.registerTool("fight", { inputSchema: {} }, async () => text("Not in a battle.", { isError: true }));
+    await server.tools.get("walk")!({ path: "U3" });
+    await server.tools.get("get_screen")!({});
+    await server.tools.get("fight")!({ move: 1 });
+
+    const events = readFileSync(transcript, "utf8").trim().split("\n").flatMap((l: string) => feedEvents(l));
+    expect(events.map((e: { kind: string }) => e.kind)).toEqual(["call", "result", "call", "result", "call", "result"]);
+    expect(events[0]).toMatchObject({ tool: "walk", text: JSON.stringify({ path: "U3" }), id: "call-1" });
+    expect(events[1]).toMatchObject({ text: "📍 ROUTE_1 (5,6) | battle: none", id: "call-1", error: false });
+    expect(events[3]).toMatchObject({ text: "Screen", images: [{ mime: "image/png", data: "AAAA" }] });
+    expect(events[5]).toMatchObject({ error: true, id: "call-3" });
+  });
+
+  it("writes no transcript unless asked", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "runlog-"));
+    const server = fakeServer();
+    instrumentTools(server, { file: join(dir, "run.jsonl") });
+    server.registerTool("walk", { inputSchema: {} }, async () => text("ok"));
+    await server.tools.get("walk")!({});
+    expect(existsSync(join(dir, "transcript.jsonl"))).toBe(false);
   });
 });

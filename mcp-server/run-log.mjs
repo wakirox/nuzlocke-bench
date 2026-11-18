@@ -3,6 +3,7 @@
 
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { UNCOUNTED_RESULT } from "./call-budget.mjs";
 
 /** The run outcome in a get_state result ({ run: { outcome: { kind, detail } } }). */
 export function stateOutcome(text) {
@@ -44,6 +45,22 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
 }
 
 /**
+ * One call as transcript lines in the shape bench-run records Claude Code's (stream-json): the call as
+ * an assistant tool_use, the result as a user tool_result. For a client the bench doesn't run itself
+ * (NUZLOCKE_SERVER_TRANSCRIPT=1): the server sees the calls and results, never the model's words.
+ */
+export function transcriptLines({ n, name, args, started, result }) {
+  const id = `call-${n}`;
+  const timestamp = new Date(started).toISOString();
+  const parts = (result?.content ?? []).map((c) =>
+    c.type === "image" ? { type: "image", source: { type: "base64", media_type: c.mimeType ?? "image/png", data: c.data } } : c);
+  return [
+    { type: "assistant", timestamp, message: { role: "assistant", content: [{ type: "tool_use", id, name: `mcp__nuzlocke-bench__${name}`, input: args ?? {} }] } },
+    { type: "user", timestamp, message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: result ? parts : [{ type: "text", text: "no result (threw)" }], ...(result?.isError || !result ? { is_error: true } : {}) }] } },
+  ];
+}
+
+/**
  * Wraps server.registerTool so every tool registered afterwards is logged to `file`
  * (null = don't log). Call before registering tools. The first line is a session header
  * (`session`: benchmark preset, harness version…); `status()` gives the latest game status,
@@ -51,9 +68,9 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
  */
 /**
  * @param {any} server
- * @param {{ file: string | null, log?: (...args: any[]) => void, now?: () => number, status?: () => any, mapsEntered?: () => any[], session?: any, onEntry?: ((entry: any) => any) | null }} opts
+ * @param {{ file: string | null, log?: (...args: any[]) => void, now?: () => number, status?: () => any, mapsEntered?: () => any[], session?: any, onEntry?: ((entry: any) => any) | null, transcript?: string | null }} opts
  */
-export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null }) {
+export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null, transcript = null }) {
   let ready = false;
   const write = (entry) => {
     if (!file) return;
@@ -79,11 +96,20 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
     const started = now();
     const n = ++seq;
     let result;
+    let refused = false;
     try {
       result = await handler(...cbArgs);
+      // Refused before any of it ran (call-budget.mjs): logged as such, so the run's call count
+      // leaves it out the way the budget does. The mark stops here, short of the MCP result.
+      if (result?.[UNCOUNTED_RESULT]) {
+        refused = true;
+        const { [UNCOUNTED_RESULT]: _, ...rest } = result;
+        result = rest;
+      }
       return result;
     } finally {
       const entry = logEntry({ n, name, args, started, ended: now(), result, status: status() });
+      if (refused) entry.uncounted = true;
       // A failed call (or a report) shows no location: it happened where the game is now.
       const game = status();
       if (!entry.where && game?.location) entry.where = `${game.location} | battle: ${game.battle ?? "?"}`;
@@ -100,6 +126,13 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
         lastFight = fightJson;
       }
       write(entry);
+      if (transcript) {
+        try {
+          appendFileSync(transcript, transcriptLines({ n, name, args, started, result }).map((l) => JSON.stringify(l) + "\n").join(""));
+        } catch (e) {
+          log("transcript write failed:", e.message);
+        }
+      }
       if (onEntry) {
         try {
           await onEntry(entry);

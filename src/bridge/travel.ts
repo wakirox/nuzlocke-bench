@@ -1,7 +1,7 @@
 // Moving around the map: walking, pathfinding to a square, crossing maps, the model's
 // own routes, field moves and pacing the grass.
 
-import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -15,6 +15,8 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Field moves that take you off the map. */
 const LEAVES_THE_MAP = new Set(["DIG", "TELEPORT"]);
+/** Field moves that open the town map to pick a destination. */
+const PICKS_A_PLACE = new Set(["FLY"]);
 
 /**
  * Why a walk stopped short when that's no fault of the route (a text box, a trainer's sight, poison,
@@ -24,6 +26,18 @@ const LEAVES_THE_MAP = new Set(["DIG", "TELEPORT"]);
 export function walkStopReason(walked: string): string | null {
   const stop = /stopped(?: short)?(?: by)?:? ([^;]+?)(?: —|;|$)/.exec(walked)?.[1]?.trim();
   return stop && !/^blocked\b/.test(stop) ? stop : null;
+}
+
+/**
+ * Where an unused area's encounter would count, from its note (summary.ts thisAreaNote): on land
+ * (the grass, or a cave's floor), on the water (surfing), both, or neither (no encounters, all dupes).
+ */
+export function huntableIn(note: string): { land: boolean; water: boolean } {
+  if (!/would count/.test(note)) return { land: false, water: false };
+  return {
+    land: !/would count while surfing|everything in the grass is a dupe/.test(note),
+    water: /while surfing/.test(note) && !/everything on the water is a dupe/.test(note),
+  };
 }
 
 export class Travel {
@@ -67,6 +81,12 @@ export class Travel {
           messages.push("(Face the tree/water squarely: the tile in front of you isn't one.)");
         } else if (LEAVES_THE_MAP.has(move) && !this.core.layout.texts.notNow.test(messages.join(" "))) {
           await this.core.awaitWarp();
+        } else if (PICKS_A_PLACE.has(move) && !this.core.layout.texts.notNow.test(messages.join(" ")) && !/BADGE/i.test(messages.join(" "))) {
+          // The town map is open, its cursor a picture (no ▶ for choose): the place is the player's pick.
+          return this.core.result({ messages, stopped: "the town map is open to pick where to fly: press up/down to move between places (the name shows on screen), a to fly there, b to cancel" });
+        } else if (this.menus.partyCursorRow() >= 0 && this.core.screenText().some((l) => l.includes("▶"))) {
+          // A move used on a party member (sharing HP) asks for which one.
+          return this.core.result({ messages, stopped: "the party list is open for the move's target: press up/down to the Pokémon, then a (b cancels)" });
         }
         return this.core.result({ messages });
       }
@@ -104,14 +124,16 @@ export class Travel {
       let walked: string;
       if ("exit" in link) {
         walked = String(((await this.exitMap(link.exit)) as Record<string, unknown>).walk ?? "");
-        // Crossing a map edge sometimes stops right at it: take a couple more steps.
-        if (this.core.mapName() === here && !this.core.host.position().battle) walked += `; then ${await this.walkSegments([[link.exit, 2]])}`;
+        // Crossing a map edge sometimes stops right at it: take a couple more steps. Not after a walk
+        // that stopped for a reason (a trainer's sight ahead, poison, a text box): those steps would
+        // walk straight into it.
+        if (this.core.mapName() === here && !this.core.host.position().battle && !walkStopReason(walked)) walked += `; then ${await this.walkSegments([[link.exit, 2]])}`;
       } else {
         const [x, y] = link.door;
         // walk_to also steps off and back onto a ladder you're standing on.
         walked = String(((await this.walkTo(x, y, false)) as Record<string, unknown>).walk ?? "");
         const push = link.push ?? this.edgeOf(x, y);
-        if (this.core.mapName() === here && push && !this.core.host.position().battle) {
+        if (this.core.mapName() === here && push && !this.core.host.position().battle && !walkStopReason(walked)) {
           await this.core.tap(push as Dir, 16, 50);
         }
       }
@@ -142,7 +164,15 @@ export class Travel {
   async goTo(map: string): Promise<unknown> {
     if (!map) throw new Error("Which map? e.g. ROUTE_1");
     const log: string[] = [this.core.mapName()];
-    await this.travelTo(map, log);
+    // The hops' own results aren't seen (only their walks are kept): show_map is for the result at
+    // the end, so they mustn't use up a map's first full view.
+    const asked = this.core.mapAsked;
+    this.core.mapAsked = false;
+    try {
+      await this.travelTo(map, log);
+    } finally {
+      this.core.mapAsked = asked;
+    }
     return this.core.result({ walk: log.join(" → "), map: this.core.mapText() });
   }
 
@@ -241,15 +271,25 @@ export class Travel {
     if (this.core.host.position().battle) throw new Error("Already in a battle.");
     const area = s.nuzlocke?.thisArea;
     if (area && typeof area === "object") throw new Error(`This area's encounter is already used (${area.species} ${area.status}).`);
-    if (typeof area === "string" && /dupe|no grass/.test(area)) throw new Error(`Nothing to hunt here: ${area}.`);
-    // Pace between two neighbouring encounter squares: grass, or any open floor in a cave.
+    const where = typeof area === "string" ? huntableIn(area) : { land: true, water: true };
+    if (!where.land && !where.water) throw new Error(`Nothing to hunt here: ${area}.`);
+    // Pace between two neighbouring encounter squares: water while surfing, else grass, or any open floor in a cave.
     const v = this.core.view(true);
     const H = v.grid.length;
     const W = v.grid[0].length;
+    const surfing = !!v.surfing;
+    if (surfing && !where.water) throw new Error(`Only the land counts here (${area}): get back on land, then hunt.`);
+    if (!surfing && !where.land) throw new Error(`What would count here is on the water (${area}): Surf first (face the water, field_move SURF), then hunt.`);
     const hasGrass = v.grid.some((row) => row.includes('"'));
-    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && (hasGrass ? v.grid[r][c] === '"' : v.grid[r][c] === ".") && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
+    const square = surfing ? "~" : hasGrass ? '"' : ".";
+    // The grid draws you as @: what's under you is the map's own square there (water, while surfing).
+    const underYou = surfing ? "~" : (v.beyond?.(v.originX + v.pc, v.originY + v.pr) ?? v.grid[v.pr]?.[v.pc]);
+    const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
+    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
-    const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => ok(c + dx, r + dy)) : undefined);
+    // Both ways across: a cliff edge (or Crystal's one-sided wall) between two floor squares can't be paced.
+    const paced = (c: number, r: number, nc: number, nr: number) => ok(nc, nr) && !pairBlocked(v, c, r, nc, nr) && !pairBlocked(v, nc, nr, c, r);
+    const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => paced(c, r, c + dx, r + dy)) : undefined);
     let log = "";
     const fled: string[] = [];
     const pairHere = () => {
@@ -287,8 +327,14 @@ export class Travel {
     const opposite: Record<Dir, Dir> = { left: "right", right: "left", up: "down", down: "up" };
     let dir: Dir = first[0];
     for (let step = 0; step < maxSteps; step++) {
+      const { x, y } = this.core.host.position();
       const r = await this.walkStraight(dir, 1);
+      // Turn back after every square stepped onto, a battle's included: the battle starts on arrival,
+      // and after running from one the next step must head back, not off the pair (onto the shore).
+      const to = this.core.host.position();
+      const stepped = to.x !== x || to.y !== y;
       if (r.stopped === "a battle started") {
+        if (stepped) dir = opposite[dir];
         const out = await this.huntBattle(log, step + 1, fled);
         if (out) return out;
         continue; // ran from a dupe: keep pacing
@@ -459,6 +505,7 @@ export class Travel {
     const full = this.core.view(true);
     const ledge = ledgeTarget(full, x, y);
     if (ledge) throw new Error(ledge);
+    const toHole = full.grid[y - full.originY]?.[x - full.originX] === "O";
     let route = findPath(full, x, y, this.core.sight());
     const crossed = route?.crosses ?? [];
     if (!route) {
@@ -471,13 +518,13 @@ export class Travel {
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
-      const screen = this.core.view(false);
+      const screen = this.core.screenView();
       const sx1 = screen.originX + (screen.grid[0]?.length ?? 1) - 1, sy1 = screen.originY + screen.grid.length - 1;
       const xs = [x, ...(by ? [by.x] : [])], ys = [y, ...(by ? [by.y] : [])];
       const offScreen = at != null && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
       const shown = offScreen
-        ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
-          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
+        ? sealFromWholeMap(cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
+          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1))), full)
         : screen;
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
@@ -509,6 +556,14 @@ export class Travel {
         walk: `${route.dirs.length ? report.replace(/ — arrived$/, "") + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at (${sx}, ${sy})${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
         map: this.core.mapText(),
       });
+    }
+    // A hole asked for: the fall (a spin or a drop, buttons ignored) changes the map well after the
+    // step lands. Wait it out and report the floor below, with nothing pressed during it.
+    const onHole = this.core.host.position();
+    if (route && toHole && !onHole.battle && onHole.map === startMap && onHole.x === x && onHole.y === y) {
+      await this.core.awaitWarp();
+      const fell = this.core.host.position().map !== startMap;
+      return this.core.result({ walk: `${report}${fell ? `, then fell through the hole to ${this.core.mapName()}` : " (the hole didn't take you down)"}`, map: this.core.mapText() });
     }
     // A doormat at the map's edge takes you out only when you press toward the edge: do that. With
     // interact too: on a door square there's nothing to talk to, so going through is what's meant.
@@ -581,16 +636,17 @@ export class Travel {
         const through = this.core.sight().avoidSight ? pathFurthest(view, dir, { avoidSight: false }) : null;
         const crosses = through ? sightCrossings(view, through) : [];
         why = crosses.length
-          ? `the only way further ${dir} crosses the sight of unbeaten trainers: ${this.describeCrossings(crosses)}. ` +
+          ? `stopped: the only way further ${dir} crosses the sight of unbeaten trainers: ${this.describeCrossings(crosses)}. ` +
             "Walk to one (walk_to or fight_trainer) to fight it on purpose, or travel with trainers: ignore"
-          : `no way further ${dir} on this map from where you stand — try another direction or get_map`;
+          : `stopped: no way further ${dir} on this map from where you stand — try another direction or get_map`;
         break;
       }
       const crosses = this.core.sight().avoidSight ? [] : sightCrossings(view, route);
       const report = await this.walkSegments(toSegments(route));
       legs.push(report.replace(/ — arrived$/, "") + (crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : ""));
       if (!report.endsWith("arrived")) {
-        why = report.split(" — stopped: ")[1] ?? "stopped";
+        const stop = report.split(" — stopped: ")[1];
+        why = stop === "entered a new map" || stop === "a battle started" ? stop : `stopped: ${stop ?? "?"}`;
         // Crossed into the next map: keep going the same way if asked to cross several.
         if (why === "entered a new map" && ++entered < maps) {
           legs.push(`→ ${this.core.host.brief()?.location ?? "next map"}`);

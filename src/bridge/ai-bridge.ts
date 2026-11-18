@@ -132,6 +132,7 @@ export class AiBridge {
       throw new Error("The game hasn't started yet (title screen or intro): start_game starts it.");
     }
     if (NEEDS_SIGHT.has(method) && this.core.dark()) throw new Error(TOO_DARK);
+    this.core.mapAsked = method === "get_map" || p.show_map === true;
     switch (method) {
       case "get_state":
         this.core.host.refresh();
@@ -156,6 +157,7 @@ export class AiBridge {
       case "exit_map":
         return this.core.withTrainers(p.trainers, () => this.travel.exitMap(String(p.direction) as Dir));
       case "press":
+        this.menus.forgetBagLeftOpen();
         return this.press(p);
       case "advance_text":
         return this.core.result(await this.menus.advanceText(clamp(Number(p.max_presses) || 30, 1, 80)));
@@ -190,7 +192,7 @@ export class AiBridge {
       case "throw_ball":
         return this.capture.throwBall(p.nickname ? String(p.nickname).toLowerCase() : null, p.ball ? String(p.ball).toLowerCase() : null);
       case "use_item":
-        return this.menus.useItem(String(p.item ?? ""), p.pokemon ? String(p.pokemon) : null);
+        return this.menus.useItem(String(p.item ?? ""), p.pokemon ? String(p.pokemon) : null, p.move ? String(p.move) : null);
       case "fight_trainer":
         return this.travel.fightTrainer(Number(p.x), Number(p.y));
       case "hunt":
