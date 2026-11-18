@@ -1,0 +1,180 @@
+// Declarative manifest of every persisted artifact belonging to a run: its storage key, disk-mirror
+// throttling, cleanup on `clearRun`, milestone packing/unpacking, and snapshot retention policy.
+// Keeping this in one browser/Node-neutral module prevents new per-run state (e.g. routes, fog-of-war
+// seen memory) from being forgotten in autosave, clearRun, milestones or snapshot-run.mjs.
+
+import { FIELDS, type ReplayLog } from "./emulator/replay";
+import type { SeenData } from "./bridge/seen";
+import type { ChallengeMode } from "./rulesets";
+import type { TrackerData } from "./rom/types";
+import type { Outcome, TrackerSnapshot } from "./tracker/tracker";
+
+export interface BaseRom {
+  name: string;
+  bytes: Uint8Array;
+}
+
+export interface CurrentRun {
+  attempt: number;
+  /**
+   * The ruleset. Saves from rulesets this version no longer has keep their old id: the app
+   * treats such a run as no current run (see isKnownRuleset).
+   */
+  mode: ChallengeMode;
+  /** The game the run plays: the base ROM as loaded, unchanged. */
+  rom: Uint8Array;
+  data: TrackerData;
+  startedAt: number;
+  /** Hardcore Nuzlocke option: a bottomless stack of Rare Candies (missing = on). */
+  rareCandies?: boolean;
+  /** Hardcore Nuzlocke option: hard level caps (missing = off). */
+  hardLevelCaps?: boolean;
+  /** Hardcore Nuzlocke option: the first rival battle doesn't count (missing = off). */
+  firstRivalFree?: boolean;
+  /** The first violation ends the run (missing = the ruleset's default). */
+  endOnViolation?: boolean;
+  /** Rule ids set to "logged only" at the start of the run (harness tuning). */
+  lenientRules?: string[];
+  /** Short run: badges that win the run (missing = full game). */
+  goalBadges?: number;
+}
+
+/** A finished attempt in the run history. */
+export interface RunRecord {
+  attempt: number;
+  /** Runs recorded before a ruleset was removed keep its id (or none, the oldest): shown, never resumed. */
+  mode?: string;
+  version: string;
+  startedAt: number;
+  endedAt: number;
+  lead: string;
+  level: number;
+  badges: number;
+  /** Older records may hold outcome kinds this version no longer produces. */
+  outcome: Outcome | { kind: "abandoned"; detail: string } | { kind: string; detail: string };
+}
+
+/** A story-milestone checkpoint stored at `KEYS.milestone(id)`. */
+export interface MilestoneSave {
+  state: Uint8Array;
+  tracker: TrackerSnapshot;
+  battery: Uint8Array | null;
+  ticks: number;
+  seen?: SeenData;
+}
+
+export const KEYS = {
+  baseRom: "baseRom",
+  run: "run",
+  battery: "run.battery",
+  autoState: "run.autoState",
+  slotState: "run.slotState",
+  tracker: "run.tracker",
+  history: "history",
+  attempts: "attempts",
+  /** The current run's recording so far (ReplayLog), saved alongside autoState. */
+  replay: "run.replay",
+  /** The AI's own route book for this run (note_route / go_to). */
+  routes: "run.routes",
+  /** What this run has seen of each map (SeenData): the AI's maps show only that. */
+  seen: "run.seen",
+  /** A save kept when the run first reached a story milestone, by milestone id. */
+  milestone: (id: string) => `run.milestone.${id}`,
+  /** A ruleset's furthest run's recording (SavedReplay), kept across runs ("bestReplay.nuzlocke"). */
+  bestReplay: (ruleset: ChallengeMode) => `bestReplay.${ruleset}`,
+  /** A finished run's recording (SavedReplay), by attempt number — what scripts/verify-run.mjs checks. */
+  runReplay: (attempt: number) => `replay.attempt-${attempt}`,
+} as const;
+
+export interface RunArtifactSpec {
+  id: string;
+  key: string;
+  /** Deleted when the current run is cleared or replaced by a new attempt. */
+  clearedWithRun: boolean;
+  /** Minimum interval (ms) between disk-backup flushes for large rapidly-growing keys; 0 = immediate. */
+  throttleMs: number;
+  /**
+   * How `scripts/snapshot-run.mjs` treats the file:
+   * - "copy": copied verbatim from the source saves folder (e.g. `run.json`)
+   * - "rebuilt": written from the milestone save or replayed emulator/tracker state
+   * - "cut": `run.replay`, truncated to the snapshot's tick/event index
+   * - "omit": intentionally left out so a resumed model starts without old notes/routes/slots
+   */
+  snapshot: "copy" | "rebuilt" | "cut" | "omit";
+  /** Field on `MilestoneSave` holding this artifact's value, when milestones capture it directly. */
+  milestoneField?: keyof Omit<MilestoneSave, "ticks">;
+}
+
+export const RUN_ARTIFACTS: readonly RunArtifactSpec[] = [
+  { id: "run",       key: KEYS.run,       clearedWithRun: true, throttleMs: 0,       snapshot: "copy" },
+  { id: "autoState", key: KEYS.autoState, clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "state" },
+  { id: "battery",   key: KEYS.battery,   clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "battery" },
+  { id: "tracker",   key: KEYS.tracker,   clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "tracker" },
+  { id: "seen",      key: KEYS.seen,      clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "seen" },
+  { id: "replay",    key: KEYS.replay,    clearedWithRun: true, throttleMs: 120_000, snapshot: "cut" },
+  { id: "routes",    key: KEYS.routes,    clearedWithRun: true, throttleMs: 0,       snapshot: "omit" },
+  { id: "slotState", key: KEYS.slotState, clearedWithRun: true, throttleMs: 0,       snapshot: "omit" },
+];
+
+/** Save filenames copied unchanged into a snapshot folder (`scripts/snapshot-run.mjs`). */
+export const SNAPSHOT_KEPT_FILES: readonly string[] = [
+  ...RUN_ARTIFACTS.filter((a) => a.snapshot === "copy").map((a) => `${a.key}.json`),
+  "baseRom.json",
+  "attempts.json",
+  "policies.json",
+  "aiControl.json",
+];
+
+/** Disk-mirror throttle intervals (ms) by storage key, derived from `RUN_ARTIFACTS`. */
+export const THROTTLED_KEYS: Record<string, number> = Object.fromEntries(
+  RUN_ARTIFACTS.filter((a) => a.throttleMs > 0).map((a) => [a.key, a.throttleMs]),
+);
+
+/**
+ * Every key in `existingKeys` (plus fixed per-run keys) that belongs to the active run and should be
+ * deleted on `clearRun()`: includes named save slots (`run.slotState.*`) and milestones (`run.milestone.*`).
+ */
+export function keysClearedWithRun(existingKeys: Iterable<string>): string[] {
+  const out = new Set<string>(RUN_ARTIFACTS.filter((a) => a.clearedWithRun).map((a) => a.key));
+  const milestonePrefix = KEYS.milestone("");
+  const slotPrefix = `${KEYS.slotState}.`;
+  for (const k of existingKeys) {
+    if (k.startsWith(milestonePrefix) || k.startsWith(slotPrefix)) out.add(k);
+  }
+  return [...out];
+}
+
+/** Cuts a `ReplayLog` at `ticks` (for milestone snapshots). */
+export function cutReplayAtTicks(rep: ReplayLog, ticks: number, fields = FIELDS): { cut: ReplayLog; events: number } {
+  let n = 0;
+  while (n * fields < rep.events.length && rep.events[n * fields] <= ticks) n++;
+  return {
+    events: n,
+    cut: {
+      start: rep.start,
+      events: rep.events.slice(0, n * fields),
+      states: rep.states.filter((st) => st.at < n),
+      endTicks: ticks,
+    },
+  };
+}
+
+/**
+ * Unpacks a `MilestoneSave` + full `ReplayLog` into `{ key -> value }` pairs ready to write into a
+ * snapshot's saves folder (`run.autoState`, `run.tracker`, optional `run.battery` & `run.seen`, and cut `run.replay`).
+ */
+export function unpackMilestone(
+  milestone: MilestoneSave,
+  fullReplay: ReplayLog,
+  fields = FIELDS,
+): { files: Record<string, unknown>; events: number } {
+  const { cut, events } = cutReplayAtTicks(fullReplay, milestone.ticks, fields);
+  const files: Record<string, unknown> = {};
+  for (const spec of RUN_ARTIFACTS) {
+    if (!spec.milestoneField) continue;
+    const val = milestone[spec.milestoneField];
+    if (val != null) files[spec.key] = val;
+  }
+  files[KEYS.replay] = cut;
+  return { files, events };
+}

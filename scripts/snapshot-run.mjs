@@ -53,24 +53,7 @@ const outDir = flag("--out");
 const runArg = args[0];
 if (!runArg || !romPath || !outDir || [atCall, atTime, milestone].filter((v) => v != null).length !== 1) usage();
 
-const TYPED = { Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float32Array, Float64Array };
 const roms = knownRoms({ rom: resolve(romPath) });
-function readSaveFile(path) {
-  const restored = JSON.stringify(restoreRoms(JSON.parse(readFileSync(path, "utf8")), roms));
-  return JSON.parse(restored, (_k, v) => {
-    if (v && typeof v === "object" && typeof v.$ta === "string" && typeof v.b64 === "string" && v.$ta in TYPED) {
-      const bytes = Buffer.from(v.b64, "base64");
-      return new TYPED[v.$ta](bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
-    }
-    return v;
-  });
-}
-/** The app's save-file encoding (storage.ts encode), with known ROMs kept by reference. */
-function writeSaveFile(path, value) {
-  const text = JSON.stringify(value, (_k, v) => ArrayBuffer.isView(v) && v.constructor.name in TYPED
-    ? { $ta: v.constructor.name, b64: Buffer.from(v.buffer, v.byteOffset, v.byteLength).toString("base64") } : v);
-  writeFileSync(path, JSON.stringify(stripRoms(JSON.parse(text), roms)));
-}
 
 async function loadEngine() {
   const esbuild = await import("esbuild");
@@ -105,36 +88,35 @@ if (atCall != null) {
   target = { sec: parsePlayTime(atTime) };
 }
 
+const { NodeGameBoy, prepareNuzlocke, ReplayPlayer, Tracker, gameFor, FIELDS, KEYS, SNAPSHOT_KEPT_FILES, unpackMilestone, encodeSave, reviveSave } = await loadEngine();
+function readSaveFile(path) {
+  const restored = JSON.stringify(restoreRoms(JSON.parse(readFileSync(path, "utf8")), roms));
+  return JSON.parse(restored, reviveSave);
+}
+/** The app's save-file encoding (save-codec.ts), with known ROMs kept by reference. */
+function writeSaveFile(path, value) {
+  writeFileSync(path, JSON.stringify(stripRoms(JSON.parse(encodeSave(value)), roms)));
+}
+
 const runSave = readSaveFile(join(saves, "run.json"));
 const rep = readSaveFile(join(saves, "run.replay.json"));
-const { NodeGameBoy, prepareNuzlocke, ReplayPlayer, Tracker, gameFor, FIELDS } = await loadEngine();
 const baseRom = new Uint8Array(readFileSync(resolve(romPath)));
 const { rom } = await prepareNuzlocke(baseRom, async (path) => new Uint8Array(readFileSync(join(ROOT, "public", path))));
 const data = runSave.data;
 if (runSave.rom.length !== rom.length || !runSave.rom.every((b, i) => b === rom[i])) usage("--rom isn't the game this run was played on.");
 
-/** The files a snapshot keeps as the run left them (see below). */
-const KEPT = ["run.json", "baseRom.json", "attempts.json", "policies.json", "aiControl.json"];
-
-// ---- A milestone's save: the machine, tracker and battery as the run kept them; cut the recording there ----
+// ---- A milestone's save: unpacked through run-artifacts.ts so every milestone field stays in sync ----
 if (milestone) {
-  const file = join(saves, `run.milestone.${milestone}.json`);
+  const file = join(saves, `${KEYS.milestone(milestone)}.json`);
   if (!existsSync(file)) {
     const have = readdirSync(saves).map((f) => /^run\.milestone\.(\w+)\.json$/.exec(f)?.[1]).filter(Boolean);
     usage(`No save for milestone ${milestone} in ${saves} (${have.length ? `it has: ${have.join(", ")}` : "it has none: runs keep them since 2026-11-08"}).`);
   }
   const m = readSaveFile(file);
-  let n = 0;
-  while (n * FIELDS < rep.events.length && rep.events[n * FIELDS] <= m.ticks) n++;
-  const cut = { start: rep.start, events: rep.events.slice(0, n * FIELDS), states: rep.states.filter((st) => st.at < n), endTicks: m.ticks };
+  const { files, events: n } = unpackMilestone(m, rep, FIELDS);
   mkdirSync(outDir, { recursive: true });
-  for (const name of KEPT) if (existsSync(join(saves, name))) cpSync(join(saves, name), join(outDir, name));
-  writeSaveFile(join(outDir, "run.autoState.json"), m.state);
-  if (m.battery) writeSaveFile(join(outDir, "run.battery.json"), m.battery);
-  writeSaveFile(join(outDir, "run.tracker.json"), m.tracker);
-  // The run's memory of the maps (fog of war, 0.2.0 on): what it had seen by then.
-  if (m.seen) writeSaveFile(join(outDir, "run.seen.json"), m.seen);
-  writeSaveFile(join(outDir, "run.replay.json"), cut);
+  for (const name of SNAPSHOT_KEPT_FILES) if (existsSync(join(saves, name))) cpSync(join(saves, name), join(outDir, name));
+  for (const [key, val] of Object.entries(files)) writeSaveFile(join(outDir, `${key}.json`), val);
   writeFileSync(join(outDir, "snapshot-info.txt"), `${JSON.stringify({ from: run.name, milestone, events: n, endTicks: m.ticks }, null, 1)}\n`);
   console.log(`snapshot at milestone ${milestone} of ${run.name} -> ${outDir}: ${n} of ${rep.events.length / FIELDS} input events, ${m.tracker.maxBadges ?? "?"} badges`);
   process.exit(0);
@@ -199,7 +181,7 @@ const out = (name) => join(outDir, name);
 // Kept as the run left them: the run (its game and rules), base ROM, attempt history, harness
 // tuning (policies) and AI control. Left out: the model's own notes (model-notes.txt), route
 // book (run.routes), the call budget (tool-calls.txt) and the slot state, so a new model starts fresh.
-for (const name of KEPT) {
+for (const name of SNAPSHOT_KEPT_FILES) {
   if (existsSync(join(saves, name))) cpSync(join(saves, name), out(name));
 }
 writeSaveFile(out("run.autoState.json"), machine);
