@@ -139,15 +139,3 @@ export function createToolLogger({ file, log = () => {}, now = Date.now, status 
     }
   };
 }
-
-/**
- * Wraps server.registerTool so every tool registered afterwards is logged to `file`
- * (null = don't log). Call before registering tools.
- * @param {any} server
- * @param {{ file: string | null, log?: (...args: any[]) => void, now?: () => number, status?: () => any, mapsEntered?: () => any[], session?: any, onEntry?: ((entry: any) => any) | null, transcript?: string | null }} opts
- */
-export function instrumentTools(server, opts) {
-  const wrapLog = createToolLogger(opts);
-  const registerTool = server.registerTool.bind(server);
-  server.registerTool = (name, config, handler) => registerTool(name, config, wrapLog(name, Boolean(config.inputSchema), handler));
-}

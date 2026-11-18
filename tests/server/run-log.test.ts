@@ -5,19 +5,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { instrumentTools, logEntry } from "../../mcp-server/run-log.mjs";
+import { createToolLogger, logEntry } from "../../mcp-server/run-log.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { feedEvents } from "../../mcp-server/transcript-feed.mjs";
 
 type Handler = (...a: unknown[]) => Promise<unknown>;
 
-/** Just enough of McpServer: registerTool stores the handler as the SDK would call it. */
-function fakeServer() {
+/** Wraps registered handlers with `createToolLogger`, matching how the server calls them. */
+function loggedTools(opts: Record<string, unknown>) {
+  const wrapLog = createToolLogger(opts);
   const tools = new Map<string, Handler>();
   return {
     tools,
-    registerTool(name: string, config: { inputSchema?: object }, cb: Handler) {
-      tools.set(name, (args) => (config.inputSchema ? cb(args, {}) : cb({})));
+    add(name: string, config: { inputSchema?: object }, cb: Handler) {
+      const wrapped = wrapLog(name, Boolean(config.inputSchema), cb);
+      tools.set(name, (args) => (config.inputSchema ? wrapped(args, {}) : wrapped({})));
     },
   };
 }
@@ -27,12 +29,11 @@ const text = (t: string, extra: object = {}) => ({ content: [{ type: "text", tex
 describe("run log", () => {
   it("writes one line per call with tool, args, timing, location and outcome", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "nested", "run.jsonl");
-    const server = fakeServer();
     let clock = 1_000;
-    instrumentTools(server, { file, now: () => (clock += 250) });
-    server.registerTool("walk", { inputSchema: {} }, async () => text("📍 ROUTE_1 (5,6) | battle: none\nScreen:\n"));
-    server.registerTool("fight", { inputSchema: {} }, async () => text("📍 ROUTE_1 | battle: trainer\n🏁 RUN ENDED — wipe: Team wiped by ROCKMON Lv14"));
-    server.registerTool("get_rules", {}, async () => text("rules…"));
+    const server = loggedTools({ file, now: () => (clock += 250) });
+    server.add("walk", { inputSchema: {} }, async () => text("📍 ROUTE_1 (5,6) | battle: none\nScreen:\n"));
+    server.add("fight", { inputSchema: {} }, async () => text("📍 ROUTE_1 | battle: trainer\n🏁 RUN ENDED — wipe: Team wiped by ROCKMON Lv14"));
+    server.add("get_rules", {}, async () => text("rules…"));
 
     await server.tools.get("walk")!({ path: "U3" });
     await server.tools.get("fight")!({ move: 1 });
@@ -48,11 +49,10 @@ describe("run log", () => {
 
   it("records the maps a call passed through (only when there were any), and hands them to onEntry", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
-    const server = fakeServer();
     const pending = [["ROUTE_4", "CERULEAN_CITY", "ROUTE_9"], []];
     const seen: unknown[] = [];
-    instrumentTools(server, { file, mapsEntered: () => pending.shift() ?? [], onEntry: async (e: { maps?: string[] }) => void seen.push(e.maps) });
-    server.registerTool("go_to", { inputSchema: {} }, async () => text("📍 ROUTE 9 [ROUTE_9] x1 y1 | battle: none"));
+    const server = loggedTools({ file, mapsEntered: () => pending.shift() ?? [], onEntry: async (e: { maps?: string[] }) => void seen.push(e.maps) });
+    server.add("go_to", { inputSchema: {} }, async () => text("📍 ROUTE 9 [ROUTE_9] x1 y1 | battle: none"));
     await server.tools.get("go_to")!({ map: "ROUTE_9" });
     await server.tools.get("go_to")!({ map: "ROUTE_9" });
     const lines = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
@@ -63,13 +63,12 @@ describe("run log", () => {
 
   it("hands each entry, once written, to onEntry, before the call returns; a failing onEntry doesn't fail the call", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
-    const server = fakeServer();
     const seen: unknown[] = [];
-    instrumentTools(server, { file, onEntry: async (e: { where?: string }) => {
+    const server = loggedTools({ file, onEntry: async (e: { where?: string }) => {
       seen.push(e.where);
       if (seen.length === 2) throw new Error("page gone");
     } });
-    server.registerTool("walk", { inputSchema: {} }, async () => text("📍 CITY [CERULEAN_CITY] x3 y4 | battle: none"));
+    server.add("walk", { inputSchema: {} }, async () => text("📍 CITY [CERULEAN_CITY] x3 y4 | battle: none"));
     await server.tools.get("walk")!({});
     expect(seen).toEqual(["CITY [CERULEAN_CITY] x3 y4 | battle: none"]);
     await expect(server.tools.get("walk")!({})).resolves.toBeTruthy();
@@ -78,10 +77,9 @@ describe("run log", () => {
 
   it("puts a playtest report where the last result left the player", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
-    const server = fakeServer();
-    instrumentTools(server, { file });
-    server.registerTool("walk", { inputSchema: {} }, async () => text("📍 TOWN 2 [TOWN_2] x3 y4 | battle: none"));
-    server.registerTool("report_issue", { inputSchema: {} }, async () => text("Reported (1 this run). Keep playing."));
+    const server = loggedTools({ file });
+    server.add("walk", { inputSchema: {} }, async () => text("📍 TOWN 2 [TOWN_2] x3 y4 | battle: none"));
+    server.add("report_issue", { inputSchema: {} }, async () => text("Reported (1 this run). Keep playing."));
     await server.tools.get("walk")!({});
     await server.tools.get("report_issue")!({ did: "a", expected: "b", happened: "c" });
     const [, report] = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
@@ -90,10 +88,9 @@ describe("run log", () => {
 
   it("logs errors and calls that threw, and still rethrows", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "runlog-")), "run.jsonl");
-    const server = fakeServer();
-    instrumentTools(server, { file });
-    server.registerTool("press", { inputSchema: {} }, async () => text("No game is running.", { isError: true }));
-    server.registerTool("boom", { inputSchema: {} }, async () => {
+    const server = loggedTools({ file });
+    server.add("press", { inputSchema: {} }, async () => text("No game is running.", { isError: true }));
+    server.add("boom", { inputSchema: {} }, async () => {
       throw new Error("kaput");
     });
     await server.tools.get("press")!({ buttons: "a" });
@@ -104,9 +101,8 @@ describe("run log", () => {
   });
 
   it("writes nothing when turned off", async () => {
-    const server = fakeServer();
-    instrumentTools(server, { file: null });
-    server.registerTool("wait", { inputSchema: {} }, async () => text("ok"));
+    const server = loggedTools({ file: null });
+    server.add("wait", { inputSchema: {} }, async () => text("ok"));
     await expect(server.tools.get("wait")!({ frames: 1 })).resolves.toEqual(text("ok"));
   });
 
@@ -120,11 +116,10 @@ describe("run log", () => {
   it("writes calls and results as a transcript the conversation panel reads, when asked (a client bench-run doesn't run)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "runlog-"));
     const transcript = join(dir, "transcript.jsonl");
-    const server = fakeServer();
-    instrumentTools(server, { file: join(dir, "run.jsonl"), transcript });
-    server.registerTool("walk", { inputSchema: {} }, async () => text("📍 ROUTE_1 (5,6) | battle: none"));
-    server.registerTool("get_screen", {}, async () => ({ content: [{ type: "text", text: "Screen" }, { type: "image", data: "AAAA", mimeType: "image/png" }] }));
-    server.registerTool("fight", { inputSchema: {} }, async () => text("Not in a battle.", { isError: true }));
+    const server = loggedTools({ file: join(dir, "run.jsonl"), transcript });
+    server.add("walk", { inputSchema: {} }, async () => text("📍 ROUTE_1 (5,6) | battle: none"));
+    server.add("get_screen", {}, async () => ({ content: [{ type: "text", text: "Screen" }, { type: "image", data: "AAAA", mimeType: "image/png" }] }));
+    server.add("fight", { inputSchema: {} }, async () => text("Not in a battle.", { isError: true }));
     await server.tools.get("walk")!({ path: "U3" });
     await server.tools.get("get_screen")!({});
     await server.tools.get("fight")!({ move: 1 });
@@ -139,9 +134,8 @@ describe("run log", () => {
 
   it("writes no transcript unless asked", async () => {
     const dir = mkdtempSync(join(tmpdir(), "runlog-"));
-    const server = fakeServer();
-    instrumentTools(server, { file: join(dir, "run.jsonl") });
-    server.registerTool("walk", { inputSchema: {} }, async () => text("ok"));
+    const server = loggedTools({ file: join(dir, "run.jsonl") });
+    server.add("walk", { inputSchema: {} }, async () => text("ok"));
     await server.tools.get("walk")!({});
     expect(existsSync(join(dir, "transcript.jsonl"))).toBe(false);
   });

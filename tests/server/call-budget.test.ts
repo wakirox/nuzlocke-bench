@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { UNCOUNTED_RESULT, callBudget, endRun, limitCalls, outOfCalls } from "../../mcp-server/call-budget.mjs";
+import { UNCOUNTED, UNCOUNTED_RESULT, callBudget, endRun, outOfCalls, withCallBudget } from "../../mcp-server/call-budget.mjs";
 // @ts-expect-error plain ESM module without type declarations
-import { instrumentTools } from "../../mcp-server/run-log.mjs";
+import { createToolLogger } from "../../mcp-server/run-log.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { PRESETS, benchmarkPreset } from "../../mcp-server/benchmark.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -17,17 +17,13 @@ import { BUILD_INFO, gitState, harnessLabel, harnessVersion, hashDir, pageInfo }
 // @ts-expect-error plain ESM module without type declarations
 import { runEnded } from "../../mcp-server/bench-runner.mjs";
 
-type Handler = (...a: unknown[]) => Promise<{ content: { type: string; text: string }[] }>;
+type Handler = (...a: unknown[]) => Promise<{ content: { type: string; text: string }[]; [k: string]: unknown }>;
 
-/** Just enough of McpServer: registerTool stores the handler as the SDK would call it. */
-function fakeServer() {
-  const tools = new Map<string, Handler>();
-  return {
-    tools,
-    registerTool(name: string, config: { inputSchema?: object }, cb: Handler) {
-      tools.set(name, (args) => (config.inputSchema ? cb(args, {}) : cb({})));
-    },
-  };
+/** Composes `createToolLogger` and `withCallBudget` in the exact order `registerTools` uses. */
+function wrapHandler(name: string, cb: Handler, opts: { budget?: unknown; logOpts?: Record<string, unknown> } = {}): Handler {
+  let h = withCallBudget(opts.budget ?? null, cb, { counted: !UNCOUNTED.has(name) });
+  if (opts.logOpts) h = createToolLogger(opts.logOpts)(name, true, h);
+  return (args) => h(args, {});
 }
 
 const text = (t: string) => ({ content: [{ type: "text", text: t }] });
@@ -41,47 +37,40 @@ describe("tool-call budget", () => {
   });
 
   it("ends the run on the last call, and calls after it don't reach the game", async () => {
-    const server = fakeServer();
     const budget = callBudget({ max: 3, dir: mkdtempSync(join(tmpdir(), "budget-")) });
     let played = 0;
-    limitCalls(server, budget);
-    server.registerTool("press", { inputSchema: {} }, async () => text(`pressed ${++played}`));
-    expect(textOf(await server.tools.get("press")!({}))).toBe("pressed 1");
-    expect(textOf(await server.tools.get("press")!({}))).toBe("pressed 2");
-    const last = textOf(await server.tools.get("press")!({}));
+    const press = wrapHandler("press", async () => text(`pressed ${++played}`), { budget });
+    expect(textOf(await press({}))).toBe("pressed 1");
+    expect(textOf(await press({}))).toBe("pressed 2");
+    const last = textOf(await press({}));
     expect(last).toBe(`pressed 3\n${outOfCalls(3)}`);
     expect(runEnded(last)).toBe(true);
-    expect(textOf(await server.tools.get("press")!({}))).toBe(outOfCalls(3));
+    expect(textOf(await press({}))).toBe(outOfCalls(3));
     expect(played).toBe(3);
   });
 
   it("gives back a call refused before the game ran (a batch's bad arguments), even the last one", async () => {
-    const server = fakeServer();
     const dir = mkdtempSync(join(tmpdir(), "budget-"));
     const budget = callBudget({ max: 2, dir });
-    // As in server.mjs: the run log wraps the budget.
     const file = join(dir, "run-log.jsonl");
-    instrumentTools(server, { file });
-    limitCalls(server, budget);
-    server.registerTool("do", { inputSchema: {} }, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }));
-    server.registerTool("press", { inputSchema: {} }, async () => text("pressed"));
-    await server.tools.get("press")!({});
-    const refused = await server.tools.get("do")!({});
+    const wrapLog = createToolLogger({ file });
+    const runDo = wrapLog("do", true, withCallBudget(budget, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true })));
+    const press = wrapLog("press", true, withCallBudget(budget, async () => text("pressed")));
+    await press({});
+    const refused = await runDo({});
     expect(textOf(refused)).not.toContain("RUN ENDED");
     expect(refused).not.toHaveProperty(UNCOUNTED_RESULT);
     expect(budget.used()).toBe(1);
     expect(readFileSync(join(dir, "tool-calls.txt"), "utf8")).toBe("1");
-    expect(textOf(await server.tools.get("press")!({}))).toBe(`pressed\n${outOfCalls(2)}`);
+    expect(textOf(await press({}))).toBe(`pressed\n${outOfCalls(2)}`);
     // The run log has the refused call, marked so the run's call count leaves it out too.
     const logged: { tool?: string; uncounted?: boolean }[] = readFileSync(file, "utf8").trim().split("\n").map((l: string) => JSON.parse(l)).filter((e: { tool?: string }) => e.tool);
     expect(logged.map((e) => [e.tool, e.uncounted ?? false])).toEqual([["press", false], ["do", true], ["press", false]]);
   });
 
   it("never passes the mark on to the client, with no budget either", async () => {
-    const server = fakeServer();
-    instrumentTools(server, { file: null });
-    server.registerTool("do", { inputSchema: {} }, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }));
-    expect(await server.tools.get("do")!({})).not.toHaveProperty(UNCOUNTED_RESULT);
+    const runDo = wrapHandler("do", async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }), { logOpts: { file: null } });
+    expect(await runDo({})).not.toHaveProperty(UNCOUNTED_RESULT);
   });
 
   it("doesn't add a second end to a run that ended on its last call", () => {
@@ -90,11 +79,9 @@ describe("tool-call budget", () => {
   });
 
   it("doesn't count a playtest's reports", async () => {
-    const server = fakeServer();
     const budget = callBudget({ max: 1, dir: mkdtempSync(join(tmpdir(), "budget-")) });
-    limitCalls(server, budget);
-    server.registerTool("report_issue", { inputSchema: {} }, async () => text("Reported"));
-    await server.tools.get("report_issue")!({});
+    const report = wrapHandler("report_issue", async () => text("Reported"), { budget });
+    await report({});
     expect(budget.used()).toBe(0);
   });
 
@@ -108,11 +95,9 @@ describe("tool-call budget", () => {
 
   it("logs the call that ended the run with its outcome", async () => {
     const file = join(mkdtempSync(join(tmpdir(), "budget-")), "run.jsonl");
-    const server = fakeServer();
-    instrumentTools(server, { file });
-    limitCalls(server, callBudget({ max: 1, dir: mkdtempSync(join(tmpdir(), "budget-")) }));
-    server.registerTool("press", { inputSchema: {} }, async () => text("📍 ROUTE_1 | battle: none"));
-    await server.tools.get("press")!({});
+    const budget = callBudget({ max: 1, dir: mkdtempSync(join(tmpdir(), "budget-")) });
+    const press = wrapHandler("press", async () => text("📍 ROUTE_1 | battle: none"), { budget, logOpts: { file } });
+    await press({});
     const entry = JSON.parse(readFileSync(file, "utf8").trim().split("\n")[0]);
     expect(entry.outcome).toBe("out of calls: all 1 tool calls of this run are used");
   });

@@ -39,8 +39,8 @@ export function callBudget({ max, dir }) {
 
 /**
  * Marks a refused call's result as not counting, like a tool's own argument errors, which the
- * SDK rejects before any budget is taken. limitCalls gives the call back; the run log
- * (run-log.mjs instrumentTools, the outer wrapper) records it as uncounted and drops the mark.
+ * SDK rejects before any budget is taken. `withCallBudget` gives the call back; the run log
+ * (`run-log.mjs` `createToolLogger`, the outer wrapper) records it as uncounted and drops the mark.
  */
 export const UNCOUNTED_RESULT = "uncountedCall";
 
@@ -68,14 +68,4 @@ export function withCallBudget(budget, handler, { counted = true } = {}) {
     }
     return turn.last ? endRun(result, budget.max) : result;
   };
-}
-
-/**
- * Wraps server.registerTool so every tool registered afterwards counts against `budget`: the
- * call that uses the last one ends the run, and calls after it don't reach the game.
- */
-export function limitCalls(server, budget) {
-  const registerTool = server.registerTool.bind(server);
-  server.registerTool = (name, config, handler) =>
-    registerTool(name, config, withCallBudget(budget, handler, { counted: !UNCOUNTED.has(name) }));
 }
