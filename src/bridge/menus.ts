@@ -2,45 +2,36 @@
 // keyboard, and the start-menu / party / bag screens.
 
 import type { Button } from "../emulator/gameboy";
-import type { BattleAction, ScreenLayout } from "../games/adapter";
+import type { BattleAction } from "../games/adapter";
 import type { BattlerHp } from "../games/types";
 import { menuLabel } from "./menu-label";
 import { newBoxLines } from "./text-lines";
 import { steerPartyCursor } from "./party-cursor";
 import type { BridgeCore } from "./bridge-core";
-
-/** A battle-menu option named in choose("PKMN"…) (by its label on screen), or null for any other menu's. */
-const battleAction = (layout: ScreenLayout, option: string): BattleAction | null => {
-  const letters = (s: string) => s.toUpperCase().replace(/[^A-Z]/g, "");
-  const o = letters(option);
-  return (Object.keys(layout.battleMenu) as BattleAction[]).find((a) => letters(layout.battleMenu[a].label) === o) ?? null;
-};
-/** The menu cells on screen as normalized text (letters and digits), and which of them the ▶ is on. */
-function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
-  // A price or count one space after the name ("POTION ¥300", "MAX REVIVE ×1") isn't part of it.
-  const norm = (s: string) => s.replace(/\s*(?:¥\s*\d+|×\s*\d+)\s*$/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const cursor: string[] = [];
-  const all: string[] = [];
-  for (const line of lines) {
-    const i = line.indexOf("▶");
-    if (i >= 0) cursor.push(norm(line.slice(i + 1).split(/\s{2,}|[│┐┘]/)[0]));
-    for (const cell of line.split(/\s{2,}|[│┐┘┌└─▶▷]/)) if (norm(cell)) all.push(norm(cell));
-  }
-  return { cursor, all };
-}
-
-/** See Menus.cursorOn. `exact`: only the option itself, never a longer one that starts with it. */
-export function cursorOnOption(lines: string[], option: string, exact = false): boolean {
-  const want = option.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  // Nothing to match ("?", "---"): every cell would start with it.
-  if (!want) return false;
-  const { cursor, all } = menuCells(lines);
-  if (cursor.includes(want)) return true;
-  return !exact && cursor.some((c) => c.startsWith(want)) && !all.includes(want);
-}
-
-/** A menu label as a regular expression that matches just that text. */
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+import {
+  battleAction,
+  battleMenuCursorOf,
+  cursorOnOption,
+  dialogueBoxLines,
+  hasActiveCursor,
+  hasAnyCursor,
+  hasMorePrompt,
+  isBattleMenuScreen,
+  isBlankOrGraphicsScreen,
+  isDexEntryScreen,
+  isMoveQuestionOpen,
+  isNamingKeyboardScreen,
+  isPartyScreenOpen,
+  isSafariMenuScreen,
+  isScreenFaded,
+  isStartMenuShown,
+  isTargetMoveListOpen,
+  partyCursorRowOf,
+  partyCursorSlotOf,
+  quantityPromptOf,
+  quantityTextOf,
+  startMenuRows,
+} from "./screen-state";
 
 /**
  * "(MONA: 85% → 63% HP.)" for each battler whose HP changed while the same Pokémon stayed out.
@@ -65,6 +56,16 @@ export class Menus {
 
   constructor(private core: BridgeCore) {}
 
+  /** Checks twice across 16 frames whether the blinking `▼` more-text indicator is present in the text box. */
+  private async textBoxHasMore(): Promise<boolean> {
+    const gb = this.core.requireGb();
+    for (let i = 0; i < 2; i++) {
+      if (hasMorePrompt(this.core.textBoxRows())) return true;
+      await gb.runFrames(16, 8);
+    }
+    return false;
+  }
+
   /**
    * Presses A through dialogue until a choice/menu (▶ cursor) appears, the
    * text box closes, or the limit is hit. Returns every message seen.
@@ -81,9 +82,6 @@ export class Menus {
     let hp = this.core.host.battleHp();
     // Messages seen since the battle screen opened (a trainer's line comes before it).
     let battleFrom = this.core.host.position().battle ? 0 : -1;
-    // The battle menu's second row (ITEM RUN) shows inside the text box: a choice, not a message.
-    const { bag, run } = this.core.layout.battleMenu;
-    const menuRow = new RegExp(`^${escapeRe(bag.label)}\\s+${escapeRe(run.label)}$`);
     for (let presses = 0; presses < maxPresses; ) {
       if (battleFrom < 0 && this.core.host.position().battle) battleFrom = messages.length;
       const lines = await this.core.settledScreen();
@@ -93,8 +91,8 @@ export class Menus {
       if (hp && now) messages.push(...hpChanges(hp, now));
       hp = now;
       // Text scrolls up a line at a time; record each line once. Menu rows (FIGHT/PKMN, YES/NO…)
-      // are choices, not messages.
-      const text = box.lines.filter((line) => !/[▶▷]/.test(line) && !menuRow.test(line));
+      // and the battle menu's second row (ITEM RUN) are choices, not messages.
+      const text = dialogueBoxLines(box.lines, this.core.layout);
       const read = newBoxLines(lastBox, text);
       if (read.replaceLast !== null && lastLine >= 0) messages[lastLine] = read.replaceLast;
       for (const line of read.add) lastLine = messages.push(line) - 1;
@@ -104,37 +102,26 @@ export class Menus {
       // is picked) is read on, and so is text that changed under the box: after a purchase the
       // old box stays drawn under the clerk's thank-you, which waits for a press (back to the
       // list). Only a box that stays put, its text too, is waiting for a quantity.
-      if (!this.core.host.position().battle && !lines.some((l) => l.includes("▶")) && lines.some((l) => /×\d\d/.test(l))) {
+      const q = quantityPromptOf(lines, this.core.host.position().battle);
+      if (q) {
         quantityText ??= box.lines.join("\n");
-        let moreText = box.lines.join("\n") !== quantityText;
-        for (let i = 0; i < 2 && !moreText; i++) {
-          moreText = this.core.textBoxRows().some((l) => l.includes("▼"));
-          if (!moreText) await gb.runFrames(16, 8);
-        }
+        const moreText = box.lines.join("\n") !== quantityText || (await this.textBoxHasMore());
         if (!moreText) {
           await gb.runFrames(40, 8);
           if (quantityWaits++ < 5 && this.core.screenText().join("\n") !== lines.join("\n")) continue;
-          const q = lines.join(" ").match(/×\d\d/)?.[0];
           return { messages, stopped: `a quantity to choose (${q}): press up/down to change it, then a to confirm` };
         }
       }
       // A ▼ in the text box means more text — that wins over a menu still drawn
       // behind it. The ▼ blinks, so look twice before deciding.
-      if (lines.some((l) => l.includes("▶"))) {
-        let moreText = false;
-        for (let i = 0; i < 2 && !moreText; i++) {
-          moreText = this.core.textBoxRows().some((l) => l.includes("▼"));
-          if (!moreText) await gb.runFrames(16, 8);
-        }
-        if (!moreText) return { messages, stopped: "a menu or choice is waiting for input" };
+      if (hasActiveCursor(lines)) {
+        if (!(await this.textBoxHasMore())) return { messages, stopped: "a menu or choice is waiting for input" };
       }
       if (!opts.pastTheEnd && this.core.host.brief()?.outcome) return { messages, stopped: "the run ended" };
       if (!box.open) {
         // Full-screen pages also wait for A: anything with a ▼, and encyclopedia entries
         // (recognized by their two labels, the layout's dexEntry — the ▼ only appears once the text is done).
-        const [l1, l2] = this.core.layout.dexEntry.labels.map((w) => new RegExp(`\\b${escapeRe(w)}\\b`));
-        const dexPage = lines.some((l) => l1.test(l)) && lines.some((l) => l2.test(l));
-        if (dexPage || lines.some((l) => l.includes("▼"))) {
+        if (isDexEntryScreen(lines, this.core.layout) || hasMorePrompt(lines)) {
           await this.core.tap("a", 4, 24);
           presses++;
           continue;
@@ -154,8 +141,7 @@ export class Menus {
         // (Crystal's starter balls show the Pokémon and wait for A before any text). Press A once.
         // Only over a picture: a screen with anything to read (the naming keyboard) is waiting for
         // the player's own input, and an A there types a letter (run 4's nickname began with one).
-        const nothingToRead = lines.every((l) => !l.trim() || l.startsWith("(No text"));
-        if (pos.scripted && !pos.battle && !pictureNudged && nothingToRead) {
+        if (pos.scripted && !pos.battle && !pictureNudged && isBlankOrGraphicsScreen(lines)) {
           pictureNudged = true;
           emptyWaits = 0;
           await this.core.tap("a", 4, 24);
@@ -211,15 +197,15 @@ export class Menus {
   async choose(option: string, opts: { exact?: boolean } = {}): Promise<unknown> {
     if (!option.trim()) throw new Error("option is required, e.g. YES");
     // The menu may still be drawing (e.g. right after a battle turn); give it a moment.
-    if (!this.core.screenText().some((l) => l.includes("▶"))) await this.advanceText(10);
-    if (!this.core.screenText().some((l) => l.includes("▶"))) {
-      const q = this.core.screenText().join(" ").match(/×\d\d/)?.[0];
+    if (!hasActiveCursor(this.core.screenText())) await this.advanceText(10);
+    if (!hasActiveCursor(this.core.screenText())) {
+      const q = quantityTextOf(this.core.screenText());
       throw new Error(q
         ? `No menu cursor (▶) on screen: a quantity is being chosen (${q}). press up/down to change it, then a to confirm.`
         : "No menu cursor (▶) on screen.");
     }
     // The naming keyboard isn't a menu of options: sweeping it would type letters.
-    if (this.core.screenText().some((l) => /A B C D E F G H I/.test(l.replace(/▶/g, " ").replace(/ +/g, " ")))) {
+    if (isNamingKeyboardScreen(this.core.screenText())) {
       throw new Error("The naming keyboard is open: choose doesn't type. press name:NAME types a name (letters, up to 10) and confirms it.");
     }
     // The battle menu: step to the option from where the cursor is (see battleMenuTo).
@@ -301,7 +287,7 @@ export class Menus {
     // A cursor on screen isn't proof the pocket takes input yet (coming from the TM pocket the
     // slide takes longer): wait for the cursor, then for the screen to stop changing.
     const settle = async () => {
-      for (let i = 0; i < 12 && !this.core.screenText().some((l) => l.includes("▶")); i++) await this.core.requireGb().runFrames(5, 5);
+      for (let i = 0; i < 12 && !hasActiveCursor(this.core.screenText()); i++) await this.core.requireGb().runFrames(5, 5);
       await this.core.settledScreen();
       await this.core.requireGb().runFrames(12, 8);
     };
@@ -548,7 +534,7 @@ export class Menus {
 
   /** The party screen's row with the ▶ on it, or -1. */
   partyCursorRow(): number {
-    return this.core.screenText().slice(0, this.core.layout.partyScreen.rows).findIndex((l) => l.includes("▶"));
+    return partyCursorRowOf(this.core.screenText(), this.core.layout);
   }
 
   /**
@@ -557,17 +543,13 @@ export class Menus {
    * was taken for the party screen asking for a target.
    */
   private partyScreenOpen(): boolean {
-    const row = this.partyCursorRow();
-    if (row < 0) return false;
-    const names = (this.core.summary()?.party ?? []).map((m) => m.nickname.toUpperCase()).filter(Boolean);
-    const near = this.core.screenText().slice(Math.max(0, row - 1), row + 2).join(" ").toUpperCase();
-    return names.some((n) => near.includes(n));
+    const names = (this.core.summary()?.party ?? []).map((m) => m.nickname);
+    return isPartyScreenOpen(this.core.screenText(), this.core.layout, names);
   }
 
   /** The party screen's cursor slot (0-based; ▶ sits on each entry's HP row), or -1. */
   private partyCursor(): number {
-    const row = this.partyCursorRow();
-    return row >= 0 ? this.core.layout.partyScreen.slotAt(row) : -1;
+    return partyCursorSlotOf(this.core.screenText(), this.core.layout);
   }
 
   /** Moves the party screen's cursor to `slot` (0-based), waiting out its fade-in. */
@@ -581,14 +563,7 @@ export class Menus {
 
   /** Where the battle menu's ▶ is (Gen 1: FIGHT PKMN / ITEM RUN), or null when that menu isn't up. */
   battleMenuCursor(): BattleAction | null {
-    const menu = this.core.layout.battleMenu;
-    const actions = Object.keys(menu) as BattleAction[];
-    const onOption = new RegExp(`▶\\s*(${actions.map((a) => escapeRe(menu[a].label)).join("|")})\\b`);
-    for (const l of this.core.screenText()) {
-      const m = onOption.exec(l);
-      if (m && this.core.screenText().some((x) => x.includes(menu.fight.label) && x.includes(menu.party.label))) return actions.find((a) => menu[a].label === m[1])!;
-    }
-    return null;
+    return battleMenuCursorOf(this.core.screenText(), this.core.layout);
   }
 
   /**
@@ -609,22 +584,17 @@ export class Menus {
   }
 
   atBattleMenu(): boolean {
-    const lines = this.core.screenText();
-    const menu = this.core.layout.battleMenu;
-    return lines.some((l) => l.includes(menu.fight.label) && l.includes(menu.party.label)) || this.atSafariMenu();
+    return isBattleMenuScreen(this.core.screenText(), this.core.layout);
   }
 
   /** The game reserve's battle menu: BALL×N / BAIT / THROW ROCK / RUN (its own balls aren't in the bag). */
   atSafariMenu(): boolean {
-    const lines = this.core.screenText();
-    const [a, b] = this.core.layout.safariMenu.labels;
-    return lines.some((l) => l.includes(a) && l.includes(b));
+    return isSafariMenuScreen(this.core.screenText(), this.core.layout);
   }
 
-  /** Opens the start menu. A press can be swallowed (a menu just closing, a script finishing), so press until it shows. */
   /** A move question waiting on screen, its follow-up included (Gen 1 "Abandon learning X?", Crystal "Stop learning X?"). */
   private moveQuestionOpen(): boolean {
-    return this.core.layout.texts.moveQuestion.test(this.core.screenText().join(" ")) && this.core.screenText().some((l) => l.includes("▶"));
+    return isMoveQuestionOpen(this.core.screenText(), this.core.layout);
   }
 
   /**
@@ -632,34 +602,34 @@ export class Menus {
    * or EXIT (Crystal's has no encyclopedia entry until the player gets one).
    */
   private startMenuShown(): boolean {
-    const { dex, exit } = this.core.layout.startMenu;
-    return this.core.screenText().some((l) => l.includes("│") && (l.includes(dex) || new RegExp(`│\\s*▶?${exit}\\b`).test(l)));
+    return isStartMenuShown(this.core.screenText(), this.core.layout);
   }
 
+  /** Opens the start menu. A press can be swallowed (a menu just closing, a script finishing), so press until it shows. */
   async openStartMenu(): Promise<void> {
     // A move question holds every menu: say so, instead of sweeping its cursor from YES to NO looking for the menu.
     if (this.moveQuestionOpen()) {
       throw new Error("A move-learning question is still open on screen: answer it with choose (YES, then the move to forget, or NO) first.");
     }
     // The start menu shows both of these; the bag left open covers all of it but its last rows.
-    const { bag, exit } = this.core.layout.startMenu;
-    const shows = (word: string) => this.core.screenText().some((l) => new RegExp(`\\b${word}\\b`).test(l));
+    const startNow = () => startMenuRows(this.core.screenText(), this.core.layout);
     // The bag a move question went back to (see bagLeftOpen): B leads out of it to the start menu.
     if (this.bagLeftOpen) {
       this.bagLeftOpen = false;
-      for (let i = 0; i < 4 && this.core.screenText().some((l) => l.includes("▶")) && !(shows(exit) && shows(bag)); i++) {
+      for (let i = 0; i < 4 && hasActiveCursor(this.core.screenText()) && !startNow().ready; i++) {
         await this.core.tap("b", 4, 16);
         await this.core.settledScreen();
       }
     }
     for (let i = 0; i < 10; i++) {
-      if (shows(exit) && !shows(bag)) await this.core.tap("b", 4, 16); // a text box may only now have uncovered it
-      else if (this.core.screenText().some((l) => l.includes("▶"))) break;
+      const st = startNow();
+      if (st.hasExit && !st.hasBag) await this.core.tap("b", 4, 16); // a text box may only now have uncovered it
+      else if (hasActiveCursor(this.core.screenText())) break;
       else if (this.core.textBox(this.core.screenText()).open) await this.advanceText(10);
       else await this.core.tap("start", 6, 30);
     }
     // Another menu (a PC, a shop, a question): say so, instead of sweeping its cursor looking for ours.
-    if (this.core.screenText().some((l) => l.includes("▶")) && !(shows(exit) && shows(bag))) {
+    if (hasActiveCursor(this.core.screenText()) && !startNow().ready) {
       throw new Error(`Another menu is open on screen: close it first (press b, or answer it with choose). Screen:\n${this.core.screenText().join("\n")}`);
     }
   }
@@ -669,11 +639,11 @@ export class Menus {
     for (let i = 0, clear = 0; i < 12 && clear < 2; i++) {
       await this.core.requireGb().runFrames(10, 8);
       // Mid-fade no menu shows, but one may come back when it ends (the bag, after the party screen).
-      if (this.core.screenText().some((l) => l.includes("faded to white"))) {
+      if (isScreenFaded(this.core.screenText())) {
         clear = 0;
         continue;
       }
-      const open = this.startMenuShown() || this.core.screenText().some((l) => l.includes("▶") || l.includes("▷"));
+      const open = this.startMenuShown() || hasAnyCursor(this.core.screenText());
       if (open) {
         clear = 0;
         await this.core.tap("b", 4, 16);
@@ -716,7 +686,7 @@ export class Menus {
       messages.push(...(await this.advanceText(20)).messages);
       // An evolution stone's scene: let it play to the end (a B press during it would call it off).
       const evolving = () => /evolving/i.test(messages.join(" ")) && !/evolved\s+into/i.test(messages.join(" "));
-      for (let i = 0; i < 8 && evolving() && !this.core.screenText().some((l) => l.includes("▶")); i++) {
+      for (let i = 0; i < 8 && evolving() && !hasActiveCursor(this.core.screenText()); i++) {
         await this.core.requireGb().runFrames(60, 8);
         messages.push(...(await this.advanceText(20)).messages);
       }
@@ -726,9 +696,7 @@ export class Menus {
         return this.core.result({ used: it.item, on: mon?.nickname, messages, stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
       }
       // An item for one move (ETHER, PP UP) opens the Pokémon's moves: pick the one asked for.
-      const cell = (l: string) => norm(l.slice(l.indexOf("▶") + 1).split(/\s{2,}|[│┐┘]/)[0]);
-      const onMoveList = this.core.screenText().some((l) => l.includes("▶") && monMoves.some((n) => norm(n) === cell(l)));
-      if (onMoveList) {
+      if (isTargetMoveListOpen(this.core.screenText(), monMoves)) {
         if (!move) {
           await this.closeMenus();
           throw new Error(`${it.item} is used on one move: use_item again with move (${mon.nickname}'s moves: ${monMoves.join(", ")}). Nothing was used.`);

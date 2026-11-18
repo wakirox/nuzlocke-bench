@@ -3,7 +3,7 @@
 // to forget BUBBLE must not forget BUBBLEBEAM).
 
 import { describe, expect, it } from "vitest";
-import { cursorOnOption } from "../../src/bridge/menus";
+import { cursorOnOption } from "../../src/bridge/screen-state";
 
 const moves = (cursorRow: number) => {
   const rows = ["BUBBLEBEAM", "BUBBLE", "TACKLE", "TAIL WHIP"].map((m, i) => `│${i === cursorRow ? "▶" : " "}${m.padEnd(11)}│`);
