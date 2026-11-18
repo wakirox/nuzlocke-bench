@@ -5,9 +5,42 @@
 import type { BattleAction, ScreenLayout } from "../games/adapter";
 
 /** A menu label as a regular expression that matches just that text. */
-export const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normAlphaNum = (s: string): string => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+interface LayoutPatterns {
+  menuRow: RegExp;
+  dex1: RegExp;
+  dex2: RegExp;
+  battleOption: RegExp;
+  startExitBox: RegExp;
+  startBagWord: RegExp;
+  startExitWord: RegExp;
+}
+
+const layoutCache = new WeakMap<ScreenLayout, LayoutPatterns>();
+
+function patternsFor(layout: ScreenLayout): LayoutPatterns {
+  let cached = layoutCache.get(layout);
+  if (!cached) {
+    const { bag: bBag, run: bRun } = layout.battleMenu;
+    const actions = Object.keys(layout.battleMenu) as BattleAction[];
+    const [d1, d2] = layout.dexEntry.labels;
+    const { bag: sBag, exit: sExit } = layout.startMenu;
+    cached = {
+      menuRow: new RegExp(`^${escapeRe(bBag.label)}\\s+${escapeRe(bRun.label)}$`),
+      dex1: new RegExp(`\\b${escapeRe(d1)}\\b`),
+      dex2: new RegExp(`\\b${escapeRe(d2)}\\b`),
+      battleOption: new RegExp(`▶\\s*(${actions.map((a) => escapeRe(layout.battleMenu[a].label)).join("|")})\\b`),
+      startExitBox: new RegExp(`│\\s*▶?${escapeRe(sExit)}\\b`),
+      startBagWord: new RegExp(`\\b${escapeRe(sBag)}\\b`),
+      startExitWord: new RegExp(`\\b${escapeRe(sExit)}\\b`),
+    };
+    layoutCache.set(layout, cached);
+  }
+  return cached;
+}
 
 /** A battle-menu option named in choose("PKMN"…) (by its label on screen), or null for any other menu's. */
 export function battleAction(layout: ScreenLayout, option: string): BattleAction | null {
@@ -17,7 +50,7 @@ export function battleAction(layout: ScreenLayout, option: string): BattleAction
 }
 
 /** The menu cells on screen as normalized text (letters and digits), and which of them the ▶ is on. */
-export function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
+function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
   // A price or count one space after the name ("POTION ¥300", "MAX REVIVE ×1") isn't part of it.
   const norm = (s: string) => normAlphaNum(s.replace(/\s*(?:¥\s*\d+|×\s*\d+)\s*$/, ""));
   const cursor: string[] = [];
@@ -61,8 +94,8 @@ export function isNamingKeyboardScreen(lines: string[]): boolean {
  * the ▼ only appears once the text is done).
  */
 export function isDexEntryScreen(lines: string[], layout: ScreenLayout): boolean {
-  const [l1, l2] = layout.dexEntry.labels.map((w) => new RegExp(`\\b${escapeRe(w)}\\b`));
-  return lines.some((l) => l1.test(l)) && lines.some((l) => l2.test(l));
+  const { dex1, dex2 } = patternsFor(layout);
+  return lines.some((l) => dex1.test(l)) && lines.some((l) => dex2.test(l));
 }
 
 /**
@@ -70,8 +103,7 @@ export function isDexEntryScreen(lines: string[], layout: ScreenLayout): boolean
  * (ITEM RUN, which shows inside the text box) are choices, not messages.
  */
 export function dialogueBoxLines(boxLines: string[], layout: ScreenLayout): string[] {
-  const { bag, run } = layout.battleMenu;
-  const menuRow = new RegExp(`^${escapeRe(bag.label)}\\s+${escapeRe(run.label)}$`);
+  const { menuRow } = patternsFor(layout);
   return boxLines.filter((line) => !/[▶▷]/.test(line) && !menuRow.test(line));
 }
 
@@ -90,9 +122,9 @@ export function quantityPromptOf(lines: string[], inBattle: boolean): string | n
 export function battleMenuCursorOf(lines: string[], layout: ScreenLayout): BattleAction | null {
   const menu = layout.battleMenu;
   const actions = Object.keys(menu) as BattleAction[];
-  const onOption = new RegExp(`▶\\s*(${actions.map((a) => escapeRe(menu[a].label)).join("|")})\\b`);
+  const { battleOption } = patternsFor(layout);
   for (const l of lines) {
-    const m = onOption.exec(l);
+    const m = battleOption.exec(l);
     if (m && lines.some((x) => x.includes(menu.fight.label) && x.includes(menu.party.label))) {
       return actions.find((a) => menu[a].label === m[1])!;
     }
@@ -117,23 +149,28 @@ export function isMoveQuestionOpen(lines: string[], layout: ScreenLayout): boole
 }
 
 /**
- * Start-menu visibility:
- * - `shown`: its box shows the encyclopedia or EXIT (even with its cursor hidden mid-fade; Crystal's
- *   has no encyclopedia entry until the player gets one).
- * - `ready`: both BAG and EXIT are visible (the bag left open covers all of it except its last rows).
+ * The start menu is on screen (even with its cursor hidden mid-fade): its box shows the encyclopedia
+ * or EXIT (Crystal's has no encyclopedia entry until the player gets one).
  */
-export function startMenuState(lines: string[], layout: ScreenLayout): {
-  shown: boolean;
+export function isStartMenuShown(lines: string[], layout: ScreenLayout): boolean {
+  const { dex } = layout.startMenu;
+  const { startExitBox } = patternsFor(layout);
+  return lines.some((l) => l.includes("│") && (l.includes(dex) || startExitBox.test(l)));
+}
+
+/**
+ * Start-menu rows checked by `openStartMenu`: the full start menu shows both BAG and EXIT, whereas
+ * the bag left open covers all of the start menu except its last rows (`hasExit && !hasBag`).
+ */
+export function startMenuRows(lines: string[], layout: ScreenLayout): {
   hasBag: boolean;
   hasExit: boolean;
   ready: boolean;
 } {
-  const { bag, dex, exit } = layout.startMenu;
-  const shows = (word: string) => lines.some((l) => new RegExp(`\\b${escapeRe(word)}\\b`).test(l));
-  const shown = lines.some((l) => l.includes("│") && (l.includes(dex) || new RegExp(`│\\s*▶?${escapeRe(exit)}\\b`).test(l)));
-  const hasBag = shows(bag);
-  const hasExit = shows(exit);
-  return { shown, hasBag, hasExit, ready: hasBag && hasExit };
+  const { startBagWord, startExitWord } = patternsFor(layout);
+  const hasBag = lines.some((l) => startBagWord.test(l));
+  const hasExit = lines.some((l) => startExitWord.test(l));
+  return { hasBag, hasExit, ready: hasBag && hasExit };
 }
 
 /** The party screen's row with the ▶ on it, or -1 (reads screen lines only). */

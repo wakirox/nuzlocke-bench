@@ -13,12 +13,13 @@ import {
   isPartyScreenOpen,
   isSafariMenuScreen,
   isScreenFaded,
+  isStartMenuShown,
   isTargetMoveListOpen,
   partyCursorRowOf,
   partyCursorSlotOf,
   quantityPromptOf,
   quantityTextOf,
-  startMenuState,
+  startMenuRows,
 } from "../../src/bridge/screen-state";
 import { gen1Adapter } from "../../src/games/gen1";
 import { gen2Adapter } from "../../src/games/gen2";
@@ -57,36 +58,58 @@ describe("screen-state recognizers", () => {
     expect(isPartyScreenOpen(party, gen2, ["CYNDA", "PIDGEY"])).toBe(true);
   });
 
-  it("detects naming keyboards, shop quantity prompts, dex entries, move questions, blank pictures, and fades", () => {
+  it("detects naming keyboards (and rejects ordinary menus/dialogue), shop quantities, Gen 1 & Crystal dex entries, move questions, and fades", () => {
     const keyboard = screenRows({ 2: "YOUR NAME?", 6: "▶A B C D E F G H I", 8: " J K L M N O P Q R" });
     expect(isNamingKeyboardScreen(keyboard)).toBe(true);
+    expect(isNamingKeyboardScreen(screenRows({ 8: "│▶YES│", 9: "│ NO │", 14: "ABCDEFGHI?" }))).toBe(false);
+    expect(isNamingKeyboardScreen(screenRows({ 14: "A B C D E F G H" }))).toBe(false);
 
     const qty = screenRows({ 9: "│ ×03   ¥600 │", 14: "How many?" });
     expect(quantityTextOf(qty)).toBe("×03");
     expect(quantityPromptOf(qty, false)).toBe("×03");
     expect(quantityPromptOf(qty, true)).toBeNull();
 
-    const [d1, d2] = gen1.dexEntry.labels;
-    const dex = screenRows({ 3: `${d1} 2'04"`, 5: `${d2} 15.0lb` });
-    expect(isDexEntryScreen(dex, gen1)).toBe(true);
+    const [g1d1, g1d2] = gen1.dexEntry.labels;
+    expect(isDexEntryScreen(screenRows({ 3: `${g1d1} 2'04"`, 5: `${g1d2} 15.0lb` }), gen1)).toBe(true);
+    expect(isDexEntryScreen(screenRows({ 3: `${g1d1} 2'04"` }), gen1)).toBe(false);
+
+    const [g2d1, g2d2] = gen2.dexEntry.labels;
+    expect(isDexEntryScreen(screenRows({ 4: `${g2d1} 1'08"`, 6: `${g2d2} 17.0lb` }), gen2)).toBe(true);
+    expect(isDexEntryScreen(screenRows({ 4: `${g2d1} 1'08"` }), gen2)).toBe(false);
 
     const moveQ = screenRows({ 8: "│▶YES│", 9: "│ NO │", 14: "Delete an older", 16: "move to make room?" });
     expect(isMoveQuestionOpen(moveQ, gen1)).toBe(true);
+
+    const crystalStopQ = screenRows({ 8: "│▶YES│", 9: "│ NO │", 14: "Stop learning", 16: "EMBER?" });
+    expect(isMoveQuestionOpen(crystalStopQ, gen2)).toBe(true);
 
     expect(isScreenFaded(["(Screen faded to white)"])).toBe(true);
     expect(isBlankOrGraphicsScreen(["", "  ", "(No text on screen)"])).toBe(true);
     expect(isBlankOrGraphicsScreen(keyboard)).toBe(false);
   });
 
-  it("strips battle-menu choice rows from dialogue boxes and detects start-menu / move-picker states", () => {
+  it("strips battle-menu choice rows from dialogue boxes and detects Gen 1 & Crystal start-menu / move-picker states", () => {
     expect(dialogueBoxLines(["Enemy RATTATA", "used TACKLE!", "▶FIGHT PKMN", "ITEM  RUN"], gen1))
       .toEqual(["Enemy RATTATA", "used TACKLE!"]);
+    expect(dialogueBoxLines(["Wild SENTRET", "appeared!", "▶FIGHT PKMN", "PACK  RUN"], gen2))
+      .toEqual(["Wild SENTRET", "appeared!"]);
 
     const coveredStart = screenRows({ 2: "          │POKéDEX│", 10: "          │ EXIT  │" });
-    expect(startMenuState(coveredStart, gen1)).toEqual({ shown: true, hasBag: false, hasExit: true, ready: false });
+    expect(isStartMenuShown(coveredStart, gen1)).toBe(true);
+    expect(startMenuRows(coveredStart, gen1)).toEqual({ hasBag: false, hasExit: true, ready: false });
 
     const fullStart = screenRows({ 2: "          │▶POKéDEX│", 6: "          │ ITEM   │", 10: "          │ EXIT   │" });
-    expect(startMenuState(fullStart, gen1).ready).toBe(true);
+    expect(isStartMenuShown(fullStart, gen1)).toBe(true);
+    expect(startMenuRows(fullStart, gen1).ready).toBe(true);
+
+    // Crystal before receiving the Pokédex has no POKéDEX row, only PKMN / PACK / … / EXIT.
+    const crystalEarlyStart = screenRows({ 2: "          │▶PKMN  │", 4: "          │ PACK  │", 10: "          │ EXIT  │" });
+    expect(isStartMenuShown(crystalEarlyStart, gen2)).toBe(true);
+    expect(startMenuRows(crystalEarlyStart, gen2)).toEqual({ hasBag: true, hasExit: true, ready: true });
+
+    const crystalBagOverStart = screenRows({ 2: "       ▶POTION ×2", 12: "          │ EXIT  │" });
+    expect(isStartMenuShown(crystalBagOverStart, gen2)).toBe(true);
+    expect(startMenuRows(crystalBagOverStart, gen2)).toEqual({ hasBag: false, hasExit: true, ready: false });
 
     const etherMoves = screenRows({ 8: "│▶THUNDERSHOCK│", 9: "│ GROWL       │" });
     expect(isTargetMoveListOpen(etherMoves, ["THUNDERSHOCK", "GROWL"])).toBe(true);

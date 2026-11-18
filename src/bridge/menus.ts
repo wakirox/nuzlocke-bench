@@ -24,15 +24,14 @@ import {
   isPartyScreenOpen,
   isSafariMenuScreen,
   isScreenFaded,
+  isStartMenuShown,
   isTargetMoveListOpen,
   partyCursorRowOf,
   partyCursorSlotOf,
   quantityPromptOf,
   quantityTextOf,
-  startMenuState,
+  startMenuRows,
 } from "./screen-state";
-
-export { cursorOnOption };
 
 /**
  * "(MONA: 85% → 63% HP.)" for each battler whose HP changed while the same Pokémon stayed out.
@@ -603,7 +602,7 @@ export class Menus {
    * or EXIT (Crystal's has no encyclopedia entry until the player gets one).
    */
   private startMenuShown(): boolean {
-    return startMenuState(this.core.screenText(), this.core.layout).shown;
+    return isStartMenuShown(this.core.screenText(), this.core.layout);
   }
 
   /** Opens the start menu. A press can be swallowed (a menu just closing, a script finishing), so press until it shows. */
@@ -613,7 +612,7 @@ export class Menus {
       throw new Error("A move-learning question is still open on screen: answer it with choose (YES, then the move to forget, or NO) first.");
     }
     // The start menu shows both of these; the bag left open covers all of it but its last rows.
-    const startNow = () => startMenuState(this.core.screenText(), this.core.layout);
+    const startNow = () => startMenuRows(this.core.screenText(), this.core.layout);
     // The bag a move question went back to (see bagLeftOpen): B leads out of it to the start menu.
     if (this.bagLeftOpen) {
       this.bagLeftOpen = false;
