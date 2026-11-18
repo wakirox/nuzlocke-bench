@@ -216,6 +216,8 @@ export const KEYS = {
   replay: "run.replay",
   /** The AI's own route book for this run (note_route / go_to). */
   routes: "run.routes",
+  /** What this run has seen of each map (SeenData): the AI's maps show only that. */
+  seen: "run.seen",
   /** A save kept when the run first reached a story milestone (saveMilestone in main.ts), by milestone id. */
   milestone: (id: string) => `run.milestone.${id}`,
   /** A ruleset's furthest run's recording (SavedReplay), kept across runs ("bestReplay.nuzlocke"). */
@@ -226,7 +228,7 @@ export const KEYS = {
 
 export async function clearRun(): Promise<void> {
   const milestones = (await kv.keys()).map(String).filter((k) => k.startsWith(KEYS.milestone("")));
-  await Promise.all([KEYS.run, KEYS.battery, KEYS.autoState, KEYS.slotState, KEYS.tracker, KEYS.replay, KEYS.routes, ...milestones].map((k) => kv.del(k)));
+  await Promise.all([KEYS.run, KEYS.battery, KEYS.autoState, KEYS.slotState, KEYS.tracker, KEYS.replay, KEYS.routes, KEYS.seen, ...milestones].map((k) => kv.del(k)));
 }
 
 export type { TrackerSnapshot };

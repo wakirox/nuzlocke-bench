@@ -132,6 +132,8 @@ if (milestone) {
   writeSaveFile(join(outDir, "run.autoState.json"), m.state);
   if (m.battery) writeSaveFile(join(outDir, "run.battery.json"), m.battery);
   writeSaveFile(join(outDir, "run.tracker.json"), m.tracker);
+  // The run's memory of the maps (fog of war, 0.2.0 on): what it had seen by then.
+  if (m.seen) writeSaveFile(join(outDir, "run.seen.json"), m.seen);
   writeSaveFile(join(outDir, "run.replay.json"), cut);
   writeFileSync(join(outDir, "snapshot-info.txt"), `${JSON.stringify({ from: run.name, milestone, events: n, endTicks: m.ticks }, null, 1)}\n`);
   console.log(`snapshot at milestone ${milestone} of ${run.name} -> ${outDir}: ${n} of ${rep.events.length / FIELDS} input events, ${m.tracker.maxBadges ?? "?"} badges`);

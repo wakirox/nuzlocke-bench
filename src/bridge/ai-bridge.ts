@@ -133,6 +133,9 @@ export class AiBridge {
     }
     if (NEEDS_SIGHT.has(method) && this.core.dark()) throw new Error(TOO_DARK);
     this.core.mapAsked = method === "get_map" || p.show_map === true;
+    // Field moves and items change maps without a door (Dig, Teleport, Fly, an Escape Rope).
+    this.core.mapChangeIsNoDoor = method === "field_move" || method === "use_item"
+      || (method === "walk" && /^@(cut|field)\b/i.test(String(p.path ?? "").trim()));
     switch (method) {
       case "get_state":
         this.core.host.refresh();

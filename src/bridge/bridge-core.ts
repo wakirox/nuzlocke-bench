@@ -8,6 +8,7 @@ import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
+import type { SeenMaps } from "./seen";
 
 export interface Brief {
   location: string;
@@ -56,6 +57,8 @@ export interface AiHost {
   rules(): string;
   /** Sprite indices of trainers already beaten on this map. */
   beatenTrainers(): number[];
+  /** What the run has seen of each map (fog of war), or nothing to hide (a host without one). */
+  seen?(): SeenMaps | null;
   /** Trainers on this map with their teams. */
   mapTrainers(): { x: number; y: number; name: string; beaten: boolean }[];
   /** The running ROM — tileset block data for full-map reads. */
@@ -137,7 +140,54 @@ export class BridgeCore {
     await gb.runFrames(hold);
     buttons.forEach((b) => gb.setButton(b, false));
     if (gap) await gb.runFrames(gap);
+    this.noteSeen();
   }
+
+  /** Where noteSeen last saw the player. */
+  private seenAt: { map: number; x: number; y: number } | null = null;
+
+  /**
+   * Adds what the player sees now to the run's memory of the maps (SeenMaps): the screen around
+   * them (not in the dark or a battle), or, when the map changed since the last look, the door gone
+   * through (both ends). Called after every press and every step of a walk, since the page's own
+   * state poll runs too seldom while the bridge drives the game.
+   */
+  noteSeen(settled = false): void {
+    const seen = this.host.seen?.();
+    if (!seen || !this.host.version()) return;
+    const p = this.host.position();
+    // A battle forgets where you stood: a whiteout's trip to a Pokémon Center isn't a door.
+    if (p.battle) {
+      this.seenAt = null;
+      this.warpedFrom = null;
+      return;
+    }
+    if (p.inWorld === false) return;
+    const last = this.seenAt;
+    this.seenAt = { map: p.map, x: p.x, y: p.y };
+    if (last && last.map !== p.map) {
+      // A field move or an item (Dig, Teleport, Fly, an Escape Rope) changes the map without a door.
+      if (this.mapChangeIsNoDoor) {
+        this.warpedFrom = null;
+      } else {
+        // Just warped: the coordinates and screen may not be the new map's yet, so the arrival is
+        // taken at the next look (now, when the caller knows the game has settled there).
+        this.warpedFrom = last;
+        if (!settled) return;
+      }
+    }
+    if (this.warpedFrom) {
+      const from = this.warpedFrom;
+      this.warpedFrom = null;
+      seen.wentThrough(from.map, from.x, from.y, p.map, p.x, p.y);
+    } else if (last && last.x === p.x && last.y === p.y) return;
+    if (!this.dark()) seen.sawScreen(p.map, p.x, p.y);
+  }
+
+  /** Where the player stood before a warp whose arrival noteSeen hasn't taken yet. */
+  private warpedFrom: { map: number; x: number; y: number } | null = null;
+  /** The call being answered changes maps by a field move or an item, not a door (set per call). */
+  mapChangeIsNoDoor = false;
 
   /** The bottom text box (Gen 1: rows 12–17) if one is on screen, as its text lines. */
   textBox(lines: string[]): { open: boolean; lines: string[] } {
@@ -230,8 +280,12 @@ export class BridgeCore {
     return !!gb && !!this.host.version() && !this.host.position().battle && this.game.isDark(gb);
   }
 
-  /** The visible screen, or the whole current map (needs the ROM for tileset blocks). */
-  view(full: boolean) {
+  /**
+   * The visible screen, or the whole current map (needs the ROM for tileset blocks), as the map
+   * data has it: everything, seen or not. For the game's own mechanics only (which way a door's mat
+   * is pressed); what the player is shown or walks by is view().
+   */
+  rawView(full: boolean) {
     const version = this.host.version();
     if (!version) throw new Error("No game is running.");
     const pos = this.host.position();
@@ -241,10 +295,28 @@ export class BridgeCore {
       : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom);
   }
 
+  /**
+   * The screen or the whole map as the run knows it (SeenMaps): squares never on screen are "?",
+   * doors not yet been through lead to "?". Paths are planned on this, so a walk can't find a way
+   * the player hasn't seen. In the dark the screen shows only what's lit (renderDarkView) and nothing
+   * is remembered. The whole map's closed lower-floor patches are sealed before the fog.
+   */
+  view(full: boolean) {
+    const raw = this.rawView(full);
+    const v = full ? sealFromWholeMap(raw, raw) : raw;
+    const seen = this.host.seen?.();
+    if (!seen || this.dark()) return v;
+    // A view is read once a move is over: the game has settled on whatever map it's on.
+    this.noteSeen(true);
+    const pos = this.host.position();
+    if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
+    return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1);
+  }
+
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
   screenView() {
     const screen = this.view(false);
-    return this.host.rom() ? sealFromWholeMap(screen, this.view(true)) : screen;
+    return this.host.rom() ? sealFromWholeMap(screen, this.rawView(true)) : screen;
   }
 
   /**
@@ -267,8 +339,10 @@ export class BridgeCore {
     const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
+    // Only trainers on squares the map shows (a "?" square hides who stands there).
     const trainers = this.host.mapTrainers()
-      .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H);
+      .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H)
+      .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?");
     return renderView(v) + trainerList(trainers);
   }
 

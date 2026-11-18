@@ -43,6 +43,8 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     screenText: () => [],
     settledScreen: async () => [],
     mapText: () => "map",
+    // The fog of war's memory is not what these walks are about: nothing to remember here.
+    noteSeen: () => {},
     result: (r: object) => ({ ...r }),
   } as unknown as BridgeCore;
   return { travel: new Travel(core, {} as Menus), pos, frames: () => frame };

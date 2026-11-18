@@ -149,7 +149,8 @@ function gameName(romPath) {
 }
 
 const server = new McpServer(
-  { name: "nuzlocke-bench", version: "0.1.0" },
+  // The benchmark's version, as package.json has it (it was a literal and fell behind at 0.2.0).
+  { name: "nuzlocke-bench", version: JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version },
   {
     instructions: [
       `You are playing ${gameName(process.env.NUZLOCKE_ROM)} under a challenge ruleset — get_rules has the rules and the run's goal.`,
@@ -157,7 +158,7 @@ const server = new McpServer(
       "  - Chain actions you've already decided on with do (e.g. walk_to a door, advance_text, choose YES, exit_map): it stops by itself when something new needs deciding.",
       "  - Action results already carry your location, lead, foe, messages, tracker events and the screen text (only when it changed). Call get_state only for what they don't show, with only=[...] for just the sections you need.",
       "  - get_screen (an image) is rarely needed: get_map shows the map as text.",
-      "Moving: walk_to (coordinates from get_map full=true), exit_map, travel, walk (\"U3 R2\"). Finding your way is up to you: nothing about the world's layout is given.",
+      "Moving: walk_to (coordinates from get_map full=true), exit_map, travel, walk (\"U3 R2\"). Finding your way is up to you: nothing about the world's layout is given. Maps show what you've seen (? is unseen); when no seen way gets there, walk_to and exit_map try one through unseen squares, a few steps at a time.",
       "  A move's result shows the map only when asked: show_map=true on the move, or get_map.",
       "  When you learn how two maps connect, note_route it; go_to then travels any chain of noted routes in one call.",
       "Your notes: on a long run the conversation may be summarized and lose detail; notes keeps what you want to remember for this run.",
@@ -463,7 +464,7 @@ server.registerTool("walk_to", {
 server.registerTool("get_map", {
   title: "Map around you",
   description:
-    "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits. " +
+    "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
     "Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
     MAP_LEGEND + (NARROW_GRID ? NARROW_GRID_NOTE : ""),
   inputSchema: {

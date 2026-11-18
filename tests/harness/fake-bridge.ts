@@ -8,6 +8,8 @@ import type { Button, GameBoy } from "../../src/emulator/gameboy";
 import type { AiHost } from "../../src/bridge/ai-bridge";
 import type { GameAdapter, ScreenLayout } from "../../src/games/adapter";
 import type { Position } from "../../src/games/types";
+import type { Dir, Door, OverworldView } from "../../src/bridge/overworld";
+import type { SeenMaps } from "../../src/bridge/seen";
 
 export const COLS = 20;
 export const ROWS = 18;
@@ -42,6 +44,24 @@ export interface FakeHostOptions {
   outcome?: string | null;
   /** Fields of the game summary the bridge reads (e.g. battle: "wild", bag). */
   summary?: Record<string, unknown>;
+  /** The map view the game returns for the screen or the whole map (readView / readFullMap). */
+  view?: OverworldView;
+  /** What the run has seen of each map (the host's seen()); null or absent: nothing hidden. */
+  seen?: SeenMaps | null;
+  /** Trainers on the map (mapTrainers). */
+  trainers?: { x: number; y: number; name: string; beaten: boolean }[];
+  /** The current map's size in squares (mapSize; 10×9 by default, a screen). */
+  mapSize?: { w: number; h: number };
+  /**
+   * A whole map to walk in: rows of "#" (wall) and "." (floor), the truth the run hasn't all seen. The
+   * player moves one square per frame run while a direction is held, unless a wall is there; the
+   * screen and the whole map are read from it. Beyond its edge is wall.
+   */
+  world?: string[];
+  /** The world's exits (the whole map's edges to other maps), with `world`. */
+  exits?: Dir[];
+  /** The world's doors (warps), with `world`. */
+  doors?: Door[];
 }
 
 export class FakeHost {
@@ -70,6 +90,7 @@ export class FakeHost {
       },
       runFrames: async (n: number) => {
         this.frames += n;
+        this.stepWorld();
       },
       read8: () => 0, // LCD off: no V-blank alignment
       draw() {},
@@ -80,12 +101,57 @@ export class FakeHost {
       readScreenText: () => this.rows,
       crashedAt: () => false,
       isDark: () => false,
+      readView: () => (this.opts.world ? this.worldView(false) : this.opts.view),
+      readFullMap: () => (this.opts.world ? this.worldView(true) : this.opts.view),
+      mapSize: () => (this.opts.world ? { w: this.opts.world[0].length, h: this.opts.world.length } : (this.opts.mapSize ?? { w: 10, h: 9 })),
+      // What the walk reads of the game: no poison in these tests.
+      data: { poisonFaintsWhileWalking: false },
+      poisonedParty: () => new Map(),
     } as unknown as GameAdapter;
   }
 
   /** Replaces the screen shown now (for onPress hooks). */
   show(rows: string[]): void {
     this.rows = rows;
+  }
+
+  /** Moves the player (the fields given change; the rest stay): what the bridge's position reads see next. */
+  moveTo(p: Partial<Position>): void {
+    this.opts.position = { ...this.opts.position, ...p };
+  }
+
+  /** The player's position with the defaults filled in. */
+  private here(): Position {
+    return { x: 0, y: 0, map: 0, battle: false, inWorld: false, ...this.opts.position };
+  }
+
+  /** A held direction moves the player one square (once per frame run), unless the world has a wall there. */
+  private stepWorld(): void {
+    const world = this.opts.world;
+    const dir = (["up", "down", "left", "right"] as const).find((b) => this.down.has(b));
+    if (!world || !dir) return;
+    const [dx, dy]: [number, number] = dir === "up" ? [0, -1] : dir === "down" ? [0, 1] : dir === "left" ? [-1, 0] : [1, 0];
+    const p = this.here();
+    const x = p.x + dx;
+    const y = p.y + dy;
+    if ((world[y]?.[x] ?? "#") === "#") return;
+    this.opts.position = { ...this.opts.position, x, y };
+  }
+
+  /** The world as the game reads it: the whole map, or the screen around the player, with the player as @. */
+  private worldView(full: boolean): OverworldView {
+    const world = this.opts.world ?? [];
+    const p = this.here();
+    const ox = full ? 0 : p.x - 4;
+    const oy = full ? 0 : p.y - 4;
+    const w = full ? (world[0]?.length ?? 0) : 10;
+    const h = full ? world.length : 9;
+    const grid = Array.from({ length: h }, (_, r) => Array.from({ length: w }, (_, c) => {
+      const x = ox + c;
+      const y = oy + r;
+      return x === p.x && y === p.y ? "@" : (world[y]?.[x] ?? "#");
+    }));
+    return { grid, originX: ox, originY: oy, pc: p.x - ox, pr: p.y - oy, exits: full ? (this.opts.exits ?? []) : undefined, doors: full ? this.opts.doors : undefined };
   }
 
   private press(b: Button): void {
@@ -118,8 +184,10 @@ export class FakeHost {
       battleHp: () => null,
       fontSignature: () => null,
       beatenTrainers: () => [],
-      mapTrainers: () => [],
-      rom: () => null,
+      seen: () => this.opts.seen ?? null,
+      mapTrainers: () => this.opts.trainers ?? [],
+      // A world's whole map is read through the ROM path (readFullMap); any non-null ROM will do.
+      rom: () => (this.opts.world ? new Uint8Array(0) : null),
       canvas: this.canvas,
     } as unknown as AiHost;
   }

@@ -1,7 +1,7 @@
 // Moving around the map: walking, pathfinding to a square, crossing maps, the model's
 // own routes, field moves and pacing the grass.
 
-import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir, type OverworldView } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -26,6 +26,34 @@ const PICKS_A_PLACE = new Set(["FLY"]);
 export function walkStopReason(walked: string): string | null {
   const stop = /stopped(?: short)?(?: by)?:? ([^;]+?)(?: —|;|$)/.exec(walked)?.[1]?.trim();
   return stop && !/^blocked\b/.test(stop) ? stop : null;
+}
+
+/** The view has squares the run hasn't seen (fog of war). */
+const hasFog = (v: OverworldView) => v.grid.some((row) => row.includes("?"));
+
+/**
+ * A guess at the unseen part of a view: every "?" taken as open (the walk finds out): floor, or
+ * water while surfing (a guess of land would end the surf and miss a sea route's edge).
+ */
+const guessView = (v: OverworldView): OverworldView => {
+  const open = v.surfing ? "~" : ".";
+  return { ...v, grid: v.grid.map((row) => row.map((ch) => (ch === "?" ? open : ch))) };
+};
+
+const STEP: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const HOP: Record<string, Dir> = { v: "down", "<": "left", ">": "right" };
+
+/** How many steps of a path from the player stay on squares the view shows (not "?"). */
+export function seenSteps(v: OverworldView, dirs: Dir[]): number {
+  let c = v.pc, r = v.pr;
+  for (let i = 0; i < dirs.length; i++) {
+    const [dx, dy] = STEP[dirs[i]];
+    const hop = HOP[v.grid[r + dy]?.[c + dx]] === dirs[i] ? 2 : 1;
+    c += dx * hop;
+    r += dy * hop;
+    if (v.grid[r]?.[c] === "?") return i;
+  }
+  return dirs.length;
 }
 
 /**
@@ -193,7 +221,8 @@ export class Travel {
    * (Crystal's carpets), else toward the map edge it sits on (a doormat on the last row).
    */
   private edgeOf(x: number, y: number): Dir | null {
-    const v = this.core.view(true);
+    // The game's mechanics, not what the player knows: the raw map.
+    const v = this.core.rawView(true);
     const push = v.doors?.find((d) => d.x === x && d.y === y)?.push;
     if (push) return push;
     const h = v.grid.length;
@@ -280,10 +309,15 @@ export class Travel {
     const surfing = !!v.surfing;
     if (surfing && !where.water) throw new Error(`Only the land counts here (${area}): get back on land, then hunt.`);
     if (!surfing && !where.land) throw new Error(`What would count here is on the water (${area}): Surf first (face the water, field_move SURF), then hunt.`);
-    const hasGrass = v.grid.some((row) => row.includes('"'));
+    // Grass or floor is the map's kind (the whole map, seen or not: a route whose grass isn't in
+    // sight yet is still a grass route, not a cave); where to pace is only among what's been seen.
+    const hasGrass = this.core.rawView(true).grid.some((row) => row.includes('"'));
     const square = surfing ? "~" : hasGrass ? '"' : ".";
     // The grid draws you as @: what's under you is the map's own square there (water, while surfing).
     const underYou = surfing ? "~" : (v.beyond?.(v.originX + v.pc, v.originY + v.pr) ?? v.grid[v.pr]?.[v.pc]);
+    if (square === '"' && underYou !== '"' && !v.grid.some((row) => row.includes('"'))) {
+      throw new Error("No tall grass seen yet on this map: explore further first, then hunt.");
+    }
     const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
     const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
@@ -394,6 +428,7 @@ export class Travel {
           drawn = performance.now();
         }
         const p = this.core.host.position();
+        if (p.map !== last.map || p.x !== last.x || p.y !== last.y) this.core.noteSeen();
         if (p.battle) { stopped = "a battle started"; break; }
         if (p.map !== last.map) { stopped = "entered a new map"; break; }
         if (p.x !== last.x || p.y !== last.y) {
@@ -506,13 +541,15 @@ export class Travel {
     const ledge = ledgeTarget(full, x, y);
     if (ledge) throw new Error(ledge);
     const toHole = full.grid[y - full.originY]?.[x - full.originX] === "O";
-    let route = findPath(full, x, y, this.core.sight());
+    const guessed = !findPath(full, x, y, this.core.sight());
+    let route = this.planTo(full, x, y);
     const crossed = route?.crosses ?? [];
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
-      const by = at == null || at === "#" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
+      const by = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
       const why = at == null ? "it's outside this map"
+        : at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
         : at === "#" ? "that square is solid"
         : at === "~" && !full.surfing ? "that square is water"
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
@@ -529,12 +566,27 @@ export class Travel {
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
     let report = "already there";
-    for (let attempt = 0; route && route.dirs.length && attempt < 4; attempt++) {
-      report = await this.walkSegments(toSegments(route.dirs));
+    // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
+    // A guessed way is walked only as far as the squares already seen, then re-planned with what
+    // that walk showed (the screen reaches 4-5 squares ahead): never blind into an unseen trainer's
+    // sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
+    let planned = full;
+    for (let attempt = 0, legs = 0; route && route.dirs.length && attempt < 4;) {
+      const seen = seenSteps(planned, route.dirs);
+      const partial = seen > 0 && seen < route.dirs.length;
+      report = await this.walkSegments(toSegments(partial ? route.dirs.slice(0, seen) : route.dirs));
       here = this.core.host.position();
-      if (!report.includes("blocked") || here.battle || here.map !== startMap) break;
+      if (here.battle || here.map !== startMap) break;
+      if (partial && /— arrived$/.test(report) && legs++ < 30) {
+        planned = this.core.view(true);
+        route = this.planTo(planned, x, y);
+        continue;
+      }
+      if (!report.includes("blocked")) break;
+      attempt++;
       await this.core.requireGb().runFrames(30, 8); // let the person move along, then re-plan
-      route = findPath(this.core.view(true), x, y, this.core.sight());
+      planned = this.core.view(true);
+      route = this.planTo(planned, x, y);
     }
     // A trainer seen only off screen is assumed to look every way; once it is on screen its real
     // facing is known, so walking up to the sight line often clears it. Re-plan from there.
@@ -543,7 +595,7 @@ export class Travel {
       if (here.battle || here.map !== startMap) break;
       // The last leg stopped for something else (a poison flash, a text box): say so, don't walk on.
       if (!/— arrived(?: \(ran from [^)]*\))?$/.test(report)) break;
-      const next = findPath(this.core.view(true), x, y, this.core.sight());
+      const next = this.planTo(this.core.view(true), x, y);
       if (!next) break;
       route = next;
       if (!route.dirs.length) break;
@@ -569,7 +621,7 @@ export class Travel {
     // interact too: on a door square there's nothing to talk to, so going through is what's meant.
     if (route && /arrived|already there/.test(report) && !this.core.host.position().battle && this.core.host.position().map === startMap) {
       const here2 = this.core.host.position();
-      const onDoor = here2.x === x && here2.y === y && !!this.core.view(true).doors?.some((d) => d.x === x && d.y === y);
+      const onDoor = here2.x === x && here2.y === y && !!this.core.rawView(true).doors?.some((d) => d.x === x && d.y === y);
       const out = onDoor ? this.edgeOf(x, y) : null;
       if (out) {
         await this.core.tap(out, 16, 50);
@@ -604,7 +656,20 @@ export class Travel {
       }
     }
     const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
-    return this.core.result({ walk: report + sightNote, messages, map: this.core.mapText() });
+    const guessNote = guessed ? " (no seen way there, so it tried a way through squares you hadn't seen)" : "";
+    return this.core.result({ walk: report + sightNote + guessNote, messages, map: this.core.mapText() });
+  }
+
+  /**
+   * findPath to (x, y) over the squares the run has seen; when no seen way gets there, a guess:
+   * the unseen squares taken as open floor, as a player heads toward a place they can see through
+   * parts they haven't (the walk then shows what's really there, and walkTo re-plans when it's
+   * blocked). Never to an unseen square itself.
+   */
+  private planTo(v: OverworldView, x: number, y: number): ReturnType<typeof findPath> {
+    const seen = findPath(v, x, y, this.core.sight());
+    if (seen || v.grid[y - v.originY]?.[x - v.originX] === "?" || !hasFog(v)) return seen;
+    return findPath(guessView(v), x, y, this.core.sight());
   }
 
   /**
@@ -624,11 +689,10 @@ export class Travel {
       if (here.battle) { why = "a battle started"; break; }
       // The screen first (it shows past the map's edge, so a leg can cross into the next map); when
       // the screen is a dead end that way, the whole map (the way on may lead out of view first).
-      let view = this.core.game.readView(this.core.requireGb(), here.x, here.y, this.core.host.beatenTrainers(), this.core.host.rom());
+      let view = this.core.view(false);
       let route = pathFurthest(view, dir, this.core.sight());
-      const rom = this.core.host.rom();
-      if (!route && rom) {
-        view = this.core.game.readFullMap(this.core.requireGb(), rom, here.x, here.y, this.core.host.beatenTrainers());
+      if (!route && this.core.host.rom()) {
+        view = this.core.view(true);
         route = pathFurthest(view, dir, this.core.sight());
       }
       if (!route) {
@@ -659,22 +723,40 @@ export class Travel {
   }
 
   /** Walks to the map's edge in `dir` and steps across into the connected map. */
-  async exitMap(dir: Dir): Promise<unknown> {
+  async exitMap(dir: Dir, explored = false): Promise<unknown> {
     if (!["up", "down", "left", "right"].includes(dir)) throw new Error("direction must be up, down, left or right");
     await this.core.alignToVBlank();
     if (this.core.host.position().battle) throw new Error("Can't walk during a battle.");
+    const startMapOf = this.core.host.position().map;
     const full = this.core.view(true);
     if (full.exits && !full.exits.length) {
       // No edges, only doors. When they all lead to the same place there's nothing to choose:
       // leave through the nearest one. Otherwise which door is the player's call.
       const doors = full.doors ?? [];
+      // No door in sight yet (fog of war, e.g. a run resumed inside): head the way asked through
+      // what's been seen, looking as you go, as a player would; then, if that brought a way out into
+      // sight, take it (once: no second look-around).
+      if (!doors.length && hasFog(full)) {
+        if (explored) throw new Error(`No door in sight yet that way: look around (walk, travel) and try exit_map again.`);
+        const out = (await this.travel(dir, 12, 1)) as Record<string, unknown>;
+        const head = `no door in sight yet, so heading ${dir}: ${String(out.walk ?? "")}`;
+        const now = this.core.host.position();
+        if (now.battle || now.map !== startMapOf || !this.core.view(true).doors?.length) return { ...out, walk: head };
+        try {
+          const through = (await this.exitMap(dir, true)) as Record<string, unknown>;
+          return { ...through, walk: `${head}; then ${String(through.walk ?? "")}` };
+        } catch {
+          return { ...out, walk: head };
+        }
+      }
       const places = [...new Set(doors.map((d) => d.to))];
       // One way out only if every door lands on the same spot (a building's doormat, maybe two squares
       // wide). A cave's ladders can all go to the next floor, but to parts of it that don't connect.
       const xs = doors.map((d) => d.tx ?? -1);
       const ys = doors.map((d) => d.ty ?? -1);
       const oneSpot = Math.max(...xs) - Math.min(...xs) <= 1 && Math.max(...ys) - Math.min(...ys) <= 1;
-      if (places.length === 1 && oneSpot) {
+      // Not through a door the run doesn't know ("?"): where that leads is the player's to find out.
+      if (places.length === 1 && places[0] !== "?" && oneSpot) {
         const here = this.core.host.position();
         const door = [...doors].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;
@@ -688,13 +770,20 @@ export class Travel {
     const startMap = this.core.host.position().map;
     const reports: string[] = [];
     // A wandering NPC can block the planned path: wait a moment and re-plan (a few times).
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const view = attempt ? this.core.view(true) : full;
-      const route = pathToEdge(view, dir, this.core.sight());
+    for (let attempt = 0, legs = 0, first = true; attempt < 10; attempt++, first = false) {
+      const view = first ? full : this.core.view(true);
+      // No seen way to that edge (fog of war): a guess through the unseen squares, as a player heads
+      // for an exit they haven't seen. A wall found on the way blocks the walk, and it re-plans.
+      const seenRoute = pathToEdge(view, dir, this.core.sight());
+      const route = seenRoute ?? (hasFog(view) ? pathToEdge(guessView(view), dir, this.core.sight()) : null);
       if (!route) {
-        if (attempt) break;
+        if (!first) {
+          if (!reports.length || reports[reports.length - 1].startsWith("(no seen way")) reports.push(`no way to the ${dir} edge found from here`);
+          break;
+        }
         throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view)}`);
       }
+      if (!seenRoute && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {
         const [sx, sy] = route.sightStop;
         const walked = route.dirs.length ? (await this.walkSegments(toSegments(route.dirs))).replace(/ — arrived$/, "") + " — " : "";
@@ -706,6 +795,21 @@ export class Travel {
         }
         reports.push(`${walked}stopped short: the way ${dir} crosses an unbeaten trainer's sight at (${sx}, ${sy})${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or find another way.`);
         break;
+      }
+      // A guessed way: walk only the part over seen squares, then re-plan with what it showed
+      // (see walkTo). That frontier advance doesn't use up the retries for people in the way.
+      const seen = seenRoute ? route.dirs.length : seenSteps(view, route.dirs);
+      if (seen > 0 && seen < route.dirs.length) {
+        const leg = await this.walkSegments(toSegments(route.dirs.slice(0, seen)));
+        const at = this.core.host.position();
+        if (/— arrived$/.test(leg) && !at.battle && at.map === startMap && legs++ < 30) {
+          attempt--;
+          continue;
+        }
+        reports.push(leg);
+        if (at.map !== startMap || at.battle || !/blocked/.test(leg)) break;
+        await this.core.requireGb().runFrames(40, 8);
+        continue;
       }
       let report = route.dirs.length ? await this.walkSegments(toSegments(route.dirs)) : "at the edge";
       if (report.endsWith("arrived") || report === "at the edge") {

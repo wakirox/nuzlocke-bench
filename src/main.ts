@@ -15,6 +15,7 @@ import { Tracker, type TrackerSnapshot } from "./tracker/tracker";
 import { ConvoView, OPEN_RESULTS, type ConvoEvent } from "./ui/convo";
 import { partyFocus, realTime, renderEncounters, renderEnemy, renderEvents, renderParty, renderRun } from "./ui/tracker-view";
 import { AiBridge } from "./bridge/ai-bridge";
+import { SeenMaps, type SeenData } from "./bridge/seen";
 import { battleMoves, brief, summarize } from "./bridge/summary";
 import { KIND_CANDY_CAP, KIND_LEVEL_CAP, KIND_TOP_UP, Recorder, type ReplayLog, type SavedReplay } from "./emulator/replay";
 
@@ -153,6 +154,8 @@ let aiConnected = false;
 let fontSig: Uint8Array | null = null;
 /** Records the current run for replay; `runRom` is the exact ROM it runs on. */
 let recorder: Recorder | null = null;
+/** What the run has seen of each map (the AI's maps show only that; the bridge fills it), saved with the autosave. */
+let seen: SeenMaps | null = null;
 let runRom: Uint8Array | null = null;
 const lastHtml: Record<string, string> = {};
 // Browser-local preferences. Their names are from the app's first name; renaming them would
@@ -324,6 +327,7 @@ async function launch(r: CurrentRun) {
   const core = await loadCore();
   const extRam = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
   const snapshot = (await kv.get<TrackerSnapshot>(KEYS.tracker)) ?? null;
+  seen = new SeenMaps(await kv.get<SeenData>(KEYS.seen));
 
   const rom = r.rom.slice();
   gb = new GameBoy(core, {
@@ -389,6 +393,7 @@ function teardown(flushBattery = true) {
   tracker = null;
   recorder = null;
   runRom = null;
+  seen = null;
   state = null;
   fontSig = null;
   for (const k of Object.keys(lastHtml)) delete lastHtml[k];
@@ -546,6 +551,7 @@ async function autosave() {
     if (gb === owner) {
       await kv.set(KEYS.tracker, snap);
       if (log) await kv.set(KEYS.replay, log);
+      if (seen?.takeChanged()) await kv.set(KEYS.seen, seen.data);
     }
     autosaveProblem = null;
     if (autosaveFailed) {
@@ -609,7 +615,8 @@ async function keepIfBest(outcome: RunRecord["outcome"], lead: string, level: nu
 async function saveMilestone(id: string) {
   if (!gb || !tracker) return;
   const battery = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
-  await kv.set(KEYS.milestone(id), { state: gb.saveState(), tracker: structuredClone(tracker.snap), battery, ticks: gb.ticks });
+  // With the run's memory of the maps (fog of war), so a test resumed from here remembers what it saw.
+  await kv.set(KEYS.milestone(id), { state: gb.saveState(), tracker: structuredClone(tracker.snap), battery, ticks: gb.ticks, seen: seen ? structuredClone(seen.data) : undefined });
 }
 
 async function saveSlot(slot: string) {
@@ -716,6 +723,7 @@ function bindToolbar() {
       void kv.set(KEYS.autoState, gb.saveState());
       if (recorder) void kv.set(KEYS.replay, recorder.log(gb.ticks));
       void persistTracker();
+      if (seen?.takeChanged()) void kv.set(KEYS.seen, seen.data);
     }
   });
   document.addEventListener("visibilitychange", () => {
@@ -881,6 +889,7 @@ const bridge = new AiBridge(
     brief: () => (tracker && state ? brief(tracker, state) : null),
     takePoisonHurt: () => tracker?.takePoisonHurt() ?? [],
     takeMapsEntered: () => tracker?.takeMapsEntered() ?? [],
+    seen: () => seen,
     newEvents: () => {
       if (!tracker) return [];
       const n = Math.min(tracker.eventCount - eventsSeen, tracker.snap.events.length);
