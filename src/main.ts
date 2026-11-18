@@ -615,7 +615,8 @@ async function keepIfBest(outcome: RunRecord["outcome"], lead: string, level: nu
 async function saveMilestone(id: string) {
   if (!gb || !tracker) return;
   const battery = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
-  await kv.set(KEYS.milestone(id), { state: gb.saveState(), tracker: structuredClone(tracker.snap), battery, ticks: gb.ticks });
+  // With the run's memory of the maps (fog of war), so a test resumed from here remembers what it saw.
+  await kv.set(KEYS.milestone(id), { state: gb.saveState(), tracker: structuredClone(tracker.snap), battery, ticks: gb.ticks, seen: seen ? structuredClone(seen.data) : undefined });
 }
 
 async function saveSlot(slot: string) {
@@ -722,6 +723,7 @@ function bindToolbar() {
       void kv.set(KEYS.autoState, gb.saveState());
       if (recorder) void kv.set(KEYS.replay, recorder.log(gb.ticks));
       void persistTracker();
+      if (seen?.takeChanged()) void kv.set(KEYS.seen, seen.data);
     }
   });
   document.addEventListener("visibilitychange", () => {

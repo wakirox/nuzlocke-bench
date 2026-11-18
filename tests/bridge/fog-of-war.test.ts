@@ -106,6 +106,20 @@ describe("SeenMaps: a building's bottom-row doormat", () => {
     expect(s.knowsDoor(MAP, door(3, 8, "MT_MOON_1F"), 8)).toBe(false);
   });
 
+  it("knows the outdoor doormats of the routes, parks and forests the game names so", () => {
+    const s = new SeenMaps();
+    for (const to of ["ROUTE_10_NORTH", "SAFARI_ZONE_EAST", "LAKE_OF_RAGE", "VIRIDIAN_FOREST"]) {
+      expect(s.knowsDoor(MAP, door(3, 8, to), 8)).toBe(true);
+    }
+  });
+
+  it("doesn't know a route's gate or a safari rest house as outdoors", () => {
+    // Gates and houses are indoors: the doormat leads into a building, not out into the open.
+    const s = new SeenMaps();
+    expect(s.knowsDoor(MAP, door(3, 8, "ROUTE_2_GATE"), 8)).toBe(false);
+    expect(s.knowsDoor(MAP, door(3, 8, "SAFARI_ZONE_EAST_REST_HOUSE"), 8)).toBe(false);
+  });
+
   it("doesn't know it without being told where the bottom row is", () => {
     expect(new SeenMaps().knowsDoor(MAP, door(3, 8, "ROUTE_1"))).toBe(false);
   });
@@ -156,6 +170,39 @@ describe("SeenMaps.fog: the bottom row", () => {
     const v: OverworldView = { grid: [["@", "."]], originX: 6, originY: 10, pc: 0, pr: 0, doors: [door(7, 10, "ROUTE_1")] };
     expect(s.fog(v, MAP, 10).doors).toEqual([door(7, 10, "ROUTE_1")]);
     expect(s.fog(v, MAP).doors).toEqual([{ x: 7, y: 10, to: "?", tx: null, ty: null }]);
+  });
+});
+
+describe("SeenMaps.fog: a wide door and trainers' sight", () => {
+  it("shows both squares of a 2-wide door as known once one of them is", () => {
+    // The run came through the door at (7,12) from (7,11); (8,12) is the same door's other square.
+    const s = new SeenMaps();
+    s.sawScreen(MAP, 10, 10);
+    s.wentThrough(MAP, 7, 11, 9, 0, 0);
+    const v: OverworldView = { grid: [[".", ".", "."]], originX: 6, originY: 12, pc: 0, pr: 0, doors: [door(7, 12, "SECRET", 3, 4), door(8, 12, "SECRET", 3, 4)] };
+    expect(s.fog(v, MAP).doors).toEqual(v.doors);
+  });
+
+  it("keeps a seen trainer's sight, and drops sight onto unseen squares and from unseen trainers", () => {
+    // Seen: the screen around (10,10), x 6–15, y 6–14. The view is x 4–7, y 10–12: keys are row*4 + column.
+    const s = new SeenMaps();
+    s.sawScreen(MAP, 10, 10);
+    const v: OverworldView = {
+      grid: [[".", ".", ".", "."], [".", ".", ".", "."], [".", ".", ".", "."]],
+      originX: 4,
+      originY: 10,
+      pc: 0,
+      pr: 0,
+      watched: new Set([1, 2, 3]),
+      watchers: new Map([
+        [1, [[6, 11]]], // (5,10) is unseen: its sight is dropped
+        [2, [[6, 11], [4, 12]]], // (6,10) is seen: the seen trainer's sight stays, the unseen one's goes
+        [3, [[4, 12]]], // (7,10) is seen, but its only trainer stands on an unseen square
+      ]),
+    };
+    const f = s.fog(v, MAP);
+    expect([...f.watched!]).toEqual([2]);
+    expect([...f.watchers!]).toEqual([[2, [[6, 11]]]]);
   });
 });
 
@@ -300,5 +347,42 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
     expect(seen.has(MAP, 20, 5)).toBe(false);
     await core.tap("right");
     expect(seen.has(MAP, 20, 5)).toBe(true);
+  });
+
+  it("forgets where the player stood after a battle, so the next map change records no door", () => {
+    // A whiteout's trip to a Pokémon Center isn't a door walked through.
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    core.noteSeen();
+    host.moveTo({ battle: true });
+    core.noteSeen();
+    host.moveTo({ battle: false, map: 2, x: 3, y: 3 });
+    core.noteSeen();
+    core.noteSeen();
+    expect(seen.knowsDoor(MAP, door(7, 1, "MT_MOON_B1F"))).toBe(false);
+  });
+
+  it("records no door for a map change made by a field move or an item", () => {
+    // Dig, Teleport, Fly and an Escape Rope change maps without a door.
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    core.noteSeen();
+    core.mapChangeIsNoDoor = true;
+    host.moveTo({ map: 2, x: 3, y: 3 });
+    core.noteSeen();
+    core.noteSeen();
+    expect(seen.knowsDoor(MAP, door(7, 1, "MT_MOON_B1F"))).toBe(false);
+    expect(seen.knowsDoor(2, door(3, 3, "MT_MOON_B1F"))).toBe(false);
+  });
+
+  it("records the door at once on a settled look right after the map changed", () => {
+    // The caller knows the game has settled on the new map, so no second look is needed.
+    const seen = new SeenMaps();
+    const { host, core } = movable(seen);
+    core.noteSeen();
+    host.moveTo({ map: 2, x: 3, y: 3 });
+    core.noteSeen(true);
+    expect(seen.knowsDoor(2, door(3, 3, "MT_MOON_B1F"))).toBe(true);
+    expect(seen.knowsDoor(MAP, door(7, 1, "MT_MOON_B1F"))).toBe(true);
   });
 });

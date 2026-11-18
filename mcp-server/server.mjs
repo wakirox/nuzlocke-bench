@@ -149,7 +149,8 @@ function gameName(romPath) {
 }
 
 const server = new McpServer(
-  { name: "nuzlocke-bench", version: "0.1.0" },
+  // The benchmark's version, as package.json has it (it was a literal and fell behind at 0.2.0).
+  { name: "nuzlocke-bench", version: JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version },
   {
     instructions: [
       `You are playing ${gameName(process.env.NUZLOCKE_ROM)} under a challenge ruleset — get_rules has the rules and the run's goal.`,
@@ -157,7 +158,7 @@ const server = new McpServer(
       "  - Chain actions you've already decided on with do (e.g. walk_to a door, advance_text, choose YES, exit_map): it stops by itself when something new needs deciding.",
       "  - Action results already carry your location, lead, foe, messages, tracker events and the screen text (only when it changed). Call get_state only for what they don't show, with only=[...] for just the sections you need.",
       "  - get_screen (an image) is rarely needed: get_map shows the map as text.",
-      "Moving: walk_to (coordinates from get_map full=true), exit_map, travel, walk (\"U3 R2\"). Finding your way is up to you: nothing about the world's layout is given. Maps show what you've seen, and walks only cross squares you've seen.",
+      "Moving: walk_to (coordinates from get_map full=true), exit_map, travel, walk (\"U3 R2\"). Finding your way is up to you: nothing about the world's layout is given. Maps show what you've seen (? is unseen); when no seen way gets there, walk_to and exit_map try one through unseen squares, a few steps at a time.",
       "  A move's result shows the map only when asked: show_map=true on the move, or get_map.",
       "  When you learn how two maps connect, note_route it; go_to then travels any chain of noted routes in one call.",
       "Your notes: on a long run the conversation may be summarized and lose detail; notes keeps what you want to remember for this run.",

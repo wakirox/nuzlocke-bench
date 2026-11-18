@@ -21,6 +21,7 @@ function setup() {
     summary: () => ({ run: { ruleset: "nuzlocke" }, nuzlocke: { thisArea: null } }),
     host: { position: () => pos },
     view: () => ({ grid: [['"', '"']], originX: 0, originY: 0, pc: 0, pr: 0 }),
+    rawView: () => ({ grid: [['"', '"']], originX: 0, originY: 0, pc: 0, pr: 0 }),
     sight: () => ({ avoidSight: false }),
     textBox: () => ({ open: false }),
     screenText: () => [],
@@ -83,6 +84,8 @@ describe("hunt on the water", () => {
       summary: () => ({ run: { ruleset: "nuzlocke" }, nuzlocke: { thisArea } }),
       host: { position: () => pos },
       view: () => ({ grid, originX: 0, originY: 0, pc: 0, pr: 0, surfing }),
+      // The whole map, seen or not (hunt reads grass vs floor from it): here the same as what's seen.
+      rawView: () => ({ grid, originX: 0, originY: 0, pc: 0, pr: 0, surfing }),
       sight: () => ({ avoidSight: false }),
       textBox: () => ({ open: false }),
       screenText: () => [],
@@ -117,6 +120,7 @@ describe("hunt on the water", () => {
       summary: () => ({ run: { ruleset: "nuzlocke" }, nuzlocke: { thisArea: mixed } }),
       host: { position: () => pos },
       view: () => ({ grid: [["@", "~", ".", "."]], originX: 0, originY: 0, pc: pos.x, pr: 0, surfing: true }),
+      rawView: () => ({ grid: [["@", "~", ".", "."]], originX: 0, originY: 0, pc: pos.x, pr: 0, surfing: true }),
       sight: () => ({ avoidSight: false }),
       textBox: () => ({ open: false }),
       screenText: () => [],
@@ -146,6 +150,8 @@ describe("hunt's pair of squares", () => {
       summary: () => ({ run: { ruleset: "nuzlocke" }, nuzlocke: { thisArea: null } }),
       host: { position: () => pos },
       view: () => ({ grid, originX: 0, originY: 0, pc: 0, pr: 0, beyond: () => under, ...extra }),
+      // The whole map: the grid, with what's under the player (@) as the map has it.
+      rawView: () => ({ grid: grid.map((row) => row.map((ch) => (ch === "@" ? under : ch))), originX: 0, originY: 0, pc: 0, pr: 0 }),
       sight: () => ({ avoidSight: false }),
       textBox: () => ({ open: false }),
       screenText: () => [],

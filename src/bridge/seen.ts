@@ -21,7 +21,7 @@ export interface SeenData {
 const KNOWN_FROM_OUTSIDE = /POKECENTER|(^|_)MART($|_1F)|_GYM$|DEPT_STORE_1F/;
 
 /** Maps out in the open: a town, a city, a route. */
-const OUTDOORS = /^(ROUTE_\d+|[A-Z_]+_(TOWN|CITY|ISLAND|PLATEAU))$/;
+const OUTDOORS = /^(ROUTE_\d+(_(NORTH|SOUTH|EAST|WEST))?|[A-Z_]+_(TOWN|CITY|ISLAND|PLATEAU)|SAFARI_ZONE_(EAST|WEST|NORTH|CENTER)|LAKE_OF_RAGE|SILVER_CAVE_OUTSIDE|VIRIDIAN_FOREST|ILEX_FOREST|NATIONAL_PARK)$/;
 
 export class SeenMaps {
   readonly data: SeenData;
@@ -78,10 +78,22 @@ export class SeenMaps {
    */
   fog(view: OverworldView, map: number, bottomRow?: number): OverworldView {
     const grid = view.grid.map((row, r) => row.map((ch, c) => (this.has(map, view.originX + c, view.originY + r) ? ch : "?")));
-    const doors = view.doors
-      ?.filter((d) => this.has(map, d.x, d.y))
-      .map((d) => (this.knowsDoor(map, d, bottomRow) ? d : { ...d, to: "?", tx: null, ty: null }));
-    return { ...view, grid, doors };
+    const inSight = view.doors?.filter((d) => this.has(map, d.x, d.y));
+    const known = inSight?.filter((d) => this.knowsDoor(map, d, bottomRow)) ?? [];
+    // A wide door (a gate, a building's 2-square mat) is one way through: known on any square, known on all.
+    const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+    const doors = inSight?.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
+    // Trainers' sight only from trainers the run has seen, onto squares it has seen: otherwise an
+    // unseen trainer's ! (and where it stands) would show through the fog, and paths steer round it.
+    const W = view.grid[0]?.length ?? 0;
+    const watchers = view.watchers && new Map(
+      [...view.watchers]
+        .filter(([k]) => grid[Math.floor(k / W)]?.[k % W] !== "?")
+        .map(([k, who]) => [k, who.filter(([x, y]) => this.has(map, x, y))] as [number, [number, number][]])
+        .filter(([, who]) => who.length),
+    );
+    const watched = watchers && new Set(watchers.keys());
+    return { ...view, grid, doors, ...(watchers ? { watchers, watched } : {}) };
   }
 }
 

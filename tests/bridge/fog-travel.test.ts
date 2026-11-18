@@ -86,14 +86,78 @@ describe("exit_map through the fog", () => {
     await expect(travel.exitMap("up")).rejects.toThrow(/Can't reach the up edge from here/);
   });
 
-  it("with no edge exits and no door in sight, heads down and says so", async () => {
-    // The map has no edge exits and no door seen while the view has "?": the way out of a building is down.
+  it("with no edge exits and no door in sight, heads the way asked and says so", async () => {
+    // The map has no edge exits and no door seen while the view has "?": look for a way out the way
+    // asked (a cave's exit_map up goes up, not down).
     const seen = new SeenMaps();
     seen.sawScreen(MAP, 5, 8);
     const { core, travel } = fakeWorld(TOWER, [5, 8], seen, { exits: [], doors: [] });
-    const r = (await travel.exitMap("up")) as { walk: string };
+    const r = (await travel.exitMap("down")) as { walk: string };
     expect(r.walk.startsWith("no door in sight yet, so heading down")).toBe(true);
-    // Down, not up: the walk went to the bottom of the room.
     expect(core.host.position().y).toBeGreaterThan(8);
+  });
+});
+
+describe("a guessed way is walked in legs, re-planned as it's seen", () => {
+  // A floor corridor 40 squares long; the run has seen only the screen around its start.
+  const LONG = ["#".repeat(40), ".".repeat(40), "#".repeat(40)];
+  const legsOf = (travel: Travel) => vi.spyOn(travel as unknown as { walkSegments: (s: unknown) => Promise<string> }, "walkSegments");
+
+  it("walk_to reaches a far seen target over an unseen corridor in several legs", async () => {
+    // The screen around (36,1) is seen too (x 32–41), so (34,1) is a seen target; x 8–31 is unseen.
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 2, 1);
+    seen.sawScreen(MAP, 36, 1);
+    const { core, travel } = fakeWorld(LONG, [2, 1], seen);
+    const legs = legsOf(travel);
+    await travel.walkTo(34, 1, false);
+    expect(core.host.position().x).toBe(34);
+    expect(legs.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("exit_map walks an unseen corridor to its far edge in several legs", async () => {
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 2, 1);
+    const { core, travel } = fakeWorld(LONG, [2, 1], seen, { exits: ["right"] });
+    const legs = legsOf(travel);
+    await travel.exitMap("right");
+    expect(core.host.position().x).toBe(39);
+    expect(legs.mock.calls.length).toBeGreaterThan(1);
+  });
+});
+
+describe("exit_map looks for a way out first, then takes one that came into sight", () => {
+  // A room of floor, 12 wide and 10 high. Its door (5,8) leads to a Pokémon Center, out of sight at first.
+  const ROOM = [
+    "............", "............", "............", "............",
+    "............", "............", "............", "............",
+    ".....D......", "............",
+  ];
+  const DOORS = [{ x: 5, y: 8, to: "VIRIDIAN_POKECENTER", tx: 3, ty: 7 }];
+
+  it("heads the way asked, then goes through the door that came into sight", async () => {
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 5, 2);
+    const { core, travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk).toContain("no door in sight yet, so heading down");
+    expect(r.walk).toContain("; then no edge exits here, so out through the door at (5, 8) to VIRIDIAN_POKECENTER");
+    expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
+  });
+
+  it("with no door in sight after heading that way, says so and doesn't look again", async () => {
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 5, 2);
+    const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: [] });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk.startsWith("no door in sight yet, so heading down")).toBe(true);
+    expect(r.walk).not.toContain("; then");
+  });
+
+  it("with explored set and still no door in sight, throws rather than heading off again", async () => {
+    const seen = new SeenMaps();
+    seen.sawScreen(MAP, 5, 2);
+    const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
+    await expect(travel.exitMap("down", true)).rejects.toThrow(/No door in sight yet that way/);
   });
 });
