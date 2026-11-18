@@ -5,7 +5,16 @@
 export type Dir = "up" | "down" | "left" | "right";
 const STEPS: [Dir, number, number][] = [["up", 0, -1], ["down", 0, 1], ["left", -1, 0], ["right", 1, 0]];
 
-export interface OverworldView {
+/**
+ * Pipeline stage of an overworld view:
+ * - `"raw"`: straight from ROM/RAM map data (all squares & doors present; harness mechanics only)
+ * - `"known"`: masked to what the player/run has seen (`SeenMaps.fog`), safe to show & walk directly
+ * - `"guessed"`: optimistic fill of `"?"` squares for frontier pathfinding; never shown to the player
+ */
+export type ViewStage = "raw" | "known" | "guessed";
+
+export interface OverworldView<S extends ViewStage | undefined = undefined> {
+  readonly stage?: S;
   /** grid[row][col]: @ you, N person, $ shop clerk, H nurse, B boulder, o floor switch, O hole in the floor, D door/warp, S something to use by facing it, P a PC, # blocked, . walkable, " tall grass, v<> ledge, * ice (you slide on it) */
   grid: string[][];
   /** Map coordinates of grid[0][0]. */
@@ -36,17 +45,26 @@ export interface OverworldView {
   surfing?: boolean;
 }
 
+export type AnyOverworldView = OverworldView<ViewStage | undefined>;
+export type RawOverworldView = OverworldView<"raw"> & { readonly stage: "raw" };
+export type KnownOverworldView = OverworldView<"known"> & { readonly stage: "known" };
+export type GuessedOverworldView = OverworldView<"guessed"> & { readonly stage: "guessed" };
+/** Views holding un-fogged map geometry (`RawOverworldView` or untagged test fixtures; rejects `"known"`/`"guessed"`). */
+export type UnfoggedView = OverworldView<"raw" | undefined>;
+/** Views safe to render into player/model-facing map text (rejects `"guessed"`). */
+export type PlayerVisibleView = OverworldView<"raw" | "known" | undefined>;
+
 /** A door or warp. `push`: the way to press while standing on it to go through (a warp mat), when the game says so. */
 export interface Door { x: number; y: number; to: string; tx: number | null; ty: number | null; push?: Dir }
 
 /** Whether the step from square (c, r) to (nc, nr) crosses a tile-pair edge (a cliff edge). */
-export function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
+export function pairBlocked(v: AnyOverworldView, c: number, r: number, nc: number, nr: number): boolean {
   if (!v.tiles || !v.stepBlocked) return false;
   return v.stepBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
 
 /** pairBlocked for a step taken surfing (swimBlocked). */
-function swimPairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
+function swimPairBlocked(v: AnyOverworldView, c: number, r: number, nc: number, nr: number): boolean {
   if (!v.tiles || !v.swimBlocked) return false;
   return v.swimBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
@@ -109,7 +127,7 @@ export interface SightOptions {
  * The trainers (map coordinates) whose sight a path crosses, in the order it reaches them —
  * reported with plain shortest paths, so the player knows what walking it means.
  */
-export function sightCrossings(v: OverworldView, dirs: Dir[]): [number, number][] {
+export function sightCrossings(v: AnyOverworldView, dirs: Dir[]): [number, number][] {
   const W = v.grid[0]?.length ?? 0;
   const out: [number, number][] = [];
   let c = v.pc;
@@ -133,7 +151,7 @@ const LEDGE_DIR: Record<string, Dir> = { v: "down", "<": "left", ">": "right" };
  * Why walk_to can't end on (x, y) when it's a one-way ledge, or null. Walking "to" a ledge used to
  * stop beside it and say "arrived", which read as success to a player trying to cross it the wrong way.
  */
-export function ledgeTarget(v: OverworldView, x: number, y: number): string | null {
+export function ledgeTarget(v: AnyOverworldView, x: number, y: number): string | null {
   const ch = v.grid[y - v.originY]?.[x - v.originX];
   const dir = ch ? LEDGE_DIR[ch] : undefined;
   if (!dir) return null;
@@ -153,7 +171,7 @@ export function ledgeTarget(v: OverworldView, x: number, y: number): string | nu
 /** What a lit square can show in the dark; anything else there (a person, an object) is a black sprite. */
 const DARK_SEEN = new Set(["#", ".", ",", "D"]);
 
-export function renderDarkView(v: OverworldView, lit: boolean[][], covered?: boolean[][]): string {
+export function renderDarkView(v: PlayerVisibleView, lit: boolean[][], covered?: boolean[][]): string {
   // Squares under a text box or menu (boxedSquares) can't be seen, lit or not; nor do they light
   // the wall beside them.
   if (covered) lit = lit.map((row, r) => row.map((on, c) => on && !covered[r]?.[c]));
@@ -254,7 +272,7 @@ export function trainerList(trainers: { x: number; y: number; name: string; beat
  * as closed here. Anything else beside a patch (a person, a boulder, water, a ledge…) counts as a
  * way in, so only fully closed patches are sealed.
  */
-export function sealedLowerFloor(v: OverworldView): Set<number> {
+export function sealedLowerFloor(v: UnfoggedView): Set<number> {
   const sealed = new Set<number>();
   if (!v.exits || !v.tiles || !v.lowerFloor) return sealed;
   const H = v.grid.length;
@@ -294,7 +312,7 @@ export function sealedLowerFloor(v: OverworldView): Set<number> {
  * otherwise the screen (lit, or the dark view) shows the top of every thick rock band as lower floor
  * that the whole map draws as rock (the dark tunnel's walls, 27 walks into them in one run).
  */
-export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): OverworldView {
+export function sealFromWholeMap<T extends AnyOverworldView>(screen: T, whole: UnfoggedView): T {
   // Not a whole map (no ROM: view(true) falls back to the screen): it can't tell either (sealedLowerFloor checks).
   const sealed = sealedLowerFloor(whole);
   if (!sealed.size) return screen;
@@ -308,13 +326,12 @@ export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): O
   return { ...screen, grid: screen.grid.map((line, r) => line.map((ch, c) => (isSealed(r, c) ? "#" : ch))) };
 }
 
-export function renderView(view: OverworldView): string {
+export function renderView(view: PlayerVisibleView): string {
   // Closed patches of a cave's lower floor are drawn as rock (and drop out of the cliff edges list).
-  // Only a whole map (readFullMap: it has exits) can tell: on a screen or a crop a patch may go on
-  // past the edge, so those come sealed from the whole map already (sealFromWholeMap).
-  const closed = view.exits ? sealedLowerFloor(view) : new Set<number>();
+  // A `"known"` view from BridgeCore.view(true) was already sealed on its raw whole map before fogging.
+  const closed = view.exits && view.stage !== "known" ? sealedLowerFloor(view as UnfoggedView) : new Set<number>();
   const VW = view.grid[0]?.length ?? 0;
-  const v: OverworldView = closed.size
+  const v: PlayerVisibleView = closed.size
     ? { ...view, grid: view.grid.map((line, r) => line.map((ch, c) => (closed.has(r * VW + c) ? "#" : ch))) }
     : view;
   const cols = v.grid[0]?.length ?? 0;
@@ -348,7 +365,7 @@ export function renderView(view: OverworldView): string {
  * player works that out from the map, or by trying), the user's rule: the same information a human has.
  * A wide door (a gate, a cave mouth) is several squares in a row that lead to the same place: listed once.
  */
-function doorRuns(v: OverworldView): { from: Door; to: Door; key: string }[] {
+function doorRuns(v: AnyOverworldView): { from: Door; to: Door; key: string }[] {
   const runs: { from: Door; to: Door; key: string }[] = [];
   for (const d of v.doors ?? []) {
     const key = `${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`;
@@ -366,7 +383,7 @@ function doorRuns(v: OverworldView): { from: Door; to: Door; key: string }[] {
  * no exits). It counts the doors too: it's all an action result shows of the map, and "left" alone
  * read as a dead end on a route whose way on is a house door (Haiku at Bill's, 2026-11-08).
  */
-export function exitsLine(v: OverworldView): string | null {
+export function exitsLine(v: PlayerVisibleView): string | null {
   if (!v.exits) return null;
   const n = doorRuns(v).length;
   const doorCount = n ? `${n} door${n === 1 ? "" : "s"}` : "";
@@ -380,7 +397,7 @@ export function exitsLine(v: OverworldView): string | null {
  * be stepped between. A square can't show an edge, so they're listed, in runs:
  * "y11|y12 at x24–27" is the edge between rows 11 and 12 along x 24 to 27.
  */
-function cliffEdges(v: OverworldView): string | null {
+function cliffEdges(v: AnyOverworldView): string | null {
   if (!v.tiles) return null;
   const H = v.grid.length;
   const W = v.grid[0]?.length ?? 0;
@@ -417,7 +434,7 @@ function cliffEdges(v: OverworldView): string | null {
 const walkable = (ch: string) => ch === "." || ch === '"' || ch === "o" || ch === "D" || ch === "@" || ch === "F" || ch === "*";
 
 /** Whether (c, r) is water the player is crossing: a "~" square, or where a surfing player stands. */
-const onWater = (v: OverworldView, c: number, r: number) => v.grid[r][c] === "~" || (!!v.surfing && c === v.pc && r === v.pr);
+const onWater = (v: AnyOverworldView, c: number, r: number) => v.grid[r][c] === "~" || (!!v.surfing && c === v.pc && r === v.pr);
 
 /**
  * Squares reachable in one move from (c, r), with the presses it takes: plain steps onto walkable
@@ -426,7 +443,7 @@ const onWater = (v: OverworldView, c: number, r: number) => v.grid[r][c] === "~"
  * it, or on the first square past the ice (one press a square, as the walk counts them).
  * Surfing: from water, on across water or off onto land; once on land, only land.
  */
-function* moves(v: OverworldView, c: number, r: number): Generator<[Dir, number, number, number]> {
+function* moves(v: AnyOverworldView, c: number, r: number): Generator<[Dir, number, number, number]> {
   const H = v.grid.length;
   const W = v.grid[0].length;
   const swimming = !!v.surfing && onWater(v, c, r);
@@ -471,7 +488,7 @@ function* moves(v: OverworldView, c: number, r: number): Generator<[Dir, number,
  * Breadth-first search from the player. `isGoal(c, r)` ends the search;
  * doors are only entered when they are the goal.
  */
-function search(v: OverworldView, isGoal: (c: number, r: number) => boolean, avoidWatched = true): { dirs: Dir[]; end: [number, number] } | null {
+function search(v: AnyOverworldView, isGoal: (c: number, r: number) => boolean, avoidWatched = true): { dirs: Dir[]; end: [number, number] } | null {
   const W = v.grid[0].length;
   const key = (c: number, r: number) => r * W + c;
   const start = key(v.pc, v.pr);
@@ -510,12 +527,12 @@ function search(v: OverworldView, isGoal: (c: number, r: number) => boolean, avo
  * then exists ("the person at (27,12)"). Null otherwise. Trees and water are never named: this
  * looks at one map only, so saying a field move is needed would ignore any way round through a door.
  */
-export function wayBlockedBy(v: OverworldView, tx: number, ty: number): string | null {
+export function wayBlockedBy(v: AnyOverworldView, tx: number, ty: number): string | null {
   return wayBlocker(v, tx, ty)?.what ?? null;
 }
 
 /** wayBlockedBy's square: where the person or boulder in the way stands, and how it's named. */
-export function wayBlocker(v: OverworldView, tx: number, ty: number): { x: number; y: number; what: string } | null {
+export function wayBlocker(v: AnyOverworldView, tx: number, ty: number): { x: number; y: number; what: string } | null {
   const tc = tx - v.originX;
   const tr = ty - v.originY;
   if (tr < 0 || tr >= v.grid.length || tc < 0 || tc >= v.grid[0].length) return null;
@@ -525,7 +542,7 @@ export function wayBlocker(v: OverworldView, tx: number, ty: number): { x: numbe
   ];
   for (const [chars, as, say] of kinds) {
     const grid = v.grid.map((row) => row.map((ch) => (chars.includes(ch) ? as : ch)));
-    const open: OverworldView = { ...v, grid };
+    const open: AnyOverworldView = { ...v, grid };
     const target = walkable(grid[tr][tc]);
     const goal = (c: number, r: number) => (target ? c === tc && r === tr : Math.abs(c - tc) + Math.abs(r - tr) === 1);
     const found = search(open, goal, false);
@@ -548,7 +565,7 @@ export function wayBlocker(v: OverworldView, tx: number, ty: number): { x: numbe
  * map: what a result shows when the squares it talks about aren't all on screen. No exits line, as
  * it isn't the whole map.
  */
-export function cropView(v: OverworldView, x0: number, y0: number, x1: number, y1: number): OverworldView {
+export function cropView<T extends AnyOverworldView>(v: T, x0: number, y0: number, x1: number, y1: number): T {
   const W = v.grid[0]?.length ?? 0;
   const c0 = Math.max(0, x0 - v.originX), r0 = Math.max(0, y0 - v.originY);
   const c1 = Math.min(W - 1, x1 - v.originX), r1 = Math.min(v.grid.length - 1, y1 - v.originY);
@@ -576,7 +593,7 @@ export function cropView(v: OverworldView, x0: number, y0: number, x1: number, y
  * says which way to turn to interact.
  */
 export function findPath(
-  v: OverworldView,
+  v: AnyOverworldView,
   tx: number,
   ty: number,
   opts: SightOptions = { avoidSight: true },
@@ -635,7 +652,7 @@ export function findPath(
 
 /** Cuts a path just before its first step into an unbeaten trainer's sight (map coords of that square). */
 function stopAtSight(
-  v: OverworldView,
+  v: AnyOverworldView,
   dirs: Dir[],
   goal: (c: number, r: number) => boolean,
 ): { dirs: Dir[]; sightStop?: [number, number] } {
@@ -660,7 +677,7 @@ function stopAtSight(
  * Like findPath, it stops short (sightStop) when the only way crosses a trainer's sight.
  */
 export function pathToEdge(
-  v: OverworldView,
+  v: AnyOverworldView,
   dir: Dir,
   opts: SightOptions = { avoidSight: true },
 ): { dirs: Dir[]; sightStop?: [number, number]; crosses?: [number, number][] } | null {
@@ -694,7 +711,7 @@ export function pathToEdge(
  * Picks the reachable square that gets furthest in `dir` (ties: the shortest
  * walk) and returns the path there, or null if nothing beats where you stand.
  */
-export function pathFurthest(v: OverworldView, dir: Dir, opts: SightOptions = { avoidSight: true }): Dir[] | null {
+export function pathFurthest(v: AnyOverworldView, dir: Dir, opts: SightOptions = { avoidSight: true }): Dir[] | null {
   const progress = (c: number, r: number) => (dir === "up" ? -r : dir === "down" ? r : dir === "left" ? -c : c);
   // BFS visits squares in distance order, so the first square at the best progress is the closest one.
   let bestScore = progress(v.pc, v.pr);

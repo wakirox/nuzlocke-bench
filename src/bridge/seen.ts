@@ -2,7 +2,8 @@
 // screen, and the doors it has been through (where they lead). The whole map (get_map full=true)
 // shows only that, so a maze, a teleporter or a ladder is found out by going there.
 
-import type { Door, OverworldView } from "./overworld";
+import { maskView } from "./map-lens";
+import type { AnyOverworldView, Door, KnownOverworldView } from "./overworld";
 
 /** The screen around the player: 10×9 squares, the player at column 4, row 4 (both games). */
 const SCREEN = { left: 4, right: 5, up: 4, down: 4 };
@@ -76,24 +77,16 @@ export class SeenMaps {
    * The view as the run knows it: squares never on screen are "?", and doors it hasn't been through
    * lead to "?". `map` is the view's map; `bottomRow` its last row (y), for doormats out.
    */
-  fog(view: OverworldView, map: number, bottomRow?: number): OverworldView {
-    const grid = view.grid.map((row, r) => row.map((ch, c) => (this.has(map, view.originX + c, view.originY + r) ? ch : "?")));
-    const inSight = view.doors?.filter((d) => this.has(map, d.x, d.y));
-    const known = inSight?.filter((d) => this.knowsDoor(map, d, bottomRow)) ?? [];
+  fog(view: AnyOverworldView, map: number, bottomRow?: number): KnownOverworldView {
     // A wide door (a gate, a building's 2-square mat) is one way through: known on any square, known on all.
     const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
-    const doors = inSight?.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
-    // Trainers' sight only from trainers the run has seen, onto squares it has seen: otherwise an
-    // unseen trainer's ! (and where it stands) would show through the fog, and paths steer round it.
-    const W = view.grid[0]?.length ?? 0;
-    const watchers = view.watchers && new Map(
-      [...view.watchers]
-        .filter(([k]) => grid[Math.floor(k / W)]?.[k % W] !== "?")
-        .map(([k, who]) => [k, who.filter(([x, y]) => this.has(map, x, y))] as [number, [number, number][]])
-        .filter(([, who]) => who.length),
-    );
-    const watched = watchers && new Set(watchers.keys());
-    return { ...view, grid, doors, ...(watchers ? { watchers, watched } : {}) };
+    return maskView(view, {
+      isVisible: (x, y) => this.has(map, x, y),
+      mapDoor: (d, inSight) => {
+        const known = inSight.filter((k) => this.knowsDoor(map, k, bottomRow));
+        return known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null };
+      },
+    });
   }
 }
 

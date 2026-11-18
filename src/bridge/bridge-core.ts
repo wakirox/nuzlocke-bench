@@ -6,7 +6,8 @@ import type { GameVersion } from "../rom/types";
 import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
+import { asKnownView, asRawView } from "./map-lens";
+import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type KnownOverworldView, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -285,14 +286,15 @@ export class BridgeCore {
    * data has it: everything, seen or not. For the game's own mechanics only (which way a door's mat
    * is pressed); what the player is shown or walks by is view().
    */
-  rawView(full: boolean) {
+  rawView(full: boolean): RawOverworldView {
     const version = this.host.version();
     if (!version) throw new Error("No game is running.");
     const pos = this.host.position();
     const rom = this.host.rom();
-    return full && rom
+    const v = full && rom
       ? this.game.readFullMap(this.requireGb(), rom, pos.x, pos.y, this.host.beatenTrainers())
       : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom);
+    return asRawView(v);
   }
 
   /**
@@ -301,11 +303,11 @@ export class BridgeCore {
    * the player hasn't seen. In the dark the screen shows only what's lit (renderDarkView) and nothing
    * is remembered. The whole map's closed lower-floor patches are sealed before the fog.
    */
-  view(full: boolean) {
+  view(full: boolean): KnownOverworldView {
     const raw = this.rawView(full);
     const v = full ? sealFromWholeMap(raw, raw) : raw;
     const seen = this.host.seen?.();
-    if (!seen || this.dark()) return v;
+    if (!seen || this.dark()) return asKnownView(v);
     // A view is read once a move is over: the game has settled on whatever map it's on.
     this.noteSeen(true);
     const pos = this.host.position();
@@ -314,7 +316,7 @@ export class BridgeCore {
   }
 
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
-  screenView() {
+  screenView(): KnownOverworldView {
     const screen = this.view(false);
     return this.host.rom() ? sealFromWholeMap(screen, this.rawView(true)) : screen;
   }
