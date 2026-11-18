@@ -8,6 +8,20 @@ NUZLOCKE_TEST_REPLAY=saves/bestReplay.nuzlocke.json npm test   # + replay a real
 NUZLOCKE_TEST_ROMS=<folder of .gb/.gbc files> npm test         # + read real ROMs through the engine on the browser shims
 ```
 
+**Does a change alter what the model sees?** Two checks, because the tools' words and the order
+they're offered in are part of the benchmark:
+
+- `tests/server/tool-schema.test.ts` (in CI): every tool's description and arguments, and the
+  order they're offered in. After an intended change: `npx vitest run tests/server/tool-schema.test.ts -u`.
+- `scripts/model-view-diff.mjs` (needs a ROM, so not in CI): plays the same calls from the same
+  saves on two versions (default `origin/master` and `HEAD`, each built in its own worktree) and
+  diffs every result the model would read. Use a few milestones of real runs as saves
+  (`scripts/snapshot-run.mjs --milestone …`). For a refactor, "same" on every save is the bar.
+
+  ```bash
+  node scripts/model-view-diff.mjs --rom red.gb --saves snaps/badge1 --saves snaps/cave1 [--head <branch>]
+  ```
+
 The tests check that the harness reports the game correctly — encounters, deaths, level caps,
 rule violations, positions, paths. They never check advice or decisions: what to do with that
 data is the model's call.
