@@ -38,6 +38,7 @@ const SCREEN: ScreenLayout = {
   dexEntry: { labels: ["HT", "WT"] },
   safariMenu: { labels: ["BALL", "BAIT"] },
   bagPockets: 1,
+  mapTilesReadAsDots: true,
   balls: { poke: "POKé BALL", great: "GREAT BALL", ultra: "ULTRA BALL", master: "MASTER BALL" },
   fieldMoveRefused: /isn't anything|can't use|No SURFing/i,
   texts: {

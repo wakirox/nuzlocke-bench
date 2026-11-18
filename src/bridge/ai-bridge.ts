@@ -132,6 +132,7 @@ export class AiBridge {
       throw new Error("The game hasn't started yet (title screen or intro): start_game starts it.");
     }
     if (NEEDS_SIGHT.has(method) && this.core.dark()) throw new Error(TOO_DARK);
+    this.core.mapAsked = method === "get_map" || p.show_map === true;
     switch (method) {
       case "get_state":
         this.core.host.refresh();

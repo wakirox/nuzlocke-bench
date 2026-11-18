@@ -6,7 +6,7 @@ import type { GameVersion } from "../rom/types";
 import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
-import { litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
+import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 
 export interface Brief {
@@ -127,6 +127,8 @@ export class BridgeCore {
 
   /** Maps already shown in full this session: the first result on a new map shows all of it. */
   mapsShown = new Set<number>();
+  /** The call being answered asked for the map (get_map, or a move with show_map): a new map is shown whole then. */
+  mapAsked = false;
 
   async tap(button: Button | Button[], hold = 6, gap = 20): Promise<void> {
     const gb = this.requireGb();
@@ -240,7 +242,7 @@ export class BridgeCore {
   }
 
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
-  private screenView() {
+  screenView() {
     const screen = this.view(false);
     return this.host.rom() ? sealFromWholeMap(screen, this.view(true)) : screen;
   }
@@ -258,7 +260,10 @@ export class BridgeCore {
 
   mapText(full = false): string {
     if (!this.host.version() || this.host.position().battle) return "(in battle — no map)";
-    if (this.dark()) return renderDarkView(this.screenView(), litSquares(this.screenPixels()));
+    if (this.dark()) {
+      // A box or menu over the cave hides what's under it: those squares are dark, not lit.
+      return renderDarkView(this.screenView(), litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+    }
     const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
@@ -269,11 +274,20 @@ export class BridgeCore {
 
   /** Compact result: status + screen text (+ any extras). */
   result(extra: Record<string, unknown>): unknown {
+    // Only when the map is asked for: a move's map is left out by the MCP server unless show_map, and
+    // marking the map shown there used up its first full view before get_map could show it.
+    // Not asked for, the map is left out but its exits line stays (format.mjs mapOnRequest): every
+    // result carries it until the map has been shown whole (that has the line itself).
     if (typeof extra.map === "string" && this.host.version() && !this.host.position().battle) {
       const map = this.host.position().map;
       if (!this.mapsShown.has(map) && !this.dark()) {
-        this.mapsShown.add(map);
-        extra = { ...extra, map: this.mapText(true) };
+        if (this.mapAsked) {
+          this.mapsShown.add(map);
+          extra = { ...extra, map: this.mapText(true) };
+        } else {
+          const exits = exitsLine(this.view(true));
+          if (exits) extra = { ...extra, map: `${exits}\n${extra.map}` };
+        }
       }
     }
     this.host.refresh();
