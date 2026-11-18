@@ -1,13 +1,23 @@
-// Pure screen-state classification and menu/dialogue recognizers on Gen 1 & Gen 2 18-row fixtures.
+// Pure screen-text recognizers on Gen 1 & Gen 2 18-row fixtures.
 
 import { describe, expect, it } from "vitest";
 import {
   battleAction,
-  classifyScreen,
+  battleMenuCursorOf,
   dialogueBoxLines,
+  isBattleMenuScreen,
+  isBlankOrGraphicsScreen,
+  isDexEntryScreen,
+  isMoveQuestionOpen,
+  isNamingKeyboardScreen,
+  isPartyScreenOpen,
+  isSafariMenuScreen,
+  isScreenFaded,
   isTargetMoveListOpen,
-  partyScreenState,
+  partyCursorRowOf,
+  partyCursorSlotOf,
   quantityPromptOf,
+  quantityTextOf,
   startMenuState,
 } from "../../src/bridge/screen-state";
 import { gen1Adapter } from "../../src/games/gen1";
@@ -17,45 +27,55 @@ import { screenRows, textBoxScreen } from "../harness/fake-bridge";
 const gen1 = gen1Adapter("red").screen;
 const gen2 = gen2Adapter().screen;
 
-describe("screen-state recognizer and classifier", () => {
-  it("recognizes Gen 1 and Crystal battle menus and resolves cursor positions", () => {
+describe("screen-state recognizers", () => {
+  it("recognizes Gen 1, Crystal, and Safari battle menus and resolves cursor positions", () => {
     const g1 = textBoxScreen(gen1, ["", "▶FIGHT PKMN", "", " ITEM  RUN"]);
-    expect(classifyScreen(g1, gen1, { inBattle: true })).toEqual({ kind: "battle_menu", cursor: "fight" });
+    expect(isBattleMenuScreen(g1, gen1)).toBe(true);
+    expect(battleMenuCursorOf(g1, gen1)).toBe("fight");
     expect(battleAction(gen1, "pkmn")).toBe("party");
 
     const g2 = textBoxScreen(gen2, ["", " FIGHT PKMN", "", "▶PACK  RUN"]);
-    expect(classifyScreen(g2, gen2, { inBattle: true })).toEqual({ kind: "battle_menu", cursor: "bag" });
+    expect(isBattleMenuScreen(g2, gen2)).toBe(true);
+    expect(battleMenuCursorOf(g2, gen2)).toBe("bag");
     expect(battleAction(gen2, "pack")).toBe("bag");
+
+    const [s1, s2] = gen1.safariMenu.labels;
+    const safari = screenRows({ 14: `▶${s1}×30  ${s2}` });
+    expect(isSafariMenuScreen(safari, gen1)).toBe(true);
+    expect(isBattleMenuScreen(safari, gen1)).toBe(true);
   });
 
-  it("distinguishes Crystal's bag pocket list from the party screen", () => {
+  it("reads party cursor row/slot from screen lines and distinguishes Crystal's bag list from the party screen", () => {
     // Crystal's bag places ▶ on row 2 too, but no party member's nickname is next to it.
     const bagPocket = screenRows({ 2: "       ▶SUPER REPEL ×3", 4: "        CANCEL" });
-    expect(partyScreenState(bagPocket, gen2, ["CYNDA", "PIDGEY"]).open).toBe(false);
-    expect(classifyScreen(bagPocket, gen2, { partyNames: ["CYNDA", "PIDGEY"] })).toEqual({ kind: "choice_menu" });
+    expect(partyCursorRowOf(bagPocket, gen2)).toBe(2);
+    expect(isPartyScreenOpen(bagPocket, gen2, ["CYNDA", "PIDGEY"])).toBe(false);
 
     const party = screenRows({ 1: "  CYNDA      Lv14", 2: "▶ HP: 38/38" });
-    expect(partyScreenState(party, gen2, ["CYNDA", "PIDGEY"])).toMatchObject({ open: true, row: 2 });
-    expect(classifyScreen(party, gen2, { partyNames: ["CYNDA", "PIDGEY"] }).kind).toBe("party_screen");
+    expect(partyCursorRowOf(party, gen2)).toBe(2);
+    expect(partyCursorSlotOf(party, gen2)).toBe(gen2.partyScreen.slotAt(2));
+    expect(isPartyScreenOpen(party, gen2, ["CYNDA", "PIDGEY"])).toBe(true);
   });
 
-  it("detects naming keyboards, shop quantity prompts, dex entries, move questions, and fades", () => {
+  it("detects naming keyboards, shop quantity prompts, dex entries, move questions, blank pictures, and fades", () => {
     const keyboard = screenRows({ 2: "YOUR NAME?", 6: "▶A B C D E F G H I", 8: " J K L M N O P Q R" });
-    expect(classifyScreen(keyboard, gen1)).toEqual({ kind: "naming_keyboard" });
+    expect(isNamingKeyboardScreen(keyboard)).toBe(true);
 
     const qty = screenRows({ 9: "│ ×03   ¥600 │", 14: "How many?" });
+    expect(quantityTextOf(qty)).toBe("×03");
     expect(quantityPromptOf(qty, false)).toBe("×03");
     expect(quantityPromptOf(qty, true)).toBeNull();
-    expect(classifyScreen(qty, gen1, { inBattle: false })).toEqual({ kind: "quantity_prompt", quantity: "×03" });
 
     const [d1, d2] = gen1.dexEntry.labels;
     const dex = screenRows({ 3: `${d1} 2'04"`, 5: `${d2} 15.0lb` });
-    expect(classifyScreen(dex, gen1)).toEqual({ kind: "dex_entry" });
+    expect(isDexEntryScreen(dex, gen1)).toBe(true);
 
     const moveQ = screenRows({ 8: "│▶YES│", 9: "│ NO │", 14: "Delete an older", 16: "move to make room?" });
-    expect(classifyScreen(moveQ, gen1, { textBoxOpen: true })).toEqual({ kind: "move_question" });
+    expect(isMoveQuestionOpen(moveQ, gen1)).toBe(true);
 
-    expect(classifyScreen(["(Screen faded to white)"], gen1)).toEqual({ kind: "faded" });
+    expect(isScreenFaded(["(Screen faded to white)"])).toBe(true);
+    expect(isBlankOrGraphicsScreen(["", "  ", "(No text on screen)"])).toBe(true);
+    expect(isBlankOrGraphicsScreen(keyboard)).toBe(false);
   });
 
   it("strips battle-menu choice rows from dialogue boxes and detects start-menu / move-picker states", () => {
