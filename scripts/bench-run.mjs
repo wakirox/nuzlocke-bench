@@ -1,4 +1,5 @@
-// Plays one benchmark run with Claude Code (claude -p), or straight through a model's API (--api), and records it.
+// Plays one benchmark run with Claude Code (claude -p), Antigravity CLI (--agent agy), or straight
+// through a model's API (--api), and records it in runs/<id>/.
 //   node scripts/bench-run.mjs --rom path/to/red.gb [--model claude-haiku-5-5] [--effort medium]
 //        [--api openai|anthropic] [--base-url <url>]   play through the API: no Claude Code; the server's instructions as the system prompt
 //        [--agent agy]          play through the Antigravity CLI, its built-in tools denied (mcp-server/agy-player.mjs)
@@ -10,25 +11,40 @@
 //        [--no-report]          without report_issue (on by default: the model reports tools that let it down)
 //        [--grid wide]          map grids with two spaces between squares (the default, narrow, has one)
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
-// Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to choose one).
+// Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
+// choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
+// emptied workspace folder).
 // Everything about the run goes in its own folder, runs/<id>/ (see mcp-server/run-folder.mjs):
 // run-log.jsonl, transcript.jsonl, agent.json (model, effort, nudges, cost) and saves/.
-import { execFileSync, spawn } from "node:child_process";
+
 import { createHash } from "node:crypto";
-import { cpSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { cpSync, createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, HINTS, NUDGE, PLAYTEST, PROMPT, REPORT, RESUME_PROMPT, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, TokenMeter, loggedPreset, mTokens, userTurn, GIVE_UP_AFTER } from "../mcp-server/bench-runner.mjs";
+import {
+  COMPACT_WINDOW,
+  DEFAULT_MAX_TOKENS,
+  GIVE_UP_AFTER,
+  HINTS,
+  NUDGE,
+  PLAYTEST,
+  PROMPT,
+  REPORT,
+  RESUME_PROMPT,
+  TokenMeter,
+  loggedPreset,
+  mTokens,
+  mcpConfig,
+  nextStep,
+  runEnded,
+} from "../mcp-server/bench-runner.mjs";
+import { DEFAULT_OPTIONS, benchmarkPreset, presetHelp, presetId, withDefaultOptions } from "../mcp-server/benchmark.mjs";
+import { dashboardRuns } from "../mcp-server/dashboard.mjs";
 import { isExperimental, romVersion } from "../mcp-server/games/index.mjs";
-import { DirectSession } from "../mcp-server/direct-session.mjs";
+import { DriverConfigError, selectPlayerDriver } from "../mcp-server/player-drivers.mjs";
 import { compressTranscript, locateRun, runFiles } from "../mcp-server/run-folder.mjs";
 import { writeSummary } from "../mcp-server/run-summary.mjs";
-import { dashboardRuns } from "../mcp-server/dashboard.mjs";
-import { DEFAULT_OPTIONS, benchmarkPreset, presetHelp, presetId, withDefaultOptions } from "../mcp-server/benchmark.mjs";
-import { AGY_DENIED, AgyTranslator, agyArgs, agyTurn, agyWorkspaceConfig } from "../mcp-server/agy-player.mjs";
-import { activeToolNames } from "../mcp-server/tool-catalog.mjs";
 
 const argv = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -83,11 +99,13 @@ ${presetHelp()}
 Needs npm run build, Playwright and the claude CLI (CLAUDE_BIN to choose one).`);
   process.exit(0);
 }
+
 const rom = opt("rom", process.env.NUZLOCKE_ROM);
 if (typeof rom !== "string" || !existsSync(rom)) {
   console.error("Give the ROM: --rom path/to/red.gb (or NUZLOCKE_ROM).");
   process.exit(1);
 }
+
 // A run to continue: its saves are copied (the original stays as it was), its preset kept.
 const resumed = opt("resume", null) ? locateRun(String(opt("resume"))) : null;
 if (resumed && !existsSync(join(resumed.saves, "run.json"))) {
@@ -101,38 +119,41 @@ if (resumed && !resumedPreset && opt("preset", null) === null) {
   console.error(`${resumed.name} doesn't record its preset (no agent.json, no run log): give it with --preset and -o.`);
   process.exit(1);
 }
+
+/** A number option, refused unless it's a number in [min, max] (a typo must not turn a limit off). */
+function numberOpt(name, fallback, { min = 0, max = Infinity, integer = false } = {}) {
+  const v = Number(opt(name, fallback));
+  if (!Number.isFinite(v) || v < min || v > max || (integer && !Number.isInteger(v))) {
+    console.error(`--${name} takes ${integer ? "a whole number" : "a number"} from ${min}${max < Infinity ? ` to ${max}` : " up"}.`);
+    process.exit(1);
+  }
+  return v;
+}
+
 const model = opt("model", "claude-haiku-5-5");
 const effort = opt("effort", null);
-const api = opt("api", null);
-if (api !== null && api !== "openai" && api !== "anthropic") {
-  console.error("--api takes openai or anthropic.");
-  process.exit(1);
-}
-if (api && effort) {
-  console.error("--effort is Claude Code's; it isn't sent with --api.");
-  process.exit(1);
-}
-// Another agent to run the model: agy (the Antigravity CLI), with its built-in tools denied (agy-player.mjs).
-const agentKind = opt("agent", null);
-if (agentKind !== null && agentKind !== "agy") {
-  console.error("--agent takes agy.");
-  process.exit(1);
-}
-if (agentKind && api) {
-  console.error("--agent and --api are two ways to run the model: give one.");
-  process.exit(1);
-}
-if (agentKind && typeof opt("model", null) !== "string") {
-  console.error("Give agy's model: --model <id> (as agy names it, e.g. gemini-4-hydrogen).");
-  process.exit(1);
-}
-if (agentKind && opt("compact-window", null) !== null) {
-  console.error("agy keeps its own context: --compact-window is Claude Code's.");
-  process.exit(1);
-}
-const baseUrl = api ? String(opt("base-url", api === "openai" ? "http://127.0.0.1:11434/v1" : "http://127.0.0.1:11434")) : null;
-const apiKey = process.env.BENCH_API_KEY ?? (api === "openai" ? process.env.OPENAI_API_KEY : api === "anthropic" ? process.env.ANTHROPIC_API_KEY : undefined);
 const maxOutput = numberOpt("max-output", 16384, { min: 1, integer: true });
+let driver;
+try {
+  driver = selectPlayerDriver({
+    api: opt("api", null),
+    agentKind: opt("agent", null),
+    model,
+    modelGiven: typeof opt("model", null) === "string",
+    effort,
+    compactWindowGiven: opt("compact-window", null) !== null,
+    baseUrlOpt: opt("base-url", undefined),
+    maxOutput,
+    env: process.env,
+  });
+} catch (e) {
+  if (e instanceof DriverConfigError) {
+    console.error(e.message);
+    process.exit(1);
+  }
+  throw e;
+}
+
 // -o / --option: options on top of the preset; the run's preset id names them ("hardcore-nuzlocke+hardcap").
 // A new run gets the default options too; a continued one keeps its preset id as it was.
 const asked = argv.flatMap((a, i) => ((a === "-o" || a === "--option") && argv[i + 1] ? argv[i + 1].split(",") : []));
@@ -144,15 +165,7 @@ try {
   console.error(e.message);
   process.exit(1);
 }
-/** A number option, refused unless it's a number in [min, max] (a typo must not turn a limit off). */
-function numberOpt(name, fallback, { min = 0, max = Infinity, integer = false } = {}) {
-  const v = Number(opt(name, fallback));
-  if (!Number.isFinite(v) || v < min || v > max || (integer && !Number.isInteger(v))) {
-    console.error(`--${name} takes ${integer ? "a whole number" : "a number"} from ${min}${max < Infinity ? ` to ${max}` : " up"}.`);
-    process.exit(1);
-  }
-  return v;
-}
+
 const effectivenessAsked = opt("effectiveness", null);
 if (effectivenessAsked !== null && effectivenessAsked !== "on" && effectivenessAsked !== "off") {
   console.error("--effectiveness takes on or off (default: off, on with -o hints).");
@@ -184,8 +197,16 @@ if (grid !== undefined && grid !== "narrow" && grid !== "wide") {
   process.exit(1);
 }
 
-// agy's workspace and config, checked before anything is made for the run.
-const agy = agentKind === "agy" ? agyWorkspace() : null;
+// Driver workspace & CLI checks run before creating the run folder so refused setups leave runs/ clean.
+try {
+  driver.prepare();
+} catch (e) {
+  if (e instanceof DriverConfigError) {
+    console.error(e.message);
+    process.exit(1);
+  }
+  throw e;
+}
 
 // A game still being built (Crystal) plays, but its runs aren't scored or ranked: say so up front.
 const version = romVersion(readFileSync(rom));
@@ -199,8 +220,18 @@ const run = runFiles(join(process.env.NUZLOCKE_RUNS_DIR ?? join(root, "runs"), i
 mkdirSync(run.saves, { recursive: true });
 // The page's model log names who plays while the run is live.
 // It also says what kind of run this is, for a run that stops before agent.json gets written.
-writeFileSync(run.player, JSON.stringify({ model, effort, ...(agy ? { via: "agy" } : {}), preset, resumedFrom: resumed?.name ?? null, playtest, ...(experimental ? { experimental } : {}), ...(observers ? { observers } : {}) }));
+writeFileSync(run.player, JSON.stringify({
+  model,
+  effort,
+  ...driver.playerMeta(),
+  preset,
+  resumedFrom: resumed?.name ?? null,
+  playtest,
+  ...(experimental ? { experimental } : {}),
+  ...(observers ? { observers } : {}),
+}));
 if (resumed) cpSync(resumed.saves, run.saves, { recursive: true });
+
 const configFile = join(tmpdir(), `nuzlocke-bench-${id}.json`);
 const config = mcpConfig({
   node: process.execPath,
@@ -219,171 +250,12 @@ const config = mcpConfig({
 });
 writeFileSync(configFile, JSON.stringify(config));
 
-// What the model was given, for agent.json: the CLI's version (its compaction and tools are part of
-// the harness) and a hash of the opening prompt (runs compare only under the same one).
-const claudeBin = process.env.CLAUDE_BIN ?? "claude";
-let claudeVersion = null;
-if (!api && !agentKind) {
-  try {
-    claudeVersion = execFileSync(claudeBin, ["--version"], { encoding: "utf8" }).trim();
-  } catch {
-    /* reported as unknown */
-  }
-}
-let agyVersion = null;
-if (agy) {
-  try {
-    agyVersion = execFileSync(agy.bin, ["--version"], { encoding: "utf8" }).trim();
-  } catch {
-    /* reported as unknown */
-  }
-}
+// What the model was given, for agent.json: a hash of the opening prompt (runs compare only under the
+// same one); CLI versions are recorded by `driver.prepare()` / `driver.provenance()`.
 const firstTurn = (resumed ? RESUME_PROMPT : PROMPT) + (playtest ? PLAYTEST : report ? REPORT : "") +
   (preset.split("+").includes("hints") ? HINTS : "");
 const promptSha256 = createHash("sha256").update(firstTurn).digest("hex");
 
-// The player: the claude process, agy's, or a session on the model's API. All give stream-json events
-// (agy's put in claude's shape), take user turns, and exit.
-const player = api ? directPlayer() : agy ? agyPlayer() : claudePlayer();
-
-/**
- * agy's workspace, checked before the run folder is made: a folder the runner owns (agy has to be told
- * once to trust it, so it's always the same one), emptied for every run, and no MCP servers in agy's own
- * config (agy loads those as well as the workspace's). The game's server is put in it as the run starts.
- */
-function agyWorkspace() {
-  const bin = process.env.AGY_BIN ?? "agy";
-  const dir = resolve(process.env.AGY_WORKSPACE ?? join(homedir(), ".local", "share", "nuzlocke-bench", "agy-workspace"));
-  const marker = ".nuzlocke-bench-agy";
-  const trust = `agy asks to trust a new folder once: run  cd ${dir} && agy  accept, quit, and start the run again.`;
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, marker), "agy's workspace for nuzlocke-bench runs: emptied for every run.\n");
-    console.error(`Made agy's workspace, ${dir}. ${trust}`);
-    process.exit(1);
-  }
-  if (!existsSync(join(dir, marker))) {
-    const other = readdirSync(dir).filter((n) => n !== ".agents" && n !== ".trusted");
-    if (other.length) {
-      console.error(`${dir} has other files (${other.join(", ")}): agy's workspace is emptied for every run, so it must be its own folder. Give another with AGY_WORKSPACE.`);
-      process.exit(1);
-    }
-    writeFileSync(join(dir, marker), "agy's workspace for nuzlocke-bench runs: emptied for every run.\n");
-  }
-  // Nothing from an earlier run in reach.
-  for (const n of readdirSync(dir)) if (n !== marker) rmSync(join(dir, n), { recursive: true, force: true });
-  let mcpList;
-  try {
-    mcpList = execFileSync(bin, ["mcp", "list"], { cwd: dir, encoding: "utf8", timeout: 120_000 }).trim();
-  } catch (e) {
-    console.error(`agy mcp list failed: ${e.message}`);
-    process.exit(1);
-  }
-  if (!/^No MCP servers configured/i.test(mcpList)) {
-    console.error(`agy has MCP servers of its own (agy mcp list):\n${mcpList}\nA run has the game's only: remove them from agy's config first.`);
-    process.exit(1);
-  }
-  return { bin, dir, mcpList, trust };
-}
-
-function agyPlayer() {
-  // The game's server, the workspace's only one.
-  mkdirSync(join(agy.dir, ".agents"), { recursive: true });
-  const tools = activeToolNames({ preset: benchmarkPreset(preset), reportIssue: report || playtest });
-  writeFileSync(join(agy.dir, ".agents", "mcp_config.json"), JSON.stringify(agyWorkspaceConfig(config.mcpServers["nuzlocke-bench"], tools), null, 2));
-  const child = spawn(agy.bin, agyArgs({ model, effort }), { cwd: agy.dir, stdio: ["pipe", "pipe", "inherit"] });
-  child.stdin.on("error", (e) => console.error(`agy's input: ${e.message}`));
-  // agy's own events, as they came: the transcript has them in claude's shape.
-  const raw = createWriteStream(join(run.dir, "agy-events.jsonl"));
-  raw.on("error", (e) => console.error(`agy-events.jsonl: ${e.message}`));
-  const translator = new AgyTranslator();
-  // agy waits without a word while another agy session is open, or in a folder it hasn't been told to trust.
-  let started = false;
-  const slow = setTimeout(() => {
-    if (!started) console.log(`  agy hasn't started after a minute. It waits while another agy session is open (quit it), and in a folder it doesn't trust yet: ${agy.trust}`);
-  }, 60_000);
-  createInterface({ input: child.stdout }).on("line", (line) => {
-    raw.write(line + "\n");
-    let ev;
-    try {
-      ev = JSON.parse(line);
-    } catch {
-      return;
-    }
-    if (ev?.event === "init") started = true;
-    const { events, forbidden } = translator.translate(ev);
-    for (const e of events) {
-      transcript.write(JSON.stringify(e) + "\n");
-      onEvent(e);
-    }
-    // Anything but the game's tools ends the run: the transcript shows what it was.
-    if (forbidden && !stopped) {
-      stopped = `agy used ${forbidden}, not one of the game's tools`;
-      console.log(`  ${stopped}: stopping the session`);
-      child.kill("SIGTERM");
-    }
-  });
-  return {
-    send: (text) => {
-      if (child.stdin.writable) child.stdin.write(agyTurn(text));
-    },
-    end: () => child.stdin.end(),
-    kill: () => child.kill("SIGTERM"),
-    onExit: (f) =>
-      child.on("close", (code) => {
-        clearTimeout(slow);
-        raw.end(() => f(code));
-      }),
-  };
-}
-
-function claudePlayer() {
-  // Each run starts in its own empty folder: nothing from the repo or an earlier run is in reach.
-  const claude = spawn(claudeBin, claudeArgs({ model, effort, configFile }), {
-    cwd: mkdtempSync(join(tmpdir(), "nuzlocke-bench-run-")),
-    env: runnerEnv(process.env, compactWindow),
-    stdio: ["pipe", "pipe", "inherit"],
-  });
-  // Writing to a claude that already exited (a nudge as it dies) is an EPIPE: not worth a crash.
-  claude.stdin.on("error", (e) => console.error(`claude's input: ${e.message}`));
-  createInterface({ input: claude.stdout }).on("line", (line) => {
-    transcript.write(line + "\n");
-    try {
-      onEvent(JSON.parse(line));
-    } catch (e) {
-      if (!(e instanceof SyntaxError)) throw e;
-    }
-  });
-  return {
-    send: (text) => {
-      if (claude.stdin.writable) claude.stdin.write(userTurn(text));
-    },
-    end: () => claude.stdin.end(),
-    kill: () => claude.kill("SIGTERM"),
-    // "close", not "exit": by then claude's output has all been read (and written to the transcript).
-    onExit: (f) => claude.on("close", f),
-  };
-}
-
-function directPlayer() {
-  const { command, args, env } = config.mcpServers["nuzlocke-bench"];
-  const session = new DirectSession({ api, baseUrl, apiKey, model, server: { command, args, env }, compactWindow, maxOutput });
-  session.on("event", (ev) => {
-    transcript.write(JSON.stringify(ev) + "\n");
-    onEvent(ev);
-  });
-  const started = session.start().catch((e) => {
-    console.error(`couldn't start: ${e.message}`);
-    stopped ??= `couldn't start: ${e.message}`;
-    session.finish(1);
-  });
-  return {
-    send: (text) => started.then(() => session.send(text)),
-    end: () => started.then(() => session.end()),
-    kill: () => session.kill(),
-    onExit: (f) => session.on("exit", f),
-  };
-}
 const transcript = createWriteStream(run.transcript);
 // A write after the stream ended (a late line) or a full disk is reported, not a crash mid-run.
 transcript.on("error", (e) => console.error(`transcript: ${e.message}`));
@@ -391,6 +263,24 @@ let ended = false, nudges = 0, last = null, stopped = null, gaveUp = false;
 let callsThisTurn = 0, idleNudges = 0; // tool calls since the last turn ended; nudges in a row with none
 // The safety stop (the model isn't told about it): tokens processed, checked on every event.
 const meter = new TokenMeter();
+
+// The player: the claude process, agy's, or a session on the model's API. All give stream-json events
+// (agy's put in claude's shape), take user turns, and exit.
+const player = driver.start({
+  config,
+  configFile,
+  preset,
+  reportIssue: report || playtest,
+  compactWindow,
+  runDir: run.dir,
+  transcript,
+  onEvent,
+  onStop: (reason) => {
+    if (stopped) return false;
+    stopped = reason;
+    return true;
+  },
+});
 
 console.log(`run ${id}${resumed ? ` (continuing ${resumed.name})` : ""}: ${model}${effort ? ` (${effort})` : ""}, ${preset}, up to ${mTokens(maxTokens)} tokens, up to ${maxNudges} nudges`);
 function onEvent(ev) {
@@ -439,13 +329,16 @@ for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
 }
 
 player.onExit((code) => {
+  const { claudeVersion, compactWindow: agentCompactWindow, ...viaMeta } = driver.provenance({ compactWindow });
   const agent = {
-    model, effort, preset, nudges, gaveUp,
+    model,
+    effort,
+    preset,
+    nudges,
+    gaveUp,
     // Who ran the model: Claude Code (claudeVersion), its API straight (the server's instructions as the
     // system prompt), or agy with its built-in actions denied and the MCP servers it had besides the workspace's (none).
-    via: api ? "api" : agy ? "agy" : "claude-code",
-    ...(api ? { api, baseUrl } : {}),
-    ...(agy ? { agyVersion, agyDenied: AGY_DENIED, agyMcpList: agy.mcpList } : {}),
+    ...viaMeta,
     resumedFrom: resumed?.name ?? null,
     playtest,
     ...(experimental ? { experimental } : {}),
@@ -453,7 +346,7 @@ player.onExit((code) => {
     claudeVersion,
     promptSha256,
     // The window Claude Code compacted at (null: the model's own).
-    compactWindow: agy ? null : compactWindow || null,
+    compactWindow: agentCompactWindow,
     // The limits the runner set: an official run has the defaults (dashboard.mjs's notOfficial).
     maxNudges,
     maxTokens,
@@ -467,7 +360,7 @@ player.onExit((code) => {
     tokens: meter.totals(),
     turns: last?.num_turns ?? null,
     sessionId: last?.session_id ?? null,
-    stopped: stopped ?? `${api ? "session" : agy ? "agy" : "claude"} exited (${code})`,
+    stopped: stopped ?? `${driver.exitLabel} exited (${code})`,
     finalMessage: last?.result ?? null,
   };
   writeFileSync(run.agent, JSON.stringify(agent, null, 2));
