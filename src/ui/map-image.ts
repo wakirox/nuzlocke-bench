@@ -185,6 +185,9 @@ function openMap(grid: Grid, text: string, asText: boolean): void {
 export function mapFigure(grid: Grid, text: string): HTMLElement {
   const fig = document.createElement("figure");
   fig.className = "convo-map";
+  // The text kept with the picture: a copy of this page's log (the live viewer's) has no click
+  // handlers, so it shows "As the model sees it" from here.
+  fig.dataset.mapText = text;
   const { canvas, used, w, h } = gridCanvas(grid);
   // Big enough to read in the panel: up to 8 px a square, within about 360×300 px.
   const px = Math.max(2, Math.min(8, Math.floor(360 / w), Math.floor(300 / h)));
