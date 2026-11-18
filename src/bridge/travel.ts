@@ -1,7 +1,7 @@
 // Moving around the map: walking, pathfinding to a square, crossing maps, the model's
 // own routes, field moves and pacing the grass.
 
-import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir, type OverworldView } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -25,6 +25,12 @@ export function walkStopReason(walked: string): string | null {
   const stop = /stopped(?: short)?(?: by)?:? ([^;]+?)(?: —|;|$)/.exec(walked)?.[1]?.trim();
   return stop && !/^blocked\b/.test(stop) ? stop : null;
 }
+
+/** The view has squares the run hasn't seen (fog of war). */
+const hasFog = (v: OverworldView) => v.grid.some((row) => row.includes("?"));
+
+/** A guess at the unseen part of a view: every "?" taken as open floor (the walk finds out). */
+const guessView = (v: OverworldView): OverworldView => ({ ...v, grid: v.grid.map((row) => row.map((ch) => (ch === "?" ? "." : ch))) });
 
 export class Travel {
   constructor(private core: BridgeCore, private menus: Menus) {}
@@ -461,7 +467,8 @@ export class Travel {
     const full = this.core.view(true);
     const ledge = ledgeTarget(full, x, y);
     if (ledge) throw new Error(ledge);
-    let route = findPath(full, x, y, this.core.sight());
+    const guessed = !findPath(full, x, y, this.core.sight());
+    let route = this.planTo(full, x, y);
     const crossed = route?.crosses ?? [];
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
@@ -471,8 +478,7 @@ export class Travel {
         : at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
         : at === "#" ? "that square is solid"
         : at === "~" && !full.surfing ? "that square is water"
-        : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}` +
-          (full.grid.some((row) => row.includes("?")) ? " (walks only cross squares you've seen; the way may be through ? ones)" : "");
+        : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
       const screen = this.core.screenView();
@@ -486,12 +492,13 @@ export class Travel {
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
     let report = "already there";
-    for (let attempt = 0; route && route.dirs.length && attempt < 4; attempt++) {
+    // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
+    for (let attempt = 0; route && route.dirs.length && attempt < (guessed ? 8 : 4); attempt++) {
       report = await this.walkSegments(toSegments(route.dirs));
       here = this.core.host.position();
       if (!report.includes("blocked") || here.battle || here.map !== startMap) break;
       await this.core.requireGb().runFrames(30, 8); // let the person move along, then re-plan
-      route = findPath(this.core.view(true), x, y, this.core.sight());
+      route = this.planTo(this.core.view(true), x, y);
     }
     // A trainer seen only off screen is assumed to look every way; once it is on screen its real
     // facing is known, so walking up to the sight line often clears it. Re-plan from there.
@@ -500,7 +507,7 @@ export class Travel {
       if (here.battle || here.map !== startMap) break;
       // The last leg stopped for something else (a poison flash, a text box): say so, don't walk on.
       if (!/— arrived(?: \(ran from [^)]*\))?$/.test(report)) break;
-      const next = findPath(this.core.view(true), x, y, this.core.sight());
+      const next = this.planTo(this.core.view(true), x, y);
       if (!next) break;
       route = next;
       if (!route.dirs.length) break;
@@ -553,7 +560,20 @@ export class Travel {
       }
     }
     const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
-    return this.core.result({ walk: report + sightNote, messages, map: this.core.mapText() });
+    const guessNote = guessed ? " (no seen way there, so it tried a way through squares you hadn't seen)" : "";
+    return this.core.result({ walk: report + sightNote + guessNote, messages, map: this.core.mapText() });
+  }
+
+  /**
+   * findPath to (x, y) over the squares the run has seen; when no seen way gets there, a guess:
+   * the unseen squares taken as open floor, as a player heads toward a place they can see through
+   * parts they haven't (the walk then shows what's really there, and walkTo re-plans when it's
+   * blocked). Never to an unseen square itself.
+   */
+  private planTo(v: OverworldView, x: number, y: number): ReturnType<typeof findPath> {
+    const seen = findPath(v, x, y, this.core.sight());
+    if (seen || v.grid[y - v.originY]?.[x - v.originX] === "?" || !hasFog(v)) return seen;
+    return findPath(guessView(v), x, y, this.core.sight());
   }
 
   /**
@@ -615,6 +635,12 @@ export class Travel {
       // No edges, only doors. When they all lead to the same place there's nothing to choose:
       // leave through the nearest one. Otherwise which door is the player's call.
       const doors = full.doors ?? [];
+      // No door in sight yet (fog of war, e.g. a run resumed inside): a building's way out is at its
+      // bottom, so head down through what's been seen, looking as you go, as a player would.
+      if (!doors.length && full.grid.some((row) => row.includes("?"))) {
+        const out = (await this.travel("down", 12, 1)) as Record<string, unknown>;
+        return { ...out, walk: `no door in sight yet, so heading down (where a building's way out is): ${String(out.walk ?? "")}` };
+      }
       const places = [...new Set(doors.map((d) => d.to))];
       // One way out only if every door lands on the same spot (a building's doormat, maybe two squares
       // wide). A cave's ladders can all go to the next floor, but to parts of it that don't connect.
@@ -638,11 +664,15 @@ export class Travel {
     // A wandering NPC can block the planned path: wait a moment and re-plan (a few times).
     for (let attempt = 0; attempt < 10; attempt++) {
       const view = attempt ? this.core.view(true) : full;
-      const route = pathToEdge(view, dir, this.core.sight());
+      // No seen way to that edge (fog of war): a guess through the unseen squares, as a player heads
+      // for an exit they haven't seen. A wall found on the way blocks the walk, and it re-plans.
+      const seenRoute = pathToEdge(view, dir, this.core.sight());
+      const route = seenRoute ?? (hasFog(view) ? pathToEdge(guessView(view), dir, this.core.sight()) : null);
       if (!route) {
         if (attempt) break;
         throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view)}`);
       }
+      if (!seenRoute && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {
         const [sx, sy] = route.sightStop;
         const walked = route.dirs.length ? (await this.walkSegments(toSegments(route.dirs))).replace(/ — arrived$/, "") + " — " : "";
