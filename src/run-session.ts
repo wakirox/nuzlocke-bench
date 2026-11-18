@@ -69,11 +69,11 @@ export class RunSession {
   readonly recorder: Recorder;
   readonly seen: SeenMaps;
   readonly fontSig: Uint8Array;
-  state: GameState;
+  /** Latest polled game state; stays `null` until the first `poll()` so power-on RAM noise isn't read early. */
+  state: GameState | null = null;
 
   private frameCount = 0;
   private eventsSeen = 0;
-  private hasPolled = false;
   private engagedTrainer: { map: number; sprite: number } | null = null;
   private onPoll?: (info: { justEnded: boolean }) => void;
 
@@ -102,7 +102,6 @@ export class RunSession {
       lenientRules: r.lenientRules ?? [],
       goalBadges: r.goalBadges,
     });
-    this.state = this.adapter.readGameState(opts.gb);
   }
 
   /** Per-frame hook: tops up Rare Candies once unlocked and polls state every 6 frames. */
@@ -118,8 +117,7 @@ export class RunSession {
 
   /** Re-reads game memory, syncs hard caps, tracks beaten trainer sprites, and updates the tracker. */
   poll(): { justEnded: boolean } {
-    const prev = this.hasPolled ? this.state : null;
-    this.hasPolled = true;
+    const prev = this.state;
     const next = this.adapter.readGameState(this.gb);
     this.state = next;
     syncHardCap(this.gb, this.tracker, next);
@@ -171,13 +169,18 @@ export class RunSession {
     };
   }
 
-  /** Full checkpoint at a story milestone (`KEYS.milestone(id)`), cloning mutable snapshots. */
+  /**
+   * A save at a story milestone, kept for good: the machine, tracker and battery as they are now,
+   * and how far the recording has got, so a run can be continued from there
+   * (`scripts/snapshot-run.mjs --milestone`) without replaying it from power-on.
+   */
   captureMilestone(battery: Uint8Array | null): MilestoneSave {
     return {
       state: this.gb.saveState(),
       tracker: structuredClone(this.tracker.snap),
       battery,
       ticks: this.gb.ticks,
+      // With the run's memory of the maps (fog of war), so a test resumed from here remembers what it saw.
       seen: structuredClone(this.seen.data),
     };
   }
@@ -190,7 +193,7 @@ export class RunSession {
     score: number;
     savedReplay: SavedReplay;
   } {
-    const lead = this.state.party[0]?.species ? this.state.party[0] : this.tracker.snap.lastLead;
+    const lead = this.state?.party[0]?.species ? this.state.party[0] : this.tracker.snap.lastLead;
     const leadName = lead ? this.tracker.name(lead.species) : "—";
     const level = Math.max(lead?.level ?? 0, this.tracker.snap.maxLevel ?? 0);
     const badges = this.tracker.snap.maxBadges ?? 0;
@@ -218,11 +221,11 @@ export class RunSession {
   // ---- AiHost query projections ----
 
   summary(): unknown {
-    return summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb) });
+    return this.state ? summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb) }) : null;
   }
 
-  brief(): Brief {
-    return brief(this.tracker, this.state);
+  brief(): Brief | null {
+    return this.state ? brief(this.tracker, this.state) : null;
   }
 
   takeNewEvents(): string[] {
@@ -232,7 +235,7 @@ export class RunSession {
   }
 
   battleMoves(): MoveInfo[] {
-    return battleMoves(this.tracker, this.state);
+    return this.state ? battleMoves(this.tracker, this.state) : [];
   }
 
   battleHp(): { you: BattlerHp; foe: BattlerHp } | null {

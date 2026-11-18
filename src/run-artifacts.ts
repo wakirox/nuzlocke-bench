@@ -132,14 +132,13 @@ export const THROTTLED_KEYS: Record<string, number> = Object.fromEntries(
 
 /**
  * Every key in `existingKeys` (plus fixed per-run keys) that belongs to the active run and should be
- * deleted on `clearRun()`: includes named save slots (`run.slotState.*`) and milestones (`run.milestone.*`).
+ * deleted on `clearRun()`: the manifest's `clearedWithRun` keys plus any `run.milestone.*` saves.
  */
 export function keysClearedWithRun(existingKeys: Iterable<string>): string[] {
   const out = new Set<string>(RUN_ARTIFACTS.filter((a) => a.clearedWithRun).map((a) => a.key));
   const milestonePrefix = KEYS.milestone("");
-  const slotPrefix = `${KEYS.slotState}.`;
   for (const k of existingKeys) {
-    if (k.startsWith(milestonePrefix) || k.startsWith(slotPrefix)) out.add(k);
+    if (k.startsWith(milestonePrefix)) out.add(k);
   }
   return [...out];
 }

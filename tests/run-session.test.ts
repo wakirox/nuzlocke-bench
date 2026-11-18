@@ -48,14 +48,16 @@ describe("run-artifacts manifest", () => {
       KEYS.run,
       KEYS.autoState,
       KEYS.battery,
+      KEYS.slotState,
       KEYS.tracker,
       KEYS.seen,
       KEYS.replay,
       KEYS.routes,
-      "run.slotState.manual",
-      "run.slotState.ai-1",
       "run.milestone.badge1",
     ]));
+    // Named save slots survive `clearRun`, matching master's exact behaviour.
+    expect(cleared).not.toContain("run.slotState.manual");
+    expect(cleared).not.toContain("run.slotState.ai-1");
     expect(cleared).not.toContain("baseRom");
     expect(cleared).not.toContain("history");
     expect(cleared).not.toContain("bestReplay.nuzlocke");
@@ -130,6 +132,11 @@ describe("RunSession", () => {
       onPoll: ({ justEnded }) => polls.push(justEnded),
     });
 
+    // State stays null until the first poll so power-on RAM noise isn't read early.
+    expect(session.state).toBeNull();
+    expect(session.summary()).toBeNull();
+    expect(session.brief()).toBeNull();
+
     // Clean seen map isn't re-written on autosave until something new is seen.
     expect(session.captureAutosave().seen).toBeUndefined();
     session.seen.sawScreen(1, 5, 5);
@@ -144,6 +151,7 @@ describe("RunSession", () => {
 
     ticks = 240;
     session.poll();
+    expect(session.state).not.toBeNull();
     expect(polls).toEqual([false]);
     expect(runScore({ kind: "victory", detail: "Won" }, 8, 55)).toBeGreaterThan(runScore({ kind: "wipe", detail: "Lost" }, 8, 100));
   });

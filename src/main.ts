@@ -8,7 +8,7 @@ import type { SeenData } from "./bridge/seen";
 import { GameBoy, loadCore } from "./emulator/gameboy";
 import { attachInput } from "./emulator/input";
 import type { ReplayLog, SavedReplay } from "./emulator/replay";
-import { detectVersion } from "./games";
+import { detectVersion, gameFor } from "./games";
 import { readRom } from "./rom/client";
 import { RULESETS, RULESET_IDS, goalText, isKnownRuleset, type ChallengeMode } from "./rulesets";
 import { RunSession, infiniteCandies, runScore } from "./run-session";
@@ -43,7 +43,7 @@ const lastHtml: Record<string, string> = {};
 const VOLUME_KEY = "kaizo.volume";
 
 const convoPanel = new ConvoPanel((usage) => {
-  if (session) setHtml("t-run", renderRun(session.tracker, session.state, usage));
+  if (session?.state) setHtml("t-run", renderRun(session.tracker, session.state, usage));
 });
 document.addEventListener("DOMContentLoaded", () => convoPanel.mount());
 
@@ -328,7 +328,7 @@ let partyPick: string | null = null;
 let lastFocus = "";
 
 function renderAll() {
-  if (!session) return;
+  if (!session?.state) return;
   const { tracker, state } = session;
   const focus = partyFocus(state);
   if (focus !== lastFocus) {
@@ -418,7 +418,9 @@ async function keepIfBest(outcome: RunRecord["outcome"]) {
 
 /**
  * A save at a story milestone, kept for good: the MCP server asks on the call that first reaches
- * one. Packed via RunSession.captureMilestone (matching run-artifacts.ts / snapshot-run.mjs).
+ * one. The machine, the tracker and the battery as they are now, and how far the recording has
+ * got (plus `seen` map memory for fog of war), so a run can be continued from there
+ * (`scripts/snapshot-run.mjs --milestone`) without replaying it from power-on.
  */
 async function saveMilestone(id: string) {
   if (!session) return;
@@ -520,7 +522,7 @@ function bindToolbar() {
   // A party tile shows that Pokémon in the main card.
   $("t-lead").addEventListener("click", (e) => {
     const tile = (e.target as HTMLElement).closest<HTMLElement>(".tile");
-    if (!tile || !session) return;
+    if (!tile || !session?.state) return;
     partyPick = tile.dataset.uid === partyFocus(session.state) ? null : tile.dataset.uid ?? null;
     renderAll();
   });
@@ -551,7 +553,7 @@ async function abandonToSetup() {
 
 async function recordRun(outcome: RunRecord["outcome"]) {
   if (!run) return;
-  const lead = session?.state.party[0]?.species ? session.state.party[0] : session?.tracker.snap.lastLead;
+  const lead = session?.state?.party[0]?.species ? session.state.party[0] : session?.tracker.snap.lastLead;
   const leadName = lead && session ? session.tracker.name(lead.species) : "—";
   const level = Math.max(lead?.level ?? 0, session?.tracker.snap.maxLevel ?? 0);
   const badges = session?.tracker.snap.maxBadges ?? 0;
@@ -681,7 +683,7 @@ const bridge = new AiBridge(
     saveProblem: () => autosaveProblem,
     loadState: (slot) => loadSlot(`ai-${slot}`),
     version: () => session?.run.data.version ?? run?.data.version ?? null,
-    game: () => session?.adapter ?? null,
+    game: () => session?.adapter ?? (run ? gameFor(run.data.version) : null),
     rom: () => session?.rom ?? run?.rom ?? null,
     beatenTrainers: () => session?.beatenTrainers() ?? [],
     mapTrainers: () => session?.mapTrainers() ?? [],
