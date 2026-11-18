@@ -10,6 +10,8 @@ export class Capture {
   async throwBall(nick: string | null, kind: string | null): Promise<unknown> {
     const s = this.core.summary();
     if (s?.battle !== "wild") throw new Error("Balls are only thrown in wild battles.");
+    // The naming keyboard is typed letter by letter: anything else can't be typed (checked before the throw).
+    if (nick && !/^[A-Za-z]{1,10}$/.test(nick)) throw new Error(`"${nick}" can't be typed as a nickname: letters A–Z only, up to 10. Nothing was thrown.`);
     // The game would take it, but the rules count the species' own name as no nickname.
     const foe = (s as { enemy?: { species?: string } }).enemy?.species;
     if (nick && foe && nick.toUpperCase().replace(/\s+/g, "") === foe.toUpperCase().replace(/\s+/g, "")) {

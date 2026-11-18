@@ -22,7 +22,7 @@ import { createRequestHandler, saveFileOf } from "./http-routes.mjs";
 import { loadObserver } from "./observers.mjs";
 import { entriesOf, NOTES_MAX, notesStore, numbered, updateNotes } from "./notes.mjs";
 import { instrumentTools } from "./run-log.mjs";
-import { callBudget, limitCalls } from "./call-budget.mjs";
+import { UNCOUNTED_RESULT, callBudget, limitCalls } from "./call-budget.mjs";
 import { harnessVersion } from "./provenance.mjs";
 import { MAP_LEGEND, NARROW_GRID_NOTE, createFormatter, hideEffectiveness, json, legendFor, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
 import { applyPreset, benchmarkPreset } from "./benchmark.mjs";
@@ -216,9 +216,13 @@ const wrap = (fn) => async (args) => {
     if (autoStart.pending()) await Promise.race([autoStart.pending(), new Promise((r) => setTimeout(r, 60_000))]);
     return narrow(await fn(args ?? {}));
   } catch (e) {
-    return narrow({ isError: true, content: [{ type: "text", text: plainErrorScreen(e.message ?? String(e)) }] });
+    const text = plainErrorScreen(e.message ?? String(e)) + (e?.uncounted && BUDGET ? "\n(Nothing ran, so this call doesn't count.)" : "");
+    // Marked with or without a budget: the run log records it as uncounted (and drops the mark).
+    return narrow({ isError: true, content: [{ type: "text", text }], ...(e?.uncounted ? { [UNCOUNTED_RESULT]: true } : {}) });
   }
 };
+/** An error for a call refused before any of it ran: like a tool's own bad arguments, it doesn't count against the call budget. */
+const refused = (message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { uncounted: true });
 
 // Maps are shown on request: a move's result leaves the area's map out unless the model asks for it here.
 const SHOW_MAP = z.boolean().optional().describe("Also show the area's map after moving (otherwise only get_map shows it)");
@@ -279,16 +283,16 @@ server.registerTool("do", {
     try {
       st = normalizeStep(raw);
     } catch (e) {
-      throw new Error(`Step ${i + 1} (${raw.tool}): ${e.message}`, { cause: e });
+      throw refused(`Step ${i + 1} (${raw.tool}): ${e.message}`, e);
     }
-    if (FINAL_READS[st.tool] && i < steps.length - 1) throw new Error(`Step ${i + 1} (${st.tool}): a read can only be the last step (its answer is for deciding what to do next).`);
+    if (FINAL_READS[st.tool] && i < steps.length - 1) throw refused(`Step ${i + 1} (${st.tool}): a read can only be the last step (its answer is for deciding what to do next).`);
     const schema = SCHEMAS[st.tool];
     const r = schema ? schema.safeParse(st.args ?? {}) : { success: true, data: st.args ?? {} };
-    if (!r.success) throw new Error(`Step ${i + 1} (${st.tool}): ${r.error.issues.map((x) => `${x.path.join(".") || "args"}: ${x.message}`).join("; ")}`);
+    if (!r.success) throw refused(`Step ${i + 1} (${st.tool}): ${r.error.issues.map((x) => `${x.path.join(".") || "args"}: ${x.message}`).join("; ")}`);
     return { tool: st.tool, args: r.data };
   });
   const read = FINAL_READS[parsed[parsed.length - 1].tool] ? parsed.pop() : null;
-  if (!parsed.length) throw new Error(`A batch needs at least one action before ${read.tool}: call ${read.tool} on its own.`);
+  if (!parsed.length) throw refused(`A batch needs at least one action before ${read.tool}: call ${read.tool} on its own.`);
   const { done, stopped, skipped } = await runBatch(parsed, (tool, args) => call(tool, args));
   const last = done[done.length - 1];
   const head = done.slice(0, -1).map((d, i) => stepSummary(i, d));
@@ -511,17 +515,18 @@ server.registerTool("throw_ball", {
   description: "In a wild battle: throw the ball you choose and report the result. " +
     "On a catch it answers the nickname prompt with `nickname` (Nuzlocke: always give one).",
   inputSchema: {
-    nickname: z.string().max(10).optional().describe("Nickname for the catch (letters)"),
-    ball: z.enum(["poke", "great", "ultra", "master"]).describe("Which ball to throw"),
+    nickname: z.string().regex(/^[A-Za-z]{1,10}$/, "letters A–Z only, up to 10").optional().describe("Nickname for the catch (letters A–Z, up to 10)"),
+    ball: z.enum(["poke", "great", "ultra", "master", "safari"]).optional().describe("Which ball to throw (in the game reserve its own balls are thrown: safari, or leave it out)"),
   },
 }, wrap(async (a) => afterAction(await call("throw_ball", a))));
 
 server.registerTool("use_item", {
   title: "Use an item",
-  description: "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody). Closes the menus after.",
+  description: "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody), and on one of its moves for items that ask which (ETHER, PP UP). Closes the menus after.",
   inputSchema: {
-    item: z.string().describe('Item name, e.g. "SUPER POTION", "REPEL"'),
+    item: z.string().describe('Item name as the bag lists it, e.g. "SUPER POTION", "REPEL"'),
     pokemon: z.string().optional().describe("Target: nickname, species or slot"),
+    move: z.string().optional().describe("For items used on one move (ETHER, PP UP…): the move's name"),
   },
 }, wrap(async (a) => afterAction(await call("use_item", a))));
 

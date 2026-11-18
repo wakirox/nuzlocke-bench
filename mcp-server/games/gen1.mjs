@@ -116,7 +116,7 @@ export const GEN1 = {
     {
       when: (s) => !s.visited.has("LAVENDER_TOWN") && !s.visited.has("CELADON_CITY") && s.badges < 4,
       text: "Go back north to the second gym's city. Cut the small tree on its east side and follow the route east, then south, to the dark tunnel. " +
-        "Go through it to the small town with the tower: it's dark, but the map still shows the walls (optional: the professor's aide in the gate on the east side of the route north of the town before the forest, " +
+        "Go through it to the small town with the tower: it's dark, so you see only the squares lit around you and walk_to, travel and exit_map can't find the way: walk and press still move you (optional: the professor's aide in the gate on the east side of the route north of the town before the forest, " +
         "reached by cutting a tree, gives a light-making HM once you've caught 10 kinds).",
     },
     {
