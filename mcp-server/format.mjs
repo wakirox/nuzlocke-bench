@@ -276,7 +276,7 @@ export function createFormatter({ mapsOnRequest = false } = {}) {
     const s = r.status ?? {};
     const out = [
       r.saveWarning ? `⚠️ ${r.saveWarning}` : null,
-      `📍 ${s.location ?? "?"} | battle: ${s.battle ?? "?"}`,
+      `📍 ${s.location ?? "?"} | battle: ${s.battle ?? "?"}${s.trainer ? ` (${s.trainer})` : ""}`,
       s.lead ? `🟢 you: ${s.lead}${s.others ? ` · also: ${s.others}` : ""}${s.dead ? ` · dead: ${s.dead}` : ""}${s.cap ? ` · cap Lv${s.cap}${s.capCandiesOnly ? " for Rare Candies (League battles may pass it)" : ""}` : ""}` : null,
       s.enemy ? `🔴 foe: ${s.enemy}` : null,
       s.outcome ? `🏁 RUN ENDED — ${s.outcome}` : null,

@@ -88,6 +88,14 @@ describe("action results", () => {
   });
 });
 
+describe("the location line", () => {
+  it("names the trainer in a trainer battle", () => {
+    const line = (status: Record<string, unknown>) => text(createFormatter().afterAction(result([], { status }))).split("\n").find((l) => l.startsWith("📍"));
+    expect(line({ location: "GYM_3 [GYM_3]", battle: "trainer", trainer: "SAILOR" })).toBe("📍 GYM_3 [GYM_3] | battle: trainer (SAILOR)");
+    expect(line({ location: "ROUTE_1 [ROUTE_1]", battle: "wild", trainer: null })).toBe("📍 ROUTE_1 [ROUTE_1] | battle: wild");
+  });
+});
+
 describe("the lead's line", () => {
   it("ends with the level cap outside battle, after anyone else's status", () => {
     const line = (status: Record<string, unknown>) => text(createFormatter().afterAction(result([], { status }))).split("\n").find((l) => l.startsWith("🟢"));
