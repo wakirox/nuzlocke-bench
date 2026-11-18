@@ -22,7 +22,7 @@ type Handler = (...a: unknown[]) => Promise<{ content: { type: string; text: str
 /** Composes `createToolLogger` and `withCallBudget` in the exact order `registerTools` uses. */
 function wrapHandler(name: string, cb: Handler, opts: { budget?: unknown; logOpts?: Record<string, unknown> } = {}): Handler {
   let h = withCallBudget(opts.budget ?? null, cb, { counted: !UNCOUNTED.has(name) });
-  if (opts.logOpts) h = createToolLogger(opts.logOpts)(name, true, h);
+  if (opts.logOpts) h = createToolLogger(opts.logOpts)(name, h);
   return (args) => h(args, {});
 }
 
@@ -54,8 +54,8 @@ describe("tool-call budget", () => {
     const budget = callBudget({ max: 2, dir });
     const file = join(dir, "run-log.jsonl");
     const wrapLog = createToolLogger({ file });
-    const runDo = wrapLog("do", true, withCallBudget(budget, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true })));
-    const press = wrapLog("press", true, withCallBudget(budget, async () => text("pressed")));
+    const runDo = wrapLog("do", withCallBudget(budget, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true })));
+    const press = wrapLog("press", withCallBudget(budget, async () => text("pressed")));
     await press({});
     const refused = await runDo({});
     expect(textOf(refused)).not.toContain("RUN ENDED");

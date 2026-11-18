@@ -5,9 +5,9 @@
 // everything that happened up to there.
 
 import { plainErrorScreen, sentences } from "./format.mjs";
-import { BATCH_TOOLS, FINAL_READ_TOOLS, stepToolError } from "./tool-catalog.mjs";
+import { BATCH_TOOLS, stepToolError } from "./tool-catalog.mjs";
 
-export { BATCH_TOOLS, FINAL_READ_TOOLS, stepToolError };
+export { BATCH_TOOLS, stepToolError };
 
 /**
  * A step as { tool, args }. Arguments written next to `tool` ({ tool: "walk_to", x: 6, y: 3 }) are

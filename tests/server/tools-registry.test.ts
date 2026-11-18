@@ -30,12 +30,16 @@ function fakeServer() {
 }
 
 describe("tool catalog and registry", () => {
-  it("derives batch, read and uncounted sets from one catalog without overlap bugs", () => {
+  it("derives batch, read and uncounted sets from one catalog without leaking gated tools", () => {
     expect(new Set(TOOL_CATALOG.map((t: { name: string }) => t.name)).size).toBe(TOOL_CATALOG.length);
     for (const r of READ_TOOLS) expect(BATCH_TOOLS).not.toContain(r);
     for (const f of FINAL_READ_TOOLS) expect(READ_TOOLS).toContain(f);
     expect([...UNCOUNTED]).toEqual(["report_issue"]);
-    expect(stepToolError("hint")).toMatch(/hint can't be a step: reads answer you/);
+    // `hint` must not appear in READ_TOOLS: under a no-hints preset, a `do` step naming `hint` must say
+    // `"hint" isn't a step`, never inviting the model to `call hint on its own`.
+    expect(READ_TOOLS).not.toContain("hint");
+    expect(stepToolError("hint")).toMatch(/^"hint" isn't a step\./);
+    expect(stepToolError("hint")).not.toContain("call hint on its own");
   });
 
   it("keeps activeToolNames in exact agreement with buildToolSpecs across presets", () => {
@@ -74,9 +78,11 @@ describe("tool catalog and registry", () => {
       reportIssue: true,
     });
 
-    // Preset disables save/load/new_run.
+    // Preset disables save/load/new_run and hint, and `do`'s schema error for `hint` doesn't leak `hint`.
     expect(server.tools.has("save_state")).toBe(false);
     expect(server.tools.has("new_run")).toBe(false);
+    expect(server.tools.has("hint")).toBe(false);
+    expect(stepToolError("get_screen")).toMatch(/get_screen can't be a step: reads answer you/);
 
     // 1st call: report_issue is uncounted.
     await server.tools.get("report_issue")!({ did: "walk", expected: "move", happened: "stuck" });

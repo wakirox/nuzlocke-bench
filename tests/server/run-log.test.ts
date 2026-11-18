@@ -11,15 +11,15 @@ import { feedEvents } from "../../mcp-server/transcript-feed.mjs";
 
 type Handler = (...a: unknown[]) => Promise<unknown>;
 
-/** Wraps registered handlers with `createToolLogger`, matching how the server calls them. */
+/** Wraps registered handlers with `createToolLogger`, matching how `registerTools` calls them. */
 function loggedTools(opts: Record<string, unknown>) {
   const wrapLog = createToolLogger(opts);
   const tools = new Map<string, Handler>();
   return {
     tools,
-    add(name: string, config: { inputSchema?: object }, cb: Handler) {
-      const wrapped = wrapLog(name, Boolean(config.inputSchema), cb);
-      tools.set(name, (args) => (config.inputSchema ? wrapped(args, {}) : wrapped({})));
+    add(name: string, _config: { inputSchema?: object }, cb: Handler) {
+      const wrapped = wrapLog(name, cb);
+      tools.set(name, (args) => wrapped(args, {}));
     },
   };
 }

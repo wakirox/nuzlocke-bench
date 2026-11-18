@@ -3,7 +3,9 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { AGY_DENIED, AgyTranslator, agyArgs, agySettings, agyTurn, agyWorkspaceConfig, gameToolName, serverToolNames, withoutTimes } from "../../mcp-server/agy-player.mjs";
+import { AGY_DENIED, AgyTranslator, agyArgs, agySettings, agyTurn, agyWorkspaceConfig, gameToolName, withoutTimes } from "../../mcp-server/agy-player.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { activeToolNames } from "../../mcp-server/tool-catalog.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { benchmarkPreset } from "../../mcp-server/benchmark.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -63,19 +65,19 @@ describe("agy's arguments and workspace", () => {
   });
 
   it("lists only the game's tools enabled for the run's preset and options", () => {
-    const all = serverToolNames();
+    const all = activeToolNames();
     expect(all).toEqual(expect.arrayContaining(["get_state", "do", "walk", "fight", "get_rules", "save_state", "new_run", "report_issue"]));
     expect(all).not.toContain("hint");
     expect(new Set(all).size).toBe(all.length);
 
-    const preset = serverToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap"), reportIssue: false });
+    const preset = activeToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap"), reportIssue: false });
     expect(preset).not.toContain("save_state");
     expect(preset).not.toContain("load_state");
     expect(preset).not.toContain("new_run");
     expect(preset).not.toContain("report_issue");
     expect(preset).not.toContain("hint");
 
-    const hints = serverToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap+hints"), reportIssue: true });
+    const hints = activeToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap+hints"), reportIssue: true });
     expect(hints).toContain("hint");
     expect(hints).toContain("report_issue");
   });

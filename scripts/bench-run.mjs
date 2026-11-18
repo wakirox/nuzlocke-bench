@@ -27,7 +27,8 @@ import { compressTranscript, locateRun, runFiles } from "../mcp-server/run-folde
 import { writeSummary } from "../mcp-server/run-summary.mjs";
 import { dashboardRuns } from "../mcp-server/dashboard.mjs";
 import { DEFAULT_OPTIONS, benchmarkPreset, presetHelp, presetId, withDefaultOptions } from "../mcp-server/benchmark.mjs";
-import { AGY_DENIED, AgyTranslator, agyArgs, agyTurn, agyWorkspaceConfig, serverToolNames } from "../mcp-server/agy-player.mjs";
+import { AGY_DENIED, AgyTranslator, agyArgs, agyTurn, agyWorkspaceConfig } from "../mcp-server/agy-player.mjs";
+import { activeToolNames } from "../mcp-server/tool-catalog.mjs";
 
 const argv = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -288,7 +289,7 @@ function agyWorkspace() {
 function agyPlayer() {
   // The game's server, the workspace's only one.
   mkdirSync(join(agy.dir, ".agents"), { recursive: true });
-  const tools = serverToolNames({ preset: benchmarkPreset(preset), reportIssue: report || playtest });
+  const tools = activeToolNames({ preset: benchmarkPreset(preset), reportIssue: report || playtest });
   writeFileSync(join(agy.dir, ".agents", "mcp_config.json"), JSON.stringify(agyWorkspaceConfig(config.mcpServers["nuzlocke-bench"], tools), null, 2));
   const child = spawn(agy.bin, agyArgs({ model, effort }), { cwd: agy.dir, stdio: ["pipe", "pipe", "inherit"] });
   child.stdin.on("error", (e) => console.error(`agy's input: ${e.message}`));

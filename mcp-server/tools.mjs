@@ -28,7 +28,7 @@ const STATE_SECTIONS = [
 ];
 
 /** An error for a call refused before any of it ran: like a tool's own bad arguments, it doesn't count against the call budget. */
-export const refused = (message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { uncounted: true });
+const refused = (message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { uncounted: true });
 
 // ---- Shared runners for tools that forward straight to the browser bridge ----
 
@@ -544,7 +544,7 @@ const DEFINITIONS = {
   },
 };
 
-// Fail at load time if TOOL_CATALOG and DEFINITIONS ever fall out of sync.
+// Fail at load time if TOOL_CATALOG, DEFINITIONS, and FINAL_READS ever fall out of sync.
 {
   const catalogNames = new Set(TOOL_CATALOG.map((t) => t.name));
   const defNames = new Set(Object.keys(DEFINITIONS));
@@ -552,6 +552,10 @@ const DEFINITIONS = {
   const missingMeta = [...defNames].filter((n) => !catalogNames.has(n));
   if (missingDef.length || missingMeta.length) {
     throw new Error(`Tool registry out of sync (missing definition: ${missingDef.join(", ") || "none"}; missing catalog entry: ${missingMeta.join(", ") || "none"})`);
+  }
+  const finalReadNames = new Set(Object.keys(FINAL_READS));
+  if (finalReadNames.size !== FINAL_READ_TOOLS.length || FINAL_READ_TOOLS.some((n) => !finalReadNames.has(n))) {
+    throw new Error(`FINAL_READS (${[...finalReadNames].join(", ")}) must match FINAL_READ_TOOLS (${FINAL_READ_TOOLS.join(", ")})`);
   }
 }
 
@@ -592,7 +596,7 @@ export function registerTools(server, {
   formatter,
   notes,
   budget = null,
-  wrapLog = null,
+  wrapLog,
   runLogFile = null,
   preset = null,
   reportIssue = true,
@@ -601,6 +605,7 @@ export function registerTools(server, {
   rulesetIds = ["nuzlocke"],
 }) {
   const specs = buildToolSpecs({ preset, reportIssue, narrowGrid, hideEffectiveness, rulesetIds });
+  // Each tool's argument schema, so `do` can check its steps' arguments the same way.
   const schemas = Object.fromEntries(specs.map((s) => [s.name, s.strictSchema]));
   let reports = 0;
 
@@ -638,7 +643,7 @@ export function registerTools(server, {
   for (const spec of specs) {
     let handler = safeWrap(spec);
     handler = withCallBudget(budget, handler, { counted: spec.counted !== false });
-    if (wrapLog) handler = wrapLog(spec.name, true, handler);
+    handler = wrapLog(spec.name, handler);
     server.registerTool(spec.name, { title: spec.title, description: spec.description, inputSchema: spec.inputSchema }, handler);
   }
 }
