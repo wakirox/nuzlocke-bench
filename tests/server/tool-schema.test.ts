@@ -14,7 +14,9 @@ async function toolsUnder(preset: string) {
   await client.connect(new StdioClientTransport({ command: process.execPath, args: ["mcp-server/server.mjs"], env, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
-    return tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })).sort((a, b) => a.name.localeCompare(b.name));
+    const offered = tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+    // Sorted for the schema snapshot (a readable diff per tool); the order as offered is pinned on its own.
+    return Object.assign([...offered].sort((a, b) => a.name.localeCompare(b.name)), { order: offered.map((t) => t.name) });
   } finally {
     await client.close();
   }
@@ -33,5 +35,12 @@ describe("the tools the model is offered", () => {
     const same = (t: (typeof plain)[number]) => (t.name === "get_state" ? { ...t, description: "" } : t);
     expect(hints.filter((t) => t.name !== "hint").map(same)).toEqual(plain.map(same));
     await expect(JSON.stringify(hints, null, 2) + "\n").toMatchFileSnapshot("./tool-schema.snap.json");
+  }, 30_000);
+
+  it("are offered in the same order", async () => {
+    // The model reads the tool list in this order: moving a tool is a change to what it sees,
+    // like rewording one (a refactor that re-registered the tools once reordered them all).
+    const { order } = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap+hints");
+    await expect(order.join("\n") + "\n").toMatchFileSnapshot("./tool-order.snap.txt");
   }, 30_000);
 });
