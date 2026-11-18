@@ -542,9 +542,10 @@ export class Travel {
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
     let report = "already there";
-    // A guessed way (through unseen squares) is walked only as far as `route.legDirs` (the seen
-    // prefix), then re-planned with what that walk showed: never blind into an unseen trainer's
-    // sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
+    // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
+    // A guessed way is walked only as far as the squares already seen (`route.legDirs`), then re-planned
+    // with what that walk showed (the screen reaches 4-5 squares ahead): never blind into an unseen
+    // trainer's sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
     for (let attempt = 0, legs = 0; route && route.dirs.length && attempt < 4;) {
       report = await this.walkSegments(toSegments(route.legDirs));
       here = this.core.host.position();

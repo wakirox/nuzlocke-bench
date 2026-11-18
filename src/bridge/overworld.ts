@@ -328,7 +328,9 @@ export function sealFromWholeMap<T extends AnyOverworldView>(screen: T, whole: U
 
 export function renderView(view: PlayerVisibleView): string {
   // Closed patches of a cave's lower floor are drawn as rock (and drop out of the cliff edges list).
-  // A `"known"` view from BridgeCore.view(true) was already sealed on its raw whole map before fogging.
+  // Only a whole map (readFullMap: it has exits) can tell: on a screen or a crop a patch may go on
+  // past the edge, so those come sealed from the whole map already (sealFromWholeMap); a "known"
+  // view from BridgeCore.view(true) was likewise sealed on its raw whole map before fogging.
   const closed = view.exits && view.stage !== "known" ? sealedLowerFloor(view as UnfoggedView) : new Set<number>();
   const VW = view.grid[0]?.length ?? 0;
   const v: PlayerVisibleView = closed.size

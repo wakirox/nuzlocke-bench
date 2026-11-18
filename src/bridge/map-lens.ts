@@ -49,6 +49,8 @@ export function maskView(view: AnyOverworldView, { isVisible, mapDoor }: MaskLen
   );
   const visibleDoors = view.doors?.filter((d) => isVisible(d.x, d.y));
   const doors = visibleDoors && mapDoor ? visibleDoors.map((d) => mapDoor(d, visibleDoors)) : visibleDoors;
+  // Trainers' sight only from trainers the run has seen, onto squares it has seen: otherwise an
+  // unseen trainer's ! (and where it stands) would show through the fog, and paths steer round it.
   const W = view.grid[0]?.length ?? 0;
   const watchers = view.watchers && new Map(
     [...view.watchers]
@@ -66,20 +68,20 @@ export function maskView(view: AnyOverworldView, { isVisible, mapDoor }: MaskLen
   };
 }
 
-/** Whether `view` contains any unseen (`"?"`) squares. */
+/** The view has squares the run hasn't seen (fog of war). */
 export function hasFog(view: AnyOverworldView): boolean {
   return view.grid.some((row) => row.includes("?"));
 }
 
-/**Whether the raw map contains any tall grass (`"`), regardless of what the run has seen so far. */
+/** Whether the raw map contains any tall grass (`"`), regardless of what the run has seen so far. */
 export function mapHasGrass(raw: UnfoggedView): boolean {
   return raw.grid.some((row) => row.includes('"'));
 }
 
 /**
- * Optimistic fill of unseen `"?"` squares for frontier exploration: `"~"` while surfing (so a guessed
- * route across unexplored sea doesn't dismount Surf), `"."` on land. Tagged `"guessed"` so TypeScript
- * rejects passing it to `renderView` or `UnfoggedView` consumers.
+ * A guess at the unseen part of a view: every `"?"` taken as open (the walk finds out): floor, or
+ * water while surfing (a guess of land would end the surf and miss a sea route's edge). Tagged
+ * `"guessed"` so TypeScript rejects passing it to `renderView` or `UnfoggedView` consumers.
  */
 export function guessUnseenView(view: AnyOverworldView): GuessedOverworldView {
   const open = view.surfing ? "~" : ".";
@@ -90,7 +92,7 @@ export function guessUnseenView(view: AnyOverworldView): GuessedOverworldView {
   };
 }
 
-/** How many steps of `dirs` from the player stay on seen (non-`"?"`) squares, counting ledge hops as 2 tiles. */
+/** How many steps of `dirs` from the player stay on squares the view shows (not `"?"`), counting ledge hops as 2 tiles. */
 export function seenSteps(v: AnyOverworldView, dirs: Dir[]): number {
   let c = v.pc;
   let r = v.pr;
@@ -151,8 +153,9 @@ export function planFrontierTarget(
 }
 
 /**
- * Plans a walk to `view`'s map edge in `dir`: prefers a seen route, falling back to an optimistic
- * frontier-truncated route across `"?"` when the map has fog.
+ * Plans a walk to `view`'s map edge in `dir`: prefers a seen route; when no seen way exists (fog of
+ * war), guesses through unseen squares as a player heads for an exit they haven't seen (a wall found
+ * on the way blocks the walk, and `exitMap` re-plans).
  */
 export function planFrontierEdge(
   view: AnyOverworldView,
