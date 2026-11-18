@@ -55,7 +55,8 @@ function offDefaults(leg) {
   if (r.effectiveness === "on") return "effectiveness shown";
   if (r.reportIssue === false) return "report_issue off";
   if (r.grid && r.grid !== "narrow") return "other grid";
-  if (r.compactWindow !== undefined && r.compactWindow !== COMPACT_WINDOW) return "other context window";
+  // agy keeps its own context (it can't be given a window): its runs record none.
+  if (r.via !== "agy" && r.compactWindow !== undefined && r.compactWindow !== COMPACT_WINDOW) return "other context window";
   if (r.maxNudges !== undefined && r.maxNudges !== GIVE_UP_AFTER) return "other nudges";
   if (r.maxTokens !== undefined && r.maxTokens !== DEFAULT_MAX_TOKENS) return "other token limit";
   return null;
@@ -221,6 +222,8 @@ export function dashboardRuns(rows, { names = true } = {}) {
       // A 1M-context run keeps its [1m]: it isn't the standard model's run (and isn't official).
       model: String(who.model).replace(/^claude-/, ""),
       effort: who.effort ?? null,
+      // Who ran the model when it wasn't Claude Code: "agy" (the Antigravity CLI), shown with the model.
+      ...(recordOf(first)?.via === "agy" ? { via: "agy" } : {}),
       game: first.game ?? null,
       preset: first.preset ?? null,
       date: id.slice(0, 10),

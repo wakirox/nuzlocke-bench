@@ -150,6 +150,15 @@ can't be checked for that, and the server being open doesn't change it. The rule
   had (all `mcp__nuzlocke-bench__…`), and every call it made is in it. The dashboard checks it: a run whose
   transcript lists any other tool or MCP server, at any session start, is marked "other tools", and one with no
   tool list on record "tools not on record".
+- **Runs through agy, the Antigravity CLI, are official too** (`npm run bench -- --agent agy --model <id>`, started by
+  someone logged in to agy). agy can't be started with only the game's tools: it always lists its own (files,
+  commands, the web, a browser, subagents). So the runner gives it the same prompt, the game's server as the only MCP
+  server (in a workspace of its own, emptied for every run; it won't start if agy has servers of its own), and denies
+  every built-in action in the session's settings; and since the list can't prove anything, the dashboard checks the
+  calls instead: every call the model made is in the transcript (agy's events, in Claude Code's shape, with agy's own
+  beside them in `agy-events.jsonl`), and a call to anything but the game's tools stops the run and marks it "other
+  tools". `agent.json` records `via: "agy"`, agy's version and the denied actions; the dashboard shows these runs as
+  "via agy", apart from Claude Code's. agy keeps its own context, so `--compact-window` doesn't apply.
 - **A watch-only observer doesn't change that** (`--observer <module>`, see `mcp-server/observers.mjs`): it gets the
   headless page to look at and paths of its own on the game's port, nothing that plays (no bridge, tools or input),
   so the model sees exactly what it would without it. The run records its name (`observers` in `agent.json`).

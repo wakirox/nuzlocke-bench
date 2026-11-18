@@ -179,17 +179,31 @@ export function runExtras({ tracker, transcript, notes, game = GEN1 }) {
  * The tools the model had besides the game's, from every session start in the transcript (Claude Code's
  * init event; a resumed or restarted session writes another). Null when the transcript names none, so the
  * run's tools aren't on record. The game's tools are the bench server's (mcp__nuzlocke-bench__…); a run
- * through the API lists that server's tools by their own names, with no MCP servers of its own.
+ * through the API lists that server's tools by their own names, with no MCP servers of its own. A run
+ * through agy (agy-player.mjs) always lists agy's built-ins, denied: there it's the calls that count, any
+ * call to something other than the game's tools.
  */
 export function otherToolsOf(transcript) {
-  let seen = false;
+  let seen = false, agy = false;
   const other = new Set();
   for (const line of (transcript ?? "").split("\n")) {
-    if (!line.includes('"init"')) continue;
+    const init = line.includes('"init"');
+    if (!init && !(agy && line.includes('"tool_use"'))) continue;
     let e;
     try { e = JSON.parse(line); } catch { continue; }
+    if (agy && e?.type === "assistant") {
+      for (const c of Array.isArray(e.message?.content) ? e.message.content : []) {
+        if (c?.type === "tool_use" && !String(c.name).startsWith("mcp__nuzlocke-bench__")) other.add(c.name);
+      }
+      continue;
+    }
     if (e?.type !== "system" || e.subtype !== "init" || !Array.isArray(e.tools)) continue;
     seen = true;
+    if (e.via === "agy") {
+      agy = true;
+      for (const s of e.mcp_servers ?? []) if (s?.name !== "nuzlocke-bench") other.add(`MCP server ${s?.name}`);
+      continue;
+    }
     const direct = e.mcp_servers === undefined;
     for (const name of e.tools) if (!(direct ? !name.startsWith("mcp__") : name.startsWith("mcp__nuzlocke-bench__"))) other.add(name);
     for (const s of e.mcp_servers ?? []) if (s?.name !== "nuzlocke-bench") other.add(`MCP server ${s?.name}`);
@@ -359,7 +373,7 @@ export function table(rows) {
   const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
   // Who played comes from scripts/bench-run.mjs (runs/<id>.agent.json); runs played otherwise show —.
   // A run continued from another's saves, or (older runs) told to narrate, isn't a clean benchmark result: say so.
-  const who = (a) => (a?.model ? `${a.model}${a.effort ? ` (${a.effort})` : ""}${a.via === "api" ? " · via API" : ""}${a.maps === "always" ? " · maps after every move" : ""}${a.effectiveness === "on" && !String(a.preset ?? "").includes("+hints") ? " · effectiveness shown" : ""}${a.resumedFrom ? ` · continued from ${a.resumedFrom}` : ""}${a.narrated ? " · narrated" : ""}${a.playtest ? " · playtest (not a result)" : ""}` : "—");
+  const who = (a) => (a?.model ? `${a.model}${a.effort ? ` (${a.effort})` : ""}${a.via === "api" ? " · via API" : a.via === "agy" ? " · via agy" : ""}${a.maps === "always" ? " · maps after every move" : ""}${a.effectiveness === "on" && !String(a.preset ?? "").includes("+hints") ? " · effectiveness shown" : ""}${a.resumedFrom ? ` · continued from ${a.resumedFrom}` : ""}${a.narrated ? " · narrated" : ""}${a.playtest ? " · playtest (not a result)" : ""}` : "—");
   const body = rows.map((r) =>
     `| ${r.name} | ${who(r.agent)} | ${r.preset ?? "—"} | ${r.harness ?? "—"} | ${outcomeText(r)} | ${r.badges} | ${r.deaths} | ${r.violations} | ${r.playTime ?? "—"} | ${r.calls} | ${r.errors} | ${r.agent?.nudges ?? "—"} | ${r.agent?.tokens ? `${(r.agent.tokens.total / 1e6).toFixed(1)}M (${r.agent.tokens.turns})` : "—"} | ${hms(r.wallMs)} | ${r.chars} (${r.charsPerCall}) | ${r.topTools} |`);
   return [head, sep, ...body].join("\n");
@@ -614,7 +628,7 @@ export function darkTunnelTable(rows) {
 
 /** "haiku-5-5 medium" (+ " api", " maps-always" when turned back on, " playtest"): runs are compared within these groups. */
 const groupOf = (agent) => agent?.model
-  ? `${String(agent.model).replace(/^claude-/, "").replace(/\[1m\]$/, "")}${agent.effort ? ` ${agent.effort}` : ""}${agent.via === "api" ? " api" : ""}${agent.maps === "always" ? " maps-always" : ""}${agent.effectiveness === "on" && !String(agent.preset ?? "").includes("+hints") ? " effectiveness" : ""}${agent.playtest ? " playtest" : ""}`
+  ? `${String(agent.model).replace(/^claude-/, "").replace(/\[1m\]$/, "")}${agent.effort ? ` ${agent.effort}` : ""}${agent.via === "api" ? " api" : agent.via === "agy" ? " agy" : ""}${agent.maps === "always" ? " maps-always" : ""}${agent.effectiveness === "on" && !String(agent.preset ?? "").includes("+hints") ? " effectiveness" : ""}${agent.playtest ? " playtest" : ""}`
   : "unknown";
 
 /**

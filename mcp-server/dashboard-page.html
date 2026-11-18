@@ -185,7 +185,7 @@ const exactMedian = (xs) => { const s = [...xs].sort((a, b) => a - b), m = s.len
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
 const label = (i) => (i >= 0 ? DATA.objectives[i].label : "None yet");
 const mTokens = (t, partial) => (t == null ? "" : `${partial ? "≥" : ""}${(t / 1e6).toFixed(1)}M`);
-const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""}`;
+const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""}${r.via ? ` via ${r.via}` : ""}`;
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const byGroup = (a, b) => { const [ma, ea] = a.split(" "), [mb, eb] = b.split(" "); return ma.localeCompare(mb) || EFFORTS.indexOf(ea) - EFFORTS.indexOf(eb); };
 
