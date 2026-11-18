@@ -87,6 +87,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     const myTypes = active ? sp(active.species)?.types ?? [] : [];
     enemy = {
       kind: s.battle === 1 ? "wild" : "trainer",
+      trainer: trainerName(t, s) ?? undefined,
       species: esp?.name ?? `#${e.species}`,
       level: e.level,
       hpPercent: e.maxHp ? Math.round((e.hp / e.maxHp) * 100) : 0,
@@ -144,6 +145,18 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     catches: t.snap.catches.map((c) => ({ species: t.name(c.species), level: c.level, map: t.data.mapNames[c.map] || c.mapConst, gift: c.gift })),
     recentRuleEvents: t.snap.events.slice(-8).map((e) => `[${e.severity}] ${e.text}`),
   };
+}
+
+/**
+ * Who you're fighting in a trainer battle, as its intro names them ("LASS wants to fight!"): the
+ * trainer's class from the ROM (a leader's class is its name). The rival's class has an internal name
+ * there (RIVAL1), while the game shows the name the player gave: "your rival". Null outside one.
+ */
+export function trainerName(t: Pick<Tracker, "data">, s: Pick<GameState, "battle" | "enemyTrainer">): string | null {
+  const cls = s.battle === 2 ? s.enemyTrainer?.trainerClass : undefined;
+  const name = cls ? t.data.trainerClasses?.[cls - 1] : undefined;
+  if (!name) return null;
+  return /^RIVAL\d*$/.test(name) ? "your rival" : name;
 }
 
 /**
@@ -216,6 +229,8 @@ export function brief(t: Tracker, s: GameState) {
     // With no Pokémon of your own a battle is a scene the game plays (Yellow's opening: the professor catching the partner Pokémon).
     battle: s.battle > 0 && !s.party.some((m) => m.species) ? "a scene (you have no Pokémon yet: advance_text plays it)"
       : s.battle === 1 ? "wild" : s.battle === 2 ? "trainer" : s.battle === -1 ? "lost" : "none",
+    /** In a trainer battle, who (the results' "battle: trainer (LASS)"). */
+    trainer: trainerName(t, s),
     lead: mon(active) ? mon(active) + (sendingOut ? " (being sent out)" : "") + moves : null,
     // Outside battle the status line ends with the level cap ("cap Lv14"), the same on every result.
     cap: s.battle === 0 ? t.levelCap(s)?.level ?? null : null,

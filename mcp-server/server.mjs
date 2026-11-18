@@ -90,6 +90,10 @@ const ROMS = knownRoms({ rom: process.env.NUZLOCKE_ROM, dirs: process.env.NUZLOC
 const DIST = HEADLESS ? distDir(PROJECT_ROOT) : null;
 // The conversation panel: bench-run writes the model's transcript next to the run log.
 const TRANSCRIPT = process.env.NUZLOCKE_RUN_LOG && process.env.NUZLOCKE_RUN_LOG !== "off" ? join(dirname(process.env.NUZLOCKE_RUN_LOG), "transcript.jsonl") : null;
+// A client the bench doesn't run itself (another agent app): the server writes that transcript itself, calls
+// and results only (NUZLOCKE_SERVER_TRANSCRIPT=1, needs NUZLOCKE_RUN_LOG). Such a run is self-reported.
+const SERVER_TRANSCRIPT = process.env.NUZLOCKE_SERVER_TRANSCRIPT === "1" ? TRANSCRIPT : null;
+if (process.env.NUZLOCKE_SERVER_TRANSCRIPT === "1" && !TRANSCRIPT) log("NUZLOCKE_SERVER_TRANSCRIPT needs NUZLOCKE_RUN_LOG: no transcript written");
 // A watch-only observer (bench-run --observer): it may look at the run, never play it (observers.mjs).
 let observer = null;
 if (HEADLESS && process.env.NUZLOCKE_OBSERVER) {
@@ -188,7 +192,8 @@ instrumentTools(server, {
   status: link.lastStatus,
   mapsEntered: link.takeMapsEntered,
   onEntry: saveMilestones,
-  session: { benchmark: PRESET, harness: harnessVersion(PROJECT_ROOT, DIST), headless: HEADLESS, ...(PLAYTEST ? { playtest: true } : {}), ...(REPORT_ISSUE ? { reportIssue: true } : {}), grid: NARROW_GRID ? "narrow" : "wide", maps: "ask", effectiveness: HIDE_EFFECTIVENESS ? "off" : "on" },
+  transcript: SERVER_TRANSCRIPT,
+  session: { benchmark: PRESET, harness: harnessVersion(PROJECT_ROOT, DIST), headless: HEADLESS, ...(PLAYTEST ? { playtest: true } : {}), ...(SERVER_TRANSCRIPT ? { serverTranscript: true } : {}), ...(REPORT_ISSUE ? { reportIssue: true } : {}), grid: NARROW_GRID ? "narrow" : "wide", maps: "ask", effectiveness: HIDE_EFFECTIVENESS ? "off" : "on" },
 });
 
 // A benchmark preset's tool-call budget (call-budget.mjs): counted after the run log, so the log
