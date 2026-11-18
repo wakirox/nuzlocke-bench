@@ -289,6 +289,14 @@ server.registerTool("do", {
   });
   const read = FINAL_READS[parsed[parsed.length - 1].tool] ? parsed.pop() : null;
   if (!parsed.length) throw new Error(`A batch needs at least one action before ${read.tool}: call ${read.tool} on its own.`);
+  // Only the last step's map is shown: show_map on an earlier one would use up a new map's first
+  // full view (the bridge shows a map whole once) on a result nobody sees.
+  for (const st of parsed.slice(0, -1)) {
+    if (st.args?.show_map) {
+      const { show_map: _, ...rest } = st.args;
+      st.args = rest;
+    }
+  }
   const { done, stopped, skipped } = await runBatch(parsed, (tool, args) => call(tool, args));
   const last = done[done.length - 1];
   const head = done.slice(0, -1).map((d, i) => stepSummary(i, d));
@@ -336,8 +344,9 @@ server.registerTool("press", {
     buttons: z.string().describe("Space- or comma-separated tokens"),
     hold_frames: z.number().int().min(1).max(600).optional().describe("Frames each press is held (default 6)"),
     wait_frames: z.number().int().min(0).max(600).optional().describe("Frames to wait after each press (default 20)"),
+    show_map: SHOW_MAP,
   },
-}, wrap(async (a) => afterAction(await call("press", a))));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("press", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("walk", {
   title: "Walk a path",
@@ -350,7 +359,7 @@ server.registerTool("walk", {
     direction: z.enum(["up", "down", "left", "right"]).optional(),
     tiles: z.number().int().min(1).max(30).optional(),
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk", { ...a, show_map }), { keepMap: !!show_map })));
 
 // Per-call override of the standing `trainers` policy (see the policies tool).
 const TRAINERS = z.enum(["ignore", "avoid"]).optional()
@@ -362,7 +371,7 @@ server.registerTool("go_to", {
     "nothing is known in advance. Stops at battles and says where a noted route didn't work.",
   inputSchema: {
     show_map: SHOW_MAP, map: z.string(), trainers: TRAINERS },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("go_to", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("go_to", { ...a, show_map }), { keepMap: !!show_map })));
 
 const DIR = z.enum(["up", "down", "left", "right"]);
 server.registerTool("notes", {
@@ -425,7 +434,7 @@ server.registerTool("travel", {
     maps: z.number().int().min(1).max(6).optional(),
     trainers: TRAINERS,
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("travel", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("travel", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("walk_to", {
   title: "Walk to",
@@ -439,7 +448,7 @@ server.registerTool("walk_to", {
     interact: z.boolean().optional(),
     trainers: TRAINERS,
   },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk_to", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("walk_to", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("get_map", {
   title: "Map around you",
@@ -460,7 +469,7 @@ server.registerTool("exit_map", {
     "Pathfinds over the whole map. Fails if the map has no exit that way (then look for a door D).",
   inputSchema: {
     show_map: SHOW_MAP, direction: z.enum(["up", "down", "left", "right"]), trainers: TRAINERS },
-}, wrap(async ({ show_map, ...a }) => afterAction(await call("exit_map", a), { keepMap: !!show_map })));
+}, wrap(async ({ show_map, ...a }) => afterAction(await call("exit_map", { ...a, show_map }), { keepMap: !!show_map })));
 
 server.registerTool("advance_text", {
   title: "Advance dialogue",

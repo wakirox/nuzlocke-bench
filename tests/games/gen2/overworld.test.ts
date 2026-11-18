@@ -1,7 +1,7 @@
 // Crystal's text map: squares by collision type, and trainer parties from the ROM's trainer groups.
 
 import { describe, expect, it } from "vitest";
-import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, sideWallBlocks, onAtThisTime, trainerParty } from "../../../src/games/gen2/overworld";
+import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty } from "../../../src/games/gen2/overworld";
 import { A } from "../../../src/games/gen2/ram";
 
 /** A ROM with CollisionPermissionTable (bank $13) saying water for $29 and wall for $07, land otherwise. */
@@ -43,6 +43,32 @@ describe("Crystal trainer parties", () => {
   it("has no party for class or number 0", () => {
     expect(trainerParty(rom, 0, 1)).toBeNull();
     expect(trainerParty(rom, 1, 0)).toBeNull();
+  });
+});
+
+describe("Crystal warps back to a shared map's door", () => {
+  it("takes the way back (warp -1) from the backup warp in RAM, not the ROM", () => {
+    // A door at (2,3) (collision $72) numbered -1 in the map's warp events; RAM holds where it goes:
+    // warp 2 of map group 3, number 7. That map's second warp event is at (8,9).
+    const rom = new Uint8Array(0x100000);
+    const ram = new Uint8Array(0x10000);
+    const mem = { read8: (a: number) => ram[a], read16be: () => 0, readBytes: (a: number, n: number) => ram.slice(a, a + n) };
+    ram[OW.warpCount] = 1;
+    ram[OW.warpsPointer] = 0x00; ram[OW.warpsPointer + 1] = 0x41;  // $4100 in bank 3
+    ram[OW.mapScriptsBank] = 3;
+    ram[OW.tilesetCollisionBank] = 2; ram[OW.tilesetCollisionAddress] = 0x00; ram[OW.tilesetCollisionAddress + 1] = 0x40;
+    ram[A.mapWidth] = 1; ram[A.mapHeight] = 1;
+    ram[OW.backupWarp] = 2; ram[OW.backupWarp + 1] = 3; ram[OW.backupWarp + 2] = 7;
+    ram[0xc800 + 4 * 7 + 4] = 5;  // wOverworldMap: the block holding (2,3), tileset block 5
+    rom.set([3, 2, 0xff, 0, 0], 3 * 0x4000 + 0x100);  // the warp event: y 3, x 2, warp -1
+    rom[0x8000 + 5 * 4 + 2] = 0x72;  // block 5's collision at (2,3): a door
+    // Map group 3's pointer → number 7's header → attributes → events (two warps: (1,1) and (8,9)).
+    rom.set([0x00, 0x42], 0x94004);
+    rom[0x94236] = 4; rom.set([0x00, 0x43], 0x94239);
+    rom[0x10306] = 5; rom.set([0x00, 0x44], 0x10309);
+    rom[0x14402] = 2;
+    rom.set([1, 1], 0x14403); rom.set([9, 8], 0x14408);
+    expect(mapDoors(mem, rom)).toMatchObject([{ x: 2, y: 3, tx: 8, ty: 9 }]);
   });
 });
 

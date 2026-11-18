@@ -24,6 +24,8 @@ export interface OverworldView {
   tiles?: number[][];
   /** Whether a step between two squares with these collision tiles is blocked, going (dx, dy): Gen 1 cliff edges (pairs), Crystal one-sided walls. */
   stepBlocked?: (a: number, b: number, dx: number, dy: number) => boolean;
+  /** The same for a step taken surfing, where the game has its own pairs (Gen 1: water against a cliff). */
+  swimBlocked?: (a: number, b: number, dx: number, dy: number) => boolean;
   /** Whether a floor tile is the lower level of a cave, drawn apart from the upper as a player sees them. */
   lowerFloor?: (tile: number) => boolean;
   /** Class of any map square, including the neighbouring map's strip just past the edge. */
@@ -41,6 +43,12 @@ export interface Door { x: number; y: number; to: string; tx: number | null; ty:
 function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
   if (!v.tiles || !v.stepBlocked) return false;
   return v.stepBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
+}
+
+/** pairBlocked for a step taken surfing (swimBlocked). */
+function swimPairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
+  if (!v.tiles || !v.swimBlocked) return false;
+  return v.swimBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
 
 /** The four ways a trainer can face, as [dx, dy]: down, up, left, right. */
@@ -65,7 +73,13 @@ export function markWatched(v: OverworldView, trainers: TrainerSprite[], beaten:
       for (let k = 1; k <= reach; k++) {
         const c = t.x + dx * k - v.originX;
         const r = t.y + dy * k - v.originY;
-        if (r < 0 || r >= H || c < 0 || c >= W) break;
+        if (r < 0 || r >= H || c < 0 || c >= W) {
+          // Past the view's edge (a trainer just off screen looking in): the map says whether the
+          // gaze gets through there; without the map it can't be told, so it stops.
+          const past = v.beyond?.(t.x + dx * k, t.y + dy * k);
+          if (past == null || past === "#") break;
+          continue;
+        }
         const ch = v.grid[r][c];
         if (ch === "#" || ch === "G" || ch === "=" || ch === "N" || ch === "$" || ch === "H" || ch === "B" || ch === "T" || ch === "I") break;
         watched.add(r * W + c);
@@ -133,9 +147,13 @@ export function ledgeTarget(v: OverworldView, x: number, y: number): string | nu
 /** What a lit square can show in the dark; anything else there (a person, an object) is a black sprite. */
 const DARK_SEEN = new Set(["#", ".", ",", "D"]);
 
-export function renderDarkView(v: OverworldView, lit: boolean[][]): string {
+export function renderDarkView(v: OverworldView, lit: boolean[][], covered?: boolean[][]): string {
+  // Squares under a text box or menu (boxedSquares) can't be seen, lit or not; nor do they light
+  // the wall beside them.
+  if (covered) lit = lit.map((row, r) => row.map((on, c) => on && !covered[r]?.[c]));
   const rows = lit.map((row, r) =>
     row.map((on, c) => {
+      if (covered?.[r]?.[c]) return "?";
       if (r === v.pr && c === v.pc) return "@";
       const raw = v.grid[r]?.[c] ?? "?";
       // A cave's lower floor, as on the lit map (renderView): the cliff between the levels can't be stepped across.
@@ -167,6 +185,26 @@ export function litSquares(rgba: Uint8ClampedArray): boolean[][] {
 const LIT_PIXELS = 8;
 
 /**
+ * The 10×9 squares a text box or menu covers, from the screen's text (18 rows of 20 tiles; boxes
+ * framed ┌┐└┘). In the dark a box is bright, but what's under it can't be seen: litSquares alone
+ * read the whole box as lit cave (Rock Tunnel's rocks shown through a sign's text).
+ */
+export function boxedSquares(lines: string[]): boolean[][] {
+  const out = Array.from({ length: 9 }, () => Array<boolean>(10).fill(false));
+  for (let top = 0; top < lines.length; top++) {
+    for (let left = lines[top].indexOf("┌"); left >= 0; left = lines[top].indexOf("┌", left + 1)) {
+      const right = lines[top].indexOf("┐", left + 1);
+      if (right < 0) continue;
+      let bottom = top + 1;
+      while (bottom < lines.length && lines[bottom][left] !== "└") bottom++;
+      if (bottom >= lines.length) continue;
+      for (let r = top >> 1; r <= bottom >> 1 && r < 9; r++) for (let c = left >> 1; c <= right >> 1 && c < 10; c++) out[r][c] = true;
+    }
+  }
+  return out;
+}
+
+/**
  * The trainers a map shows, as a player knows them: where they are, what they look like, and who's
  * been beaten. Not their teams: those stay unknown until the fight.
  */
@@ -176,16 +214,17 @@ export function trainerList(trainers: { x: number; y: number; name: string; beat
 }
 
 /**
- * On a whole map (it has `beyond`), the squares of a cave's lower floor that nobody can get to: a
+ * On a whole map, the squares of a cave's lower floor that nobody can get to: a
  * patch of lower floor with no door or ladder in it, closed on every side by rock or a cliff edge.
  * Mt. Moon's first floor has 29 such patches (234 squares) along its walls; drawn as lower floor
  * they read as a second level with no way onto it (a model called the map "messy"). Only the whole
- * map: on a screen's view a patch may go on past the edge. Anything else beside a patch (a person,
- * a boulder, water, a ledge…) counts as a way in, so only fully closed patches are sealed.
+ * map: on a screen's view (or a crop) a patch may go on past the edge, and the grid's edge counts
+ * as closed here. Anything else beside a patch (a person, a boulder, water, a ledge…) counts as a
+ * way in, so only fully closed patches are sealed.
  */
 export function sealedLowerFloor(v: OverworldView): Set<number> {
   const sealed = new Set<number>();
-  if (!v.beyond || !v.tiles || !v.lowerFloor) return sealed;
+  if (!v.tiles || !v.lowerFloor) return sealed;
   const H = v.grid.length;
   const W = v.grid[0]?.length ?? 0;
   const lower = (c: number, r: number) => v.grid[r][c] === "." && v.lowerFloor!(v.tiles![r][c]);
@@ -223,6 +262,8 @@ export function sealedLowerFloor(v: OverworldView): Set<number> {
  * that the whole map draws as rock (the dark tunnel's walls, 27 walks into them in one run).
  */
 export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): OverworldView {
+  // Not a whole map (no ROM: view(true) falls back to the screen): it can't tell either.
+  if (!whole.exits) return screen;
   const sealed = sealedLowerFloor(whole);
   if (!sealed.size) return screen;
   const WW = whole.grid[0]?.length ?? 0;
@@ -237,7 +278,9 @@ export function sealFromWholeMap(screen: OverworldView, whole: OverworldView): O
 
 export function renderView(view: OverworldView): string {
   // Closed patches of a cave's lower floor are drawn as rock (and drop out of the cliff edges list).
-  const closed = sealedLowerFloor(view);
+  // Only a whole map (readFullMap: it has exits) can tell: on a screen or a crop a patch may go on
+  // past the edge, so those come sealed from the whole map already (sealFromWholeMap).
+  const closed = view.exits ? sealedLowerFloor(view) : new Set<number>();
   const VW = view.grid[0]?.length ?? 0;
   const v: OverworldView = closed.size
     ? { ...view, grid: view.grid.map((line, r) => line.map((ch, c) => (closed.has(r * VW + c) ? "#" : ch))) }
@@ -245,7 +288,8 @@ export function renderView(view: OverworldView): string {
   const cols = v.grid[0]?.length ?? 0;
   const header = "     " + Array.from({ length: cols }, (_, c) => String(v.originX + c).padStart(3)).join("");
   const W = v.grid[0]?.length ?? 0;
-  const shown = (ch: string, r: number, c: number) => ((ch === "." || ch === '"') && v.watched?.has(r * W + c) ? "!" : ch);
+  // Water too: a swimmer's gaze over the sea is what walk_to and travel steer around.
+  const shown = (ch: string, r: number, c: number) => ((ch === "." || ch === '"' || ch === "~") && v.watched?.has(r * W + c) ? "!" : ch);
   const levelled = (ch: string, r: number, c: number) => {
     const out = shown(ch, r, c);
     return out === "." && v.tiles && v.lowerFloor?.(v.tiles[r][c]) ? "," : out;
@@ -292,15 +336,18 @@ function cliffEdges(v: OverworldView): string | null {
   const H = v.grid.length;
   const W = v.grid[0]?.length ?? 0;
   // A boulder stands on floor: an edge beside it is what stops it being pushed there.
-  const open = (c: number, r: number) => walkable(v.grid[r][c]) || v.grid[r][c] === "B";
+  // Water too where the game has surfing pairs: water against a cliff you can't get ashore over.
+  const open = (c: number, r: number) => walkable(v.grid[r][c]) || v.grid[r][c] === "B" || (!!v.swimBlocked && v.grid[r][c] === "~");
+  const blocked = (c: number, r: number, nc: number, nr: number) =>
+    onWater(v, c, r) || onWater(v, nc, nr) ? swimPairBlocked(v, c, r, nc, nr) : pairBlocked(v, c, r, nc, nr);
   const runs: string[] = [];
   const span = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`);
   // Edges between rows r and r+1, grouped along x.
   for (let r = 0; r + 1 < H; r++) {
     for (let c = 0; c < W; c++) {
-      if (!(open(c, r) && open(c, r + 1) && pairBlocked(v, c, r, c, r + 1))) continue;
+      if (!(open(c, r) && open(c, r + 1) && blocked(c, r, c, r + 1))) continue;
       let e = c;
-      while (e + 1 < W && open(e + 1, r) && open(e + 1, r + 1) && pairBlocked(v, e + 1, r, e + 1, r + 1)) e++;
+      while (e + 1 < W && open(e + 1, r) && open(e + 1, r + 1) && blocked(e + 1, r, e + 1, r + 1)) e++;
       runs.push(`y${v.originY + r}|y${v.originY + r + 1} at x${span(v.originX + c, v.originX + e)}`);
       c = e;
     }
@@ -308,9 +355,9 @@ function cliffEdges(v: OverworldView): string | null {
   // Edges between columns c and c+1, grouped along y.
   for (let c = 0; c + 1 < W; c++) {
     for (let r = 0; r < H; r++) {
-      if (!(open(c, r) && open(c + 1, r) && pairBlocked(v, c, r, c + 1, r))) continue;
+      if (!(open(c, r) && open(c + 1, r) && blocked(c, r, c + 1, r))) continue;
       let e = r;
-      while (e + 1 < H && open(c, e + 1) && open(c + 1, e + 1) && pairBlocked(v, c, e + 1, c + 1, e + 1)) e++;
+      while (e + 1 < H && open(c, e + 1) && open(c + 1, e + 1) && blocked(c, e + 1, c + 1, e + 1)) e++;
       runs.push(`x${v.originX + c}|x${v.originX + c + 1} at y${span(v.originY + r, v.originY + e)}`);
       r = e;
     }
@@ -340,7 +387,7 @@ function* moves(v: OverworldView, c: number, r: number): Generator<[Dir, number,
     if (nc < 0 || nc >= W || nr < 0 || nr >= H) continue;
     const ch = v.grid[nr][nc];
     if (swimming) {
-      if (ch === "~" || walkable(ch)) yield [dir, nc, nr, 1];
+      if ((ch === "~" || walkable(ch)) && !swimPairBlocked(v, c, r, nc, nr)) yield [dir, nc, nr, 1];
       continue;
     }
     if (LEDGE_DIR[ch] === dir) {
@@ -488,6 +535,11 @@ export function findPath(
   const tc = tx - v.originX;
   const tr = ty - v.originY;
   if (tr < 0 || tr >= v.grid.length || tc < 0 || tc >= v.grid[0].length) return null;
+  // A hole asked for is gone into, like a door (the burned mansion's top floor is left that way):
+  // paths still never cross one on the way somewhere else.
+  if (v.grid[tr][tc] === "O") {
+    return findPath({ ...v, grid: v.grid.map((row, r) => (r === tr ? row.map((ch, c) => (c === tc ? "D" : ch)) : row)) }, tx, ty, opts);
+  }
   const targetWalkable = walkable(v.grid[tr][tc]) || (!!v.surfing && v.grid[tr][tc] === "~");
   // Next to it, or across a counter from it: the game talks over counters (a shop's clerk, the nurse).
   const acrossCounter = (c: number, r: number) =>

@@ -1,7 +1,7 @@
 // Moving around the map: walking, pathfinding to a square, crossing maps, the model's
 // own routes, field moves and pacing the grass.
 
-import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -471,13 +471,13 @@ export class Travel {
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
-      const screen = this.core.view(false);
+      const screen = this.core.screenView();
       const sx1 = screen.originX + (screen.grid[0]?.length ?? 1) - 1, sy1 = screen.originY + screen.grid.length - 1;
       const xs = [x, ...(by ? [by.x] : [])], ys = [y, ...(by ? [by.y] : [])];
       const offScreen = at != null && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
       const shown = offScreen
-        ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
-          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
+        ? sealFromWholeMap(cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
+          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1))), full)
         : screen;
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }

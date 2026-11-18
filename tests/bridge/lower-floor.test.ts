@@ -11,7 +11,9 @@ function view(rows: string[], tiles: number[][], whole = true): OverworldView {
   return {
     grid, tiles, originX: 0, originY: 0, pc: grid[pr].indexOf("@"), pr,
     stepBlocked: cliff, lowerFloor: (t: number) => t === 5,
-    ...(whole ? { beyond: () => "#" } : {}),
+    // A screen has `beyond` too (readArea): only a whole map (readFullMap) has exits.
+    beyond: () => "#",
+    ...(whole ? { exits: [] } : {}),
   } as OverworldView;
 }
 const rows = (text: string) => text.split("\n").filter((l) => /^y/.test(l)).map((l) => l.slice(5).trim());
@@ -41,7 +43,6 @@ describe("closed patches of a cave's lower floor", () => {
   });
 
   it("leaves a screen's view alone: the patch may go on past its edge", () => {
-    expect(sealedLowerFloor(view(grid, tiles, false)).size).toBe(0);
     expect(rows(renderView(view(grid, tiles, false)))[0]).toBe("#  ,  #  .  .");
   });
 
@@ -65,6 +66,12 @@ describe("closed patches of a cave's lower floor", () => {
     const g = ["#D#..", "#.#@.", "#.#.."];
     const screen = screenOf(g, tiles);
     expect(sealFromWholeMap(screen, view(g, tiles))).toBe(screen);
+  });
+
+  it("takes nothing from a view that has no exits, though it would seal the patch", () => {
+    // A screen's own view has `beyond` too, but no exits: it isn't the whole map, so nothing is sealed.
+    const screen = screenOf(grid, tiles);
+    expect(sealFromWholeMap(screen, view(grid, tiles, false))).toBe(screen);
   });
 
   it("drops the sealed squares' cliff edges from the edges list", () => {

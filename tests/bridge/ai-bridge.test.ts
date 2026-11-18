@@ -136,3 +136,19 @@ describe("AiBridge.dispatch", () => {
     await expect(call("throw_ball", {})).rejects.toThrow(/Say which ball: level, lure or fast/);
   });
 });
+
+describe("a new map's first full view", () => {
+  it("is shown whole only to a call that asked for the map", () => {
+    const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: 7 } });
+    const bridge = new AiBridge(host.asHost(), () => {});
+    const core = (bridge as unknown as { core: { mapAsked: boolean; mapText: () => string; result: (extra: Record<string, unknown>) => { map?: unknown } } }).core;
+    core.mapText = () => "WHOLE MAP";
+    // A move's result without show_map: its map is left out, and it doesn't use up the map's first full view.
+    core.mapAsked = false;
+    expect(core.result({ map: "short" }).map).toBe("short");
+    core.mapAsked = true;
+    expect(core.result({ map: "short" }).map).toBe("WHOLE MAP");
+    // Once shown, the map isn't shown whole again.
+    expect(core.result({ map: "short" }).map).toBe("short");
+  });
+});

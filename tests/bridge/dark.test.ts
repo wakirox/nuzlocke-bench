@@ -1,7 +1,7 @@
 // What the tools show in the dark tunnel: only what a player can see there.
 
 import { describe, expect, it } from "vitest";
-import { litSquares, renderDarkView, type OverworldView } from "../../src/bridge/overworld";
+import { boxedSquares, litSquares, renderDarkView, type OverworldView } from "../../src/bridge/overworld";
 import { hideCoords } from "../../src/bridge/summary";
 import { gameFor } from "../../src/games";
 import { findGrid } from "../../src/ui/map-image";
@@ -68,6 +68,46 @@ describe("litSquares", () => {
     expect(lit[0][0]).toBe(false);
     expect(lit[1][2]).toBe(true);
     expect(lit.flat().filter(Boolean).length).toBe(1);
+  });
+});
+
+describe("text boxes and menus over the dark view", () => {
+  /** 18 rows of 20 tiles, blank, with a box framed from tile (left, top) to tile (right, bottom). */
+  function boxScreen(top: number, left: number, bottom: number, right: number): string[] {
+    const mid = right - left - 1;
+    return Array.from({ length: 18 }, (_, y) => {
+      if (y < top || y > bottom) return " ".repeat(20);
+      const row = y === top ? "┌" + "─".repeat(mid) + "┐" : y === bottom ? "└" + "─".repeat(mid) + "┘" : "│" + " ".repeat(mid) + "│";
+      return " ".repeat(left) + row + " ".repeat(19 - right);
+    });
+  }
+  const shown = (sq: boolean[][]) => sq.map((row) => row.map((on) => (on ? "x" : ".")).join(""));
+
+  it("covers the 9 rows of squares a text box's tile rows fall in, all columns", () => {
+    // Tile rows 12-17 are square rows 6-8: the box's squares, and no others.
+    expect(shown(boxedSquares(boxScreen(12, 0, 17, 19)))).toEqual([...Array(6).fill(".........."), ...Array(3).fill("xxxxxxxxxx")]);
+  });
+
+  it("covers only the squares of a small menu box", () => {
+    // Tile rows 0-7, columns 10-19: square rows 0-3, square columns 5-9.
+    expect(shown(boxedSquares(boxScreen(0, 10, 7, 19)))).toEqual([...Array(4).fill(".....xxxxx"), ...Array(5).fill("..........")]);
+  });
+
+  it("prints a covered square as ? even when it's lit", () => {
+    const v = view(["#.", ".@"], 1, 1);
+    expect(renderDarkView(v, on(["xx", "xx"]), [[false, true], [false, false]]).split("\n").slice(1)).toEqual(["# ?", ". @"]);
+  });
+
+  it("prints a covered wall that touches a lit square as ?, not as rock", () => {
+    const v = view(["#.", ".@"], 1, 1);
+    expect(renderDarkView(v, on([".x", "xx"])).split("\n").slice(1)).toEqual(["# .", ". @"]);
+    expect(renderDarkView(v, on([".x", "xx"]), [[true, false], [false, false]]).split("\n").slice(1)).toEqual(["? .", ". @"]);
+  });
+
+  it("doesn't light the wall beside a covered square", () => {
+    // The wall at (0,0) is only drawn as rock because the square beside it is lit; covered, that square is dark.
+    const v = view(["#.", "#@"], 1, 1);
+    expect(renderDarkView(v, on([".x", ".x"]), [[false, true], [false, false]]).split("\n").slice(1)).toEqual(["? ?", "# @"]);
   });
 });
 
