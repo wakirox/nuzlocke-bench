@@ -90,7 +90,7 @@ export interface Summary {
   run?: { ruleset?: string };
   battle?: string;
   party?: { slot: number; species: string; nickname: string; level: number; hp: number; maxHp?: number; moves?: string[] }[];
-  lead?: { species?: string; nickname?: string; level?: number; maxHp?: number } | null;
+  lead?: { slot?: number; species?: string; nickname?: string; level?: number; hp?: number; maxHp?: number } | null;
   bag?: { item: string; qty: number }[];
   enemy?: { species?: string; level?: number } | null;
   nuzlocke?: { thisArea?: string | { species: string; status: string } };

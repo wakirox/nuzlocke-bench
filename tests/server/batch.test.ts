@@ -148,6 +148,22 @@ describe("get_state only=[...]", () => {
     ]) expect(walkCutShort(walk)).toBeNull();
   });
 
+  it("stops after a walk that crossed into the next map with legs of its path left", async () => {
+    const { calls, exec } = scripted([ok({ walk: "up 0/1 — stopped: entered a new map" }), ok()]);
+    const r = await runBatch([{ tool: "walk", args: { path: "U1 R4" } }, { tool: "walk_to", args: { x: 9, y: 4 } }], exec);
+    expect(calls).toHaveLength(1);
+    expect(r.stopped).toBe("after step 1 (walk): entered a new map with 1 leg of the path left");
+    // On its last leg, crossing is how it was meant to end (a walk off the map can ask for more squares).
+    expect(stopReason(ok({ walk: "left 2/2, up 1/5 — stopped: entered a new map" }), { tool: "walk", args: { path: "L2 U5" } })).toBeNull();
+  });
+
+  it("stops after a hunt that ended without a battle", () => {
+    for (const walk of ["300 steps, nothing that counts yet (ran from RATTY)", "left the map while pacing (4 steps; ran from nothing)"]) {
+      expect(stopReason(ok({ walk }), { tool: "hunt", args: {} })).toBe("the hunt ended without a battle");
+    }
+    expect(stopReason(ok({ walk: "RATTY Lv3 — this area's first encounter (2 steps)" }, { battle: "wild" }), { tool: "hunt", args: {} })).toBe("in battle");
+  });
+
   it("stops when fight_trainer talked to someone but no battle started", () => {
     expect(stopReason(ok({ note: "No battle started: talking to them didn't start a fight (already beaten, a story battle that isn't due yet, or not a trainer)." }))).toBe("no battle started");
   });

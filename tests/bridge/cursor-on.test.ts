@@ -24,4 +24,19 @@ describe("cursorOn", () => {
     // A price or count after the name, one space apart, is part of the same cell.
     expect(cursorOnOption(["│▶POTION ¥300 │", "│ ANTIDOTE ¥100│"], "POTION")).toBe(true);
   });
+
+  it("matches nothing for an option with no letters or digits", () => {
+    expect(cursorOnOption(moves(0), "---")).toBe(false);
+    expect(cursorOnOption(moves(0), "?")).toBe(false);
+  });
+
+  it("exactly: only the option itself (BERRY can be further down a list that shows BERRY JUICE)", () => {
+    const bag = ["┌────────────┐", "│▶BERRY JUICE│", "│ ANTIDOTE   │", "└────────────┘"];
+    expect(cursorOnOption(bag, "BERRY")).toBe(true);
+    expect(cursorOnOption(bag, "BERRY", true)).toBe(false);
+    expect(cursorOnOption(bag, "BERRY JUICE", true)).toBe(true);
+    // A price or count one space after the name still matches it exactly.
+    expect(cursorOnOption(["│▶POTION ¥300 │"], "POTION", true)).toBe(true);
+    expect(cursorOnOption(["│▶MAX REVIVE ×1│"], "MAX REVIVE", true)).toBe(true);
+  });
 });

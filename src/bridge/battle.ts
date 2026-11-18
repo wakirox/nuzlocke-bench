@@ -15,9 +15,9 @@ export class Battle {
     const mon = this.core.partyMember(which);
     if (mon.hp <= 0) throw new Error(`${mon.nickname} has fainted.`);
     // The one already out: the game says so and leaves the party list open, with no turn played.
+    // By its slot: two of a kind at the same level look the same, and a Transformed one isn't its species.
     const out = this.core.summary()?.lead;
-    const party = this.core.summary()?.party?.find((m) => m.slot === mon.slot);
-    if (out && party && out.nickname === party.nickname && out.species === party.species && out.level === party.level && out.maxHp === party.maxHp) {
+    if (out && (out.hp ?? 0) > 0 && out.slot === mon.slot) {
       throw new Error(`${mon.nickname} is already out. Nothing was pressed.`);
     }
     const messages: string[] = [];

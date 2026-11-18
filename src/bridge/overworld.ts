@@ -38,7 +38,7 @@ export interface OverworldView {
 export interface Door { x: number; y: number; to: string; tx: number | null; ty: number | null; push?: Dir }
 
 /** Whether the step from square (c, r) to (nc, nr) crosses a tile-pair edge (a cliff edge). */
-function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
+export function pairBlocked(v: OverworldView, c: number, r: number, nc: number, nr: number): boolean {
   if (!v.tiles || !v.stepBlocked) return false;
   return v.stepBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }

@@ -39,7 +39,8 @@ export function callBudget({ max, dir }) {
 
 /**
  * Marks a refused call's result as not counting, like a tool's own argument errors, which the
- * SDK rejects before any budget is taken. limitCalls gives the call back and drops the mark.
+ * SDK rejects before any budget is taken. limitCalls gives the call back; the run log
+ * (run-log.mjs instrumentTools, the outer wrapper) records it as uncounted and drops the mark.
  */
 export const UNCOUNTED_RESULT = "uncountedCall";
 
@@ -60,10 +61,10 @@ export function limitCalls(server, budget) {
     const turn = budget.take();
     if (turn.spent) return { content: [{ type: "text", text: outOfCalls(budget.max) }] };
     const result = await handler(...cbArgs);
+    // Kept marked for the run log, which wraps this and drops the mark.
     if (result?.[UNCOUNTED_RESULT]) {
       budget.refund();
-      const { [UNCOUNTED_RESULT]: _, ...rest } = result;
-      return rest;
+      return result;
     }
     return turn.last ? endRun(result, budget.max) : result;
   });

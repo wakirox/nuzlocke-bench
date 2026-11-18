@@ -3,6 +3,7 @@
 
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { UNCOUNTED_RESULT } from "./call-budget.mjs";
 
 /** The run outcome in a get_state result ({ run: { outcome: { kind, detail } } }). */
 export function stateOutcome(text) {
@@ -79,11 +80,20 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
     const started = now();
     const n = ++seq;
     let result;
+    let refused = false;
     try {
       result = await handler(...cbArgs);
+      // Refused before any of it ran (call-budget.mjs): logged as such, so the run's call count
+      // leaves it out the way the budget does. The mark stops here, short of the MCP result.
+      if (result?.[UNCOUNTED_RESULT]) {
+        refused = true;
+        const { [UNCOUNTED_RESULT]: _, ...rest } = result;
+        result = rest;
+      }
       return result;
     } finally {
       const entry = logEntry({ n, name, args, started, ended: now(), result, status: status() });
+      if (refused) entry.uncounted = true;
       // A failed call (or a report) shows no location: it happened where the game is now.
       const game = status();
       if (!entry.where && game?.location) entry.where = `${game.location} | battle: ${game.battle ?? "?"}`;

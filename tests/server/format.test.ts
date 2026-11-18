@@ -187,6 +187,9 @@ describe("plain screen text", () => {
     // 18 squares inside the border each: a contraction is two characters on one square.
     const box = ["┌──────────────────┐", "│IT's MOM's PC.      │", "│You can't, you'll   │", "└──────────────────┘"];
     expect(plainScreen(box)).toEqual(["Text: IT's MOM's PC. / You can't, you'll"]);
+    // After a gender sign or a digit too.
+    const names = ["┌──────────────────┐", "│NIDORAN♂'s attack  │", "│PORYGON2's attack  │", "└──────────────────┘"];
+    expect(plainScreen(names)).toEqual(["Text: NIDORAN♂'s attack / PORYGON2's attack"]);
   });
 
   it("says how to type a name under an open naming keyboard, wherever its cursor is, and only there", () => {

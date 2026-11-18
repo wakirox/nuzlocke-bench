@@ -53,9 +53,10 @@ const BORDER = new Set([..."┌┐└┘─│"]);
 // Tiles the screen reader writes as two characters (PK, MN, and the contractions 'd 'l 'm 'r 's 't 'v):
 // one square each, so the columns line up again; written back out as the characters.
 const TILES = [["PK", "\uE0E1"], ["MN", "\uE0E2"]];
-// A contraction tile follows a letter (IT's, MOM's, you're, I'm) and can be followed by one (you'll, you've).
+// A contraction tile follows a letter (IT's, MOM's, you're, I'm), a digit or gender sign (PORYGON2's,
+// NIDORAN\u2642's) and can be followed by one (you'll, you've).
 const CONTRACTIONS = [..."dlmrstv"].map((ch, i) => [`'${ch}`, String.fromCharCode(0xe0f0 + i)]);
-const oneSquare = (l) => CONTRACTIONS.reduce((s, [t, c]) => s.replace(new RegExp(`(?<=[A-Za-z\u00E9])${t}`, "g"), c),
+const oneSquare = (l) => CONTRACTIONS.reduce((s, [t, c]) => s.replace(new RegExp(`(?<=[A-Za-z0-9\u00E9\u2642\u2640])${t}`, "g"), c),
   TILES.reduce((s, [t, c]) => s.replace(new RegExp(`(?<![A-Z])${t}(?=MN|[^A-Za-z]|$)`, "g"), c), l.replace(/PKMN/g, "\uE0E1\uE0E2")));
 const letters = (l) => [...TILES, ...CONTRACTIONS].reduce((s, [t, c]) => s.split(c).join(t), l);
 

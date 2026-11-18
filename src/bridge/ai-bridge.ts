@@ -156,6 +156,7 @@ export class AiBridge {
       case "exit_map":
         return this.core.withTrainers(p.trainers, () => this.travel.exitMap(String(p.direction) as Dir));
       case "press":
+        this.menus.forgetBagLeftOpen();
         return this.press(p);
       case "advance_text":
         return this.core.result(await this.menus.advanceText(clamp(Number(p.max_presses) || 30, 1, 80)));

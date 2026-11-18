@@ -57,6 +57,8 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
   const leadSp = active ? sp(active.species) : undefined;
 
   const lead = active && leadSp ? {
+    /** Its party slot (1-6): in battle, the one out. */
+    slot: (inBattle ? s.activeIndex : 0) + 1,
     species: leadSp.name,
     nickname: active.nickname,
     level: active.level,

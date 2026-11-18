@@ -46,8 +46,29 @@ export function walkCutShort(walk) {
   return why.split(/\. (?=[A-Za-z])/)[0];
 }
 
-/** Why the batch can't go on after this step's result, or null. */
-export function stopReason(r) {
+/** The legs of a walk's path ("U1 R4", "up 3, right 2"), read the way the walk tool reads them. */
+const pathLegs = (path) => [...String(path ?? "").matchAll(/\b(up|down|left|right|u|d|l|r)\s*(\d+)?/gi)].length;
+
+/**
+ * Why a step's own tool ended where the next steps weren't planned from, or null: a walk that crossed
+ * into the next map with legs of its path still to go, or a hunt that ended without a battle.
+ */
+function endedEarly(r, step) {
+  if (step?.tool === "walk" && typeof r.walk === "string" && / — stopped: entered a new map/.test(r.walk)) {
+    const ran = r.walk.split(" — ")[0].split(", ").length;
+    const legs = pathLegs(step.args?.path);
+    if (ran < legs) return `entered a new map with ${legs - ran} leg${legs - ran > 1 ? "s" : ""} of the path left`;
+  }
+  if (step?.tool === "hunt") return "the hunt ended without a battle";
+  return null;
+}
+
+/**
+ * Why the batch can't go on after this step's result, or null.
+ * @param {any} r
+ * @param {{ tool: string, args?: any } | null} [step] the step that gave it
+ */
+export function stopReason(r, step = null) {
   if (!r || typeof r !== "object") return null;
   const s = r.status ?? {};
   if (s.outcome) return "the run ended";
@@ -61,7 +82,7 @@ export function stopReason(r) {
   // fight_trainer that talked to someone but started no battle.
   if (typeof r.note === "string" && /^No battle started\b/.test(r.note)) return "no battle started";
   if (r.events?.some((e) => /^\[(warning|violation)\]/.test(e))) return "a rule event";
-  return null;
+  return endedEarly(r, step);
 }
 
 /**
@@ -80,7 +101,7 @@ export async function runBatch(steps, exec) {
       return { done, stopped: i < steps.length - 1 ? `at step ${i + 1} (${tool}): it failed` : null, skipped: steps.length - i - 1 };
     }
     done.push({ tool, result });
-    const why = stopReason(result);
+    const why = stopReason(result, { tool, args });
     if (why && i < steps.length - 1) return { done, stopped: `after step ${i + 1} (${tool}): ${why}`, skipped: steps.length - i - 1 };
   }
   return { done, stopped: null, skipped: 0 };

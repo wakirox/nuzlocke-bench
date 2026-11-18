@@ -1,7 +1,7 @@
 // Moving around the map: walking, pathfinding to a square, crossing maps, the model's
 // own routes, field moves and pacing the grass.
 
-import { cropView, findPath, ledgeTarget, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, pathToEdge, renderView, sightCrossings, toSegments, wayBlocker, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -274,10 +274,14 @@ export class Travel {
     if (!surfing && !where.land) throw new Error(`What would count here is on the water (${area}): Surf first (face the water, field_move SURF), then hunt.`);
     const hasGrass = v.grid.some((row) => row.includes('"'));
     const square = surfing ? "~" : hasGrass ? '"' : ".";
-    const encounterSquare = (c: number, r: number) => v.grid[r][c] === square || (surfing && c === v.pc && r === v.pr);
+    // The grid draws you as @: what's under you is the map's own square there (water, while surfing).
+    const underYou = surfing ? "~" : (v.beyond?.(v.originX + v.pc, v.originY + v.pr) ?? v.grid[v.pr]?.[v.pc]);
+    const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
     const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
-    const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => ok(c + dx, r + dy)) : undefined);
+    // Both ways across: a cliff edge (or Crystal's one-sided wall) between two floor squares can't be paced.
+    const paced = (c: number, r: number, nc: number, nr: number) => ok(nc, nr) && !pairBlocked(v, c, r, nc, nr) && !pairBlocked(v, nc, nr, c, r);
+    const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => paced(c, r, c + dx, r + dy)) : undefined);
     let log = "";
     const fled: string[] = [];
     const pairHere = () => {
@@ -315,8 +319,14 @@ export class Travel {
     const opposite: Record<Dir, Dir> = { left: "right", right: "left", up: "down", down: "up" };
     let dir: Dir = first[0];
     for (let step = 0; step < maxSteps; step++) {
+      const { x, y } = this.core.host.position();
       const r = await this.walkStraight(dir, 1);
+      // Turn back after every square stepped onto, a battle's included: the battle starts on arrival,
+      // and after running from one the next step must head back, not off the pair (onto the shore).
+      const to = this.core.host.position();
+      const stepped = to.x !== x || to.y !== y;
       if (r.stopped === "a battle started") {
+        if (stepped) dir = opposite[dir];
         const out = await this.huntBattle(log, step + 1, fled);
         if (out) return out;
         continue; // ran from a dupe: keep pacing

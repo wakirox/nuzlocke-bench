@@ -59,6 +59,9 @@ describe("tool-call budget", () => {
     const server = fakeServer();
     const dir = mkdtempSync(join(tmpdir(), "budget-"));
     const budget = callBudget({ max: 2, dir });
+    // As in server.mjs: the run log wraps the budget.
+    const file = join(dir, "run-log.jsonl");
+    instrumentTools(server, { file });
     limitCalls(server, budget);
     server.registerTool("do", { inputSchema: {} }, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }));
     server.registerTool("press", { inputSchema: {} }, async () => text("pressed"));
@@ -69,6 +72,16 @@ describe("tool-call budget", () => {
     expect(budget.used()).toBe(1);
     expect(readFileSync(join(dir, "tool-calls.txt"), "utf8")).toBe("1");
     expect(textOf(await server.tools.get("press")!({}))).toBe(`pressed\n${outOfCalls(2)}`);
+    // The run log has the refused call, marked so the run's call count leaves it out too.
+    const logged: { tool?: string; uncounted?: boolean }[] = readFileSync(file, "utf8").trim().split("\n").map((l: string) => JSON.parse(l)).filter((e: { tool?: string }) => e.tool);
+    expect(logged.map((e) => [e.tool, e.uncounted ?? false])).toEqual([["press", false], ["do", true], ["press", false]]);
+  });
+
+  it("never passes the mark on to the client, with no budget either", async () => {
+    const server = fakeServer();
+    instrumentTools(server, { file: null });
+    server.registerTool("do", { inputSchema: {} }, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }));
+    expect(await server.tools.get("do")!({})).not.toHaveProperty(UNCOUNTED_RESULT);
   });
 
   it("doesn't add a second end to a run that ended on its last call", () => {

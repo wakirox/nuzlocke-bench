@@ -217,6 +217,7 @@ const wrap = (fn) => async (args) => {
     return narrow(await fn(args ?? {}));
   } catch (e) {
     const text = plainErrorScreen(e.message ?? String(e)) + (e?.uncounted && BUDGET ? "\n(Nothing ran, so this call doesn't count.)" : "");
+    // Marked with or without a budget: the run log records it as uncounted (and drops the mark).
     return narrow({ isError: true, content: [{ type: "text", text }], ...(e?.uncounted ? { [UNCOUNTED_RESULT]: true } : {}) });
   }
 };

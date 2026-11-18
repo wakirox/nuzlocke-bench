@@ -201,8 +201,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
     const lastMissing = outcome === "wipe" && !last.wipeDeathsCounted ? 1 : 0;
     const deaths = (last.deaths ?? 0) + lastMissing;
     const screenshots = legs.reduce((n, l) => n + (l.screenshots ?? 0), 0);
-    // Calls that failed: errors in the run log, and calls the server rejected (only in the transcript).
-    const rejected = legs.reduce((n, l) => n + (l.extras?.rejected ?? 0), 0);
+    // Calls that failed: errors in the run log, and calls the server rejected (only in the transcript)
+    // or refused before they ran (in the run log, out of its count).
+    const rejected = legs.reduce((n, l) => n + (l.extras?.rejected ?? 0) + (l.refused ?? 0), 0);
     const wrongCalls = legs.reduce((n, l) => n + (l.errors ?? 0), 0) + rejected;
     const tokens = legs.map((l) => l.agent?.tokens?.total).filter((t) => t != null);
     // Calls to each milestone across the legs (a continued leg's calls start after the ones before it).

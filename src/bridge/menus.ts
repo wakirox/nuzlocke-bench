@@ -17,7 +17,8 @@ const battleAction = (layout: ScreenLayout, option: string): BattleAction | null
 };
 /** The menu cells on screen as normalized text (letters and digits), and which of them the ▶ is on. */
 function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
-  const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // A price or count one space after the name ("POTION ¥300", "MAX REVIVE ×1") isn't part of it.
+  const norm = (s: string) => s.replace(/\s*(?:¥\s*\d+|×\s*\d+)\s*$/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   const cursor: string[] = [];
   const all: string[] = [];
   for (const line of lines) {
@@ -28,12 +29,14 @@ function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
   return { cursor, all };
 }
 
-/** See Menus.cursorOn. */
-export function cursorOnOption(lines: string[], option: string): boolean {
+/** See Menus.cursorOn. `exact`: only the option itself, never a longer one that starts with it. */
+export function cursorOnOption(lines: string[], option: string, exact = false): boolean {
   const want = option.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Nothing to match ("?", "---"): every cell would start with it.
+  if (!want) return false;
   const { cursor, all } = menuCells(lines);
   if (cursor.includes(want)) return true;
-  return cursor.some((c) => c.startsWith(want)) && !all.includes(want);
+  return !exact && cursor.some((c) => c.startsWith(want)) && !all.includes(want);
 }
 
 /** A menu label as a regular expression that matches just that text. */
@@ -178,9 +181,10 @@ export class Menus {
    * Is the ▶ cursor directly in front of `option` anywhere on screen? The option under it may run on
    * ("POKé" for POKéMON), but not when the screen lists the option asked for by itself: of BUBBLEBEAM
    * and BUBBLE, "BUBBLE" means BUBBLE (a move question would otherwise forget the wrong move).
+   * `exact`: the option itself only (a list that scrolls can hide it below a longer one).
    */
-  cursorOn(option: string): boolean {
-    return cursorOnOption(this.core.screenText(), option);
+  cursorOn(option: string, exact = false): boolean {
+    return cursorOnOption(this.core.screenText(), option, exact);
   }
 
   /**
@@ -204,7 +208,7 @@ export class Menus {
    * Picks a menu option by its text (YES/NO, NEW NAME, FIGHT/ITEM…): moves the
    * cursor until ▶ is on it, presses A, then reads any dialogue that follows.
    */
-  async choose(option: string): Promise<unknown> {
+  async choose(option: string, opts: { exact?: boolean } = {}): Promise<unknown> {
     if (!option.trim()) throw new Error("option is required, e.g. YES");
     // The menu may still be drawing (e.g. right after a battle turn); give it a moment.
     if (!this.core.screenText().some((l) => l.includes("▶"))) await this.advanceText(10);
@@ -233,22 +237,44 @@ export class Menus {
       ...Array<Button>(3).fill("up"), ...Array<Button>(3).fill("down"), "left",
     ];
     const label = menuLabel(option);
-    let found = this.cursorOn(label);
-    // To the top first, however far down the list the cursor is; stop once nothing moves.
-    for (let i = 0; i < 20 && !found; i++) {
-      const moved = await this.menuStep("up");
-      found = this.cursorOn(label);
-      if (!moved) break;
-    }
-    for (const step of plan) {
-      if (found) break;
-      await this.menuStep(step);
-      found = this.cursorOn(label);
-    }
+    const sweep = async (exact: boolean) => {
+      let found = this.cursorOn(label, exact);
+      // To the top first, however far down the list the cursor is; stop once nothing moves.
+      for (let i = 0; i < 20 && !found; i++) {
+        const moved = await this.menuStep("up");
+        found = this.cursorOn(label, exact);
+        if (!moved) break;
+      }
+      for (const step of plan) {
+        if (found) break;
+        await this.menuStep(step);
+        found = this.cursorOn(label, exact);
+      }
+      return found;
+    };
+    // The option itself first, anywhere in the list: one that only starts with it (BERRY JUICE for
+    // BERRY) can be on screen while the option is further down. Then one that runs on ("POKé").
+    const found = (await sweep(true)) || (!opts.exact && (await sweep(false)));
     if (!found) throw new Error(`Couldn't put the cursor on "${option}". Screen:\n${this.core.screenText().join("\n")}`);
     await this.core.tap("a", 4, 20);
     const after = await this.advanceText(30);
+    await this.closeBagAfterMoveQuestion(after.messages);
     return this.core.result({ chose: option, messages: after.messages, stopped: after.stopped });
+  }
+
+  /**
+   * Once the move question a candy or TM left open is answered (learned, or chose not to), the game
+   * is back in the bag: close it and the start menu, so the next walk isn't pressing into the bag.
+   */
+  private async closeBagAfterMoveQuestion(messages: string[]): Promise<void> {
+    if (!this.bagLeftOpen || this.moveQuestionOpen() || !/\blearned\b|did not learn/i.test(messages.join(" "))) return;
+    this.bagLeftOpen = false;
+    await this.closeMenus();
+  }
+
+  /** The buttons were pressed by hand (press): whatever's on screen is the player's to handle now. */
+  forgetBagLeftOpen(): void {
+    this.bagLeftOpen = false;
   }
 
   /**
@@ -257,16 +283,18 @@ export class Menus {
    * bag is an ordinary list (choose).
    */
   async chooseInBag(item: string): Promise<unknown> {
+    // An item's whole name shows in the bag: never one that only starts with it (BERRY JUICE for a
+    // BERRY further down the list).
     const pockets = this.core.layout.bagPockets;
-    if (pockets <= 1) return this.choose(item);
+    if (pockets <= 1) return this.choose(item, { exact: true });
     const label = menuLabel(item);
     // Steps `dir` until the item is under the cursor or the list stops moving.
     const scan = async (dir: Button) => {
       for (let i = 0; i < 30; i++) {
-        if (this.cursorOn(label)) return true;
-        if (!(await this.menuStep(dir))) return this.cursorOn(label);
+        if (this.cursorOn(label, true)) return true;
+        if (!(await this.menuStep(dir))) return this.cursorOn(label, true);
       }
-      return this.cursorOn(label);
+      return this.cursorOn(label, true);
     };
     // A pocket slides in: until its cursor is drawn, presses are lost (the right that should
     // reach the items pocket went missing in a test run, and the candies weren't found).
