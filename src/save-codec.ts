@@ -15,7 +15,7 @@ const TYPED = {
 type TypedName = keyof typeof TYPED;
 
 /** JSON.stringify replacer turning typed arrays into `{$ta, b64}` objects. */
-export function replaceSave(_key: string, value: unknown): unknown {
+function replaceSave(_key: string, value: unknown): unknown {
   if (ArrayBuffer.isView(value) && value.constructor.name in TYPED) {
     const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
     let binary = "";

@@ -48,21 +48,20 @@ describe("run-artifacts manifest", () => {
       KEYS.run,
       KEYS.autoState,
       KEYS.battery,
-      KEYS.slotState,
       KEYS.tracker,
       KEYS.seen,
       KEYS.replay,
       KEYS.routes,
       "run.milestone.badge1",
     ]));
-    // Named save slots survive `clearRun`, matching master's exact behaviour.
+    // Named save slots (`run.slotState.<slot>`) survive `clearRun`, and bare `run.slotState` isn't a real artifact.
+    expect(cleared).not.toContain(KEYS.slotState);
     expect(cleared).not.toContain("run.slotState.manual");
     expect(cleared).not.toContain("run.slotState.ai-1");
     expect(cleared).not.toContain("baseRom");
     expect(cleared).not.toContain("history");
     expect(cleared).not.toContain("bestReplay.nuzlocke");
-    // Every clearedWithRun artifact in RUN_ARTIFACTS is included.
-    for (const a of RUN_ARTIFACTS.filter((x) => x.clearedWithRun)) expect(cleared).toContain(a.key);
+    for (const a of RUN_ARTIFACTS) expect(cleared).toContain(a.key);
   });
 
   it("unpacks a milestone checkpoint and cuts the replay at milestone ticks", () => {
@@ -98,7 +97,7 @@ describe("run-artifacts manifest", () => {
 });
 
 describe("RunSession", () => {
-  it("tracks seen dirty flags in autosaves, clones milestone state, and computes attempt scores", () => {
+  it("keeps seen dirty across failed autosaves until markSeenSaved, clones milestones, and builds SavedReplay", () => {
     const ram = new Uint8Array(0x10000);
     let ticks = 120;
     const fakeGb = {
@@ -140,8 +139,11 @@ describe("RunSession", () => {
     // Clean seen map isn't re-written on autosave until something new is seen.
     expect(session.captureAutosave().seen).toBeUndefined();
     session.seen.sawScreen(1, 5, 5);
-    const saved = session.captureAutosave();
-    expect(saved.seen).toBeDefined();
+    // `captureAutosave` is side-effect-free: if an IndexedDB write fails before `markSeenSaved()`,
+    // the next autosave still includes `seen`.
+    expect(session.captureAutosave().seen).toBeDefined();
+    expect(session.captureAutosave().seen).toBeDefined();
+    session.markSeenSaved();
     expect(session.captureAutosave().seen).toBeUndefined();
 
     // Milestone checkpoint clones seen data so later exploration doesn't mutate the saved milestone.
@@ -153,6 +155,10 @@ describe("RunSession", () => {
     session.poll();
     expect(session.state).not.toBeNull();
     expect(polls).toEqual([false]);
-    expect(runScore({ kind: "victory", detail: "Won" }, 8, 55)).toBeGreaterThan(runScore({ kind: "wipe", detail: "Lost" }, 8, 100));
+
+    const { score, savedReplay } = session.buildSavedReplay({ kind: "victory", detail: "Won" }, "CHARIZARD", 55, 8);
+    expect(score).toBe(runScore({ kind: "victory", detail: "Won" }, 8, 55));
+    expect(savedReplay.meta).toMatchObject({ attempt: 3, lead: "CHARIZARD", level: 55, badges: 8, score });
+    expect(score).toBeGreaterThan(runScore({ kind: "wipe", detail: "Lost" }, 8, 100));
   });
 });

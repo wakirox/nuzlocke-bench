@@ -8,7 +8,8 @@ const CONVO_KEY = "nuzlocke.convo";
 // Collapsed (the default): only the newest results are shown whole, older ones are one line each.
 const COLLAPSE_KEY = "nuzlocke.convoOlderCollapsed";
 
-export type Usage = { tokens: number; turns: number; model?: string | null; effort?: string | null };
+// What the model has used so far (benchmark runs): in the Run panel, polled while an AI is connected.
+type Usage = { tokens: number; turns: number; model?: string | null; effort?: string | null };
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 

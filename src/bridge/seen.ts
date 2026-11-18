@@ -44,6 +44,11 @@ export class SeenMaps {
     return (this.data.squares[map]?.[y] ?? []).some(([a, b]) => x >= a && x <= b);
   }
 
+  /** Whether anything new was seen since the last saved checkpoint (without clearing the flag). */
+  hasChanged(): boolean {
+    return this.changed;
+  }
+
   /** The player went from (x, y) on `from` to (tx, ty) on `to` by a warp: both ends are known doors now. */
   wentThrough(from: number, x: number, y: number, to: number, tx: number, ty: number): void {
     for (const [map, sx, sy] of [[from, x, y], [to, tx, ty]] as const) {

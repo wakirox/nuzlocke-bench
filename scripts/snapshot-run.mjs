@@ -105,7 +105,8 @@ const { rom } = await prepareNuzlocke(baseRom, async (path) => new Uint8Array(re
 const data = runSave.data;
 if (runSave.rom.length !== rom.length || !runSave.rom.every((b, i) => b === rom[i])) usage("--rom isn't the game this run was played on.");
 
-// ---- A milestone's save: unpacked through run-artifacts.ts so every milestone field stays in sync ----
+// ---- A milestone's save: the machine, tracker, battery and fog-of-war map memory (`seen`, 0.2.0 on) ----
+// Unpacked through run-artifacts.ts so every milestone field stays in sync; old milestones without `seen` omit run.seen.json.
 if (milestone) {
   const file = join(saves, `${KEYS.milestone(milestone)}.json`);
   if (!existsSync(file)) {

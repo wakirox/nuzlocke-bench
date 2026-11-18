@@ -27,7 +27,7 @@ export function runScore(outcome: RunRecord["outcome"], badges: number, level: n
  * the current cap (it rises with each badge). The loaded ROM starts at 100 on every page load, so
  * this also sets it after a resume. Recorded by name (KIND_LEVEL_CAP) for playback.
  */
-export function syncHardCap(gb: GameBoy, tracker: Tracker, state: GameState): void {
+function syncHardCap(gb: GameBoy, tracker: Tracker, state: GameState): void {
   // Not before there's a party: at power-on, RAM is noise (it can read as a badge).
   if (!state.party.length) return;
   const level = tracker.levelCapForRom(state);
@@ -42,7 +42,7 @@ export function syncHardCap(gb: GameBoy, tracker: Tracker, state: GameState): vo
   }
 }
 
-export interface AutosaveCapture {
+interface AutosaveCapture {
   autoState: Uint8Array;
   tracker: TrackerSnapshot;
   replay: ReplayLog;
@@ -62,18 +62,23 @@ export interface RunSessionOptions {
 
 export class RunSession {
   readonly run: CurrentRun;
+  /** Exact ROM the run executes on (recorded into `SavedReplay` for deterministic playback). */
   readonly rom: Uint8Array;
   readonly gb: GameBoy;
   readonly adapter: GameAdapter;
   readonly tracker: Tracker;
+  /** Records the current run for replay; `this.rom` is the exact ROM it runs on. */
   readonly recorder: Recorder;
+  /** What the run has seen of each map (the AI's maps show only that; the bridge fills it), saved with the autosave. */
   readonly seen: SeenMaps;
   readonly fontSig: Uint8Array;
   /** Latest polled game state; stays `null` until the first `poll()` so power-on RAM noise isn't read early. */
   state: GameState | null = null;
 
   private frameCount = 0;
+  /** `tracker.eventCount` already shown in a tool result (AI bridge). */
   private eventsSeen = 0;
+  /** The trainer who started the current battle: map + sprite index (to remember it once beaten). */
   private engagedTrainer: { map: number; sprite: number } | null = null;
   private onPoll?: (info: { justEnded: boolean }) => void;
 
@@ -159,14 +164,22 @@ export class RunSession {
     return true;
   }
 
-  /** Point-in-time capture for periodic autosaves and `beforeunload` (`seen` included only when dirty). */
+  /**
+   * Side-effect-free point-in-time capture for periodic autosaves and `beforeunload` (`seen` is
+   * included when dirty; call `markSeenSaved()` only after persisting `seen` succeeds).
+   */
   captureAutosave(): AutosaveCapture {
     return {
       autoState: this.gb.saveState(),
       tracker: this.tracker.snap,
       replay: this.recorder.log(this.gb.ticks),
-      seen: this.seen.takeChanged() ? this.seen.data : undefined,
+      seen: this.seen.hasChanged() ? this.seen.data : undefined,
     };
+  }
+
+  /** Clears the `seen` map memory's dirty flag once its IndexedDB write has succeeded. */
+  markSeenSaved(): void {
+    this.seen.takeChanged();
   }
 
   /**
@@ -185,18 +198,13 @@ export class RunSession {
     };
   }
 
-  /** Lead summary and `SavedReplay` for recording history / best-replay archives. */
-  buildAttemptSummary(outcome: RunRecord["outcome"]): {
-    leadName: string;
-    level: number;
-    badges: number;
-    score: number;
-    savedReplay: SavedReplay;
-  } {
-    const lead = this.state?.party[0]?.species ? this.state.party[0] : this.tracker.snap.lastLead;
-    const leadName = lead ? this.tracker.name(lead.species) : "—";
-    const level = Math.max(lead?.level ?? 0, this.tracker.snap.maxLevel ?? 0);
-    const badges = this.tracker.snap.maxBadges ?? 0;
+  /** Builds a `SavedReplay` and score from the single `(lead, level, badges)` snapshot captured by `recordRun`. */
+  buildSavedReplay(
+    outcome: RunRecord["outcome"],
+    lead: string,
+    level: number,
+    badges: number,
+  ): { score: number; savedReplay: SavedReplay } {
     const score = runScore(outcome, badges, level);
     const savedReplay: SavedReplay = {
       ...this.recorder.log(this.gb.ticks),
@@ -207,7 +215,7 @@ export class RunSession {
         attempt: this.run.attempt,
         mode: this.run.mode,
         version: this.run.data.version,
-        lead: leadName,
+        lead,
         level,
         badges,
         outcome: outcome.detail,
@@ -215,7 +223,7 @@ export class RunSession {
         recordedAt: Date.now(),
       },
     };
-    return { leadName, level, badges, score, savedReplay };
+    return { score, savedReplay };
   }
 
   // ---- AiHost query projections ----

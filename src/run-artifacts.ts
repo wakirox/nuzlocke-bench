@@ -1,7 +1,7 @@
 // Declarative manifest of every persisted artifact belonging to a run: its storage key, disk-mirror
-// throttling, cleanup on `clearRun`, milestone packing/unpacking, and snapshot retention policy.
+// throttling, cleanup on `clearRun`, milestone unpacking, and snapshot copy list.
 // Keeping this in one browser/Node-neutral module prevents new per-run state (e.g. routes, fog-of-war
-// seen memory) from being forgotten in autosave, clearRun, milestones or snapshot-run.mjs.
+// seen memory) from being forgotten in clearRun, milestones or snapshot-run.mjs.
 
 import { FIELDS, type ReplayLog } from "./emulator/replay";
 import type { SeenData } from "./bridge/seen";
@@ -60,6 +60,7 @@ export interface MilestoneSave {
   tracker: TrackerSnapshot;
   battery: Uint8Array | null;
   ticks: number;
+  /** The run's memory of the maps (fog of war, 0.2.0 on): what it had seen by then (absent on older milestones). */
   seen?: SeenData;
 }
 
@@ -68,6 +69,7 @@ export const KEYS = {
   run: "run",
   battery: "run.battery",
   autoState: "run.autoState",
+  /** Prefix for named save slots (`${KEYS.slotState}.${slot}`); not stored as a bare key itself. */
   slotState: "run.slotState",
   tracker: "run.tracker",
   history: "history",
@@ -87,38 +89,32 @@ export const KEYS = {
 } as const;
 
 export interface RunArtifactSpec {
-  id: string;
   key: string;
-  /** Deleted when the current run is cleared or replaced by a new attempt. */
-  clearedWithRun: boolean;
-  /** Minimum interval (ms) between disk-backup flushes for large rapidly-growing keys; 0 = immediate. */
-  throttleMs: number;
-  /**
-   * How `scripts/snapshot-run.mjs` treats the file:
-   * - "copy": copied verbatim from the source saves folder (e.g. `run.json`)
-   * - "rebuilt": written from the milestone save or replayed emulator/tracker state
-   * - "cut": `run.replay`, truncated to the snapshot's tick/event index
-   * - "omit": intentionally left out so a resumed model starts without old notes/routes/slots
-   */
-  snapshot: "copy" | "rebuilt" | "cut" | "omit";
-  /** Field on `MilestoneSave` holding this artifact's value, when milestones capture it directly. */
+  /** Minimum interval (ms) between disk-backup flushes for large rapidly-growing keys; omitted = immediate. */
+  throttleMs?: number;
+  /** Copied verbatim from the source saves folder by `scripts/snapshot-run.mjs`. */
+  snapshotCopy?: boolean;
+  /** Field on `MilestoneSave` holding this artifact's value when unpacking a milestone save. */
   milestoneField?: keyof Omit<MilestoneSave, "ticks">;
 }
 
+/** Every stored per-run artifact (all deleted on `clearRun`). */
 export const RUN_ARTIFACTS: readonly RunArtifactSpec[] = [
-  { id: "run",       key: KEYS.run,       clearedWithRun: true, throttleMs: 0,       snapshot: "copy" },
-  { id: "autoState", key: KEYS.autoState, clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "state" },
-  { id: "battery",   key: KEYS.battery,   clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "battery" },
-  { id: "tracker",   key: KEYS.tracker,   clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "tracker" },
-  { id: "seen",      key: KEYS.seen,      clearedWithRun: true, throttleMs: 0,       snapshot: "rebuilt", milestoneField: "seen" },
-  { id: "replay",    key: KEYS.replay,    clearedWithRun: true, throttleMs: 120_000, snapshot: "cut" },
-  { id: "routes",    key: KEYS.routes,    clearedWithRun: true, throttleMs: 0,       snapshot: "omit" },
-  { id: "slotState", key: KEYS.slotState, clearedWithRun: true, throttleMs: 0,       snapshot: "omit" },
+  { key: KEYS.run, snapshotCopy: true },
+  { key: KEYS.autoState, milestoneField: "state" },
+  { key: KEYS.battery, milestoneField: "battery" },
+  { key: KEYS.tracker, milestoneField: "tracker" },
+  // The run's memory of the maps (fog of war, 0.2.0 on): old milestones have no `seen`, so unpack skips null/undefined.
+  { key: KEYS.seen, milestoneField: "seen" },
+  // The current run's recording grows to megabytes; copy it at most every 2 minutes (a disk copy
+  // that's a little behind just means a jump in the replay, which it already handles).
+  { key: KEYS.replay, throttleMs: 120_000 },
+  { key: KEYS.routes },
 ];
 
 /** Save filenames copied unchanged into a snapshot folder (`scripts/snapshot-run.mjs`). */
 export const SNAPSHOT_KEPT_FILES: readonly string[] = [
-  ...RUN_ARTIFACTS.filter((a) => a.snapshot === "copy").map((a) => `${a.key}.json`),
+  ...RUN_ARTIFACTS.filter((a) => a.snapshotCopy).map((a) => `${a.key}.json`),
   "baseRom.json",
   "attempts.json",
   "policies.json",
@@ -127,15 +123,15 @@ export const SNAPSHOT_KEPT_FILES: readonly string[] = [
 
 /** Disk-mirror throttle intervals (ms) by storage key, derived from `RUN_ARTIFACTS`. */
 export const THROTTLED_KEYS: Record<string, number> = Object.fromEntries(
-  RUN_ARTIFACTS.filter((a) => a.throttleMs > 0).map((a) => [a.key, a.throttleMs]),
+  RUN_ARTIFACTS.filter((a) => (a.throttleMs ?? 0) > 0).map((a) => [a.key, a.throttleMs!]),
 );
 
 /**
  * Every key in `existingKeys` (plus fixed per-run keys) that belongs to the active run and should be
- * deleted on `clearRun()`: the manifest's `clearedWithRun` keys plus any `run.milestone.*` saves.
+ * deleted on `clearRun()`: `RUN_ARTIFACTS` keys plus any `run.milestone.*` saves.
  */
 export function keysClearedWithRun(existingKeys: Iterable<string>): string[] {
-  const out = new Set<string>(RUN_ARTIFACTS.filter((a) => a.clearedWithRun).map((a) => a.key));
+  const out = new Set<string>(RUN_ARTIFACTS.map((a) => a.key));
   const milestonePrefix = KEYS.milestone("");
   for (const k of existingKeys) {
     if (k.startsWith(milestonePrefix)) out.add(k);
@@ -144,7 +140,7 @@ export function keysClearedWithRun(existingKeys: Iterable<string>): string[] {
 }
 
 /** Cuts a `ReplayLog` at `ticks` (for milestone snapshots). */
-export function cutReplayAtTicks(rep: ReplayLog, ticks: number, fields = FIELDS): { cut: ReplayLog; events: number } {
+function cutReplayAtTicks(rep: ReplayLog, ticks: number, fields = FIELDS): { cut: ReplayLog; events: number } {
   let n = 0;
   while (n * fields < rep.events.length && rep.events[n * fields] <= ticks) n++;
   return {

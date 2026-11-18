@@ -376,7 +376,10 @@ async function autosave() {
     if (session === owner) {
       await kv.set(KEYS.tracker, snap.tracker);
       await kv.set(KEYS.replay, snap.replay);
-      if (snap.seen) await kv.set(KEYS.seen, snap.seen);
+      if (snap.seen) {
+        await kv.set(KEYS.seen, snap.seen);
+        session.markSeenSaved();
+      }
     }
     autosaveProblem = null;
     if (autosaveFailed) {
@@ -404,10 +407,11 @@ async function autosave() {
 /** Finished runs' recordings kept for checking (scripts/verify-run.mjs): the most recent ones. */
 const KEEP_RUN_REPLAYS = 20;
 
-async function keepIfBest(outcome: RunRecord["outcome"]) {
+/** Keeps the recording of the furthest run so far. */
+async function keepIfBest(outcome: RunRecord["outcome"], lead: string, level: number, badges: number) {
   if (!session) return;
   const { run: r } = session;
-  const { score, savedReplay } = session.buildAttemptSummary(outcome);
+  const { score, savedReplay } = session.buildSavedReplay(outcome, lead, level, badges);
   // Every finished run's recording, so any attempt can be checked (saves/replay.attempt-N.json).
   await kv.set(KEYS.runReplay(r.attempt), savedReplay);
   if (r.attempt > KEEP_RUN_REPLAYS) await kv.del(KEYS.runReplay(r.attempt - KEEP_RUN_REPLAYS));
@@ -529,11 +533,16 @@ function bindToolbar() {
   window.addEventListener("beforeunload", () => {
     if (session) {
       // Best effort: IndexedDB writes usually complete during unload.
+      const owner = session;
       const snap = session.captureAutosave();
       void kv.set(KEYS.autoState, snap.autoState);
       void kv.set(KEYS.replay, snap.replay);
       void kv.set(KEYS.tracker, snap.tracker);
-      if (snap.seen) void kv.set(KEYS.seen, snap.seen);
+      if (snap.seen) {
+        void kv.set(KEYS.seen, snap.seen).then(() => {
+          if (session === owner) owner.markSeenSaved();
+        });
+      }
     }
   });
   document.addEventListener("visibilitychange", () => {
@@ -560,7 +569,7 @@ async function recordRun(outcome: RunRecord["outcome"]) {
   const history = (await kv.get<RunRecord[]>(KEYS.history)) ?? [];
   // Recorded as soon as the run ends, and again by "New run": keep a single entry per attempt.
   if (history.some((h) => h.attempt === run!.attempt && h.startedAt === run!.startedAt)) {
-    await keepIfBest(outcome);
+    await keepIfBest(outcome, leadName, level, badges);
     return;
   }
   history.push({
@@ -575,7 +584,7 @@ async function recordRun(outcome: RunRecord["outcome"]) {
     outcome,
   });
   await kv.set(KEYS.history, history.slice(-200));
-  await keepIfBest(outcome);
+  await keepIfBest(outcome, leadName, level, badges);
 }
 
 function showOutcome() {

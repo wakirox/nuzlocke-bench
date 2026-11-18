@@ -9,13 +9,12 @@ import {
   keysClearedWithRun,
   type BaseRom,
   type CurrentRun,
-  type MilestoneSave,
   type RunRecord,
 } from "./run-artifacts";
 import { decodeSave, encodeSave, reviveSave } from "./save-codec";
 import type { TrackerSnapshot } from "./tracker/tracker";
 
-export { KEYS, type BaseRom, type CurrentRun, type MilestoneSave, type RunRecord, type TrackerSnapshot };
+export { KEYS, type BaseRom, type CurrentRun, type RunRecord, type TrackerSnapshot };
 
 // The store's name is from the app's first name. It stays: a new name would be a new, empty
 // store, and every browser's saves would seem gone.
@@ -67,7 +66,8 @@ export let backupOk: boolean | null = null;
 const pendingWrite = new Map<string, { value: unknown }>();
 const inFlight = new Set<string>();
 
-// Large rapidly-growing artifacts (e.g. run.replay) are throttled via RUN_ARTIFACTS (THROTTLED_KEYS).
+// The current run's recording grows to megabytes; copy it at most every 2 minutes (a disk copy
+// that's a little behind just means a jump in the replay, which it already handles — see THROTTLED_KEYS).
 const lastFlush = new Map<string, number>();
 const timers = new Map<string, number>();
 
