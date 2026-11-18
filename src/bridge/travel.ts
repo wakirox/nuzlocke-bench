@@ -163,7 +163,8 @@ export class Travel {
    * (Crystal's carpets), else toward the map edge it sits on (a doormat on the last row).
    */
   private edgeOf(x: number, y: number): Dir | null {
-    const v = this.core.view(true);
+    // The game's mechanics, not what the player knows: the raw map.
+    const v = this.core.rawView(true);
     const push = v.doors?.find((d) => d.x === x && d.y === y)?.push;
     if (push) return push;
     const h = v.grid.length;
@@ -464,11 +465,13 @@ export class Travel {
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
-      const by = at == null || at === "#" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
+      const by = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
       const why = at == null ? "it's outside this map"
+        : at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
         : at === "#" ? "that square is solid"
         : at === "~" && !full.surfing ? "that square is water"
-        : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
+        : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}` +
+          (full.grid.some((row) => row.includes("?")) ? " (walks only cross squares you've seen; the way may be through ? ones)" : "");
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
       const screen = this.core.screenView();
@@ -514,7 +517,7 @@ export class Travel {
     // interact too: on a door square there's nothing to talk to, so going through is what's meant.
     if (route && /arrived|already there/.test(report) && !this.core.host.position().battle && this.core.host.position().map === startMap) {
       const here2 = this.core.host.position();
-      const onDoor = here2.x === x && here2.y === y && !!this.core.view(true).doors?.some((d) => d.x === x && d.y === y);
+      const onDoor = here2.x === x && here2.y === y && !!this.core.rawView(true).doors?.some((d) => d.x === x && d.y === y);
       const out = onDoor ? this.edgeOf(x, y) : null;
       if (out) {
         await this.core.tap(out, 16, 50);
@@ -569,11 +572,10 @@ export class Travel {
       if (here.battle) { why = "a battle started"; break; }
       // The screen first (it shows past the map's edge, so a leg can cross into the next map); when
       // the screen is a dead end that way, the whole map (the way on may lead out of view first).
-      let view = this.core.game.readView(this.core.requireGb(), here.x, here.y, this.core.host.beatenTrainers(), this.core.host.rom());
+      let view = this.core.view(false);
       let route = pathFurthest(view, dir, this.core.sight());
-      const rom = this.core.host.rom();
-      if (!route && rom) {
-        view = this.core.game.readFullMap(this.core.requireGb(), rom, here.x, here.y, this.core.host.beatenTrainers());
+      if (!route && this.core.host.rom()) {
+        view = this.core.view(true);
         route = pathFurthest(view, dir, this.core.sight());
       }
       if (!route) {
@@ -618,7 +620,8 @@ export class Travel {
       const xs = doors.map((d) => d.tx ?? -1);
       const ys = doors.map((d) => d.ty ?? -1);
       const oneSpot = Math.max(...xs) - Math.min(...xs) <= 1 && Math.max(...ys) - Math.min(...ys) <= 1;
-      if (places.length === 1 && oneSpot) {
+      // Not through a door the run doesn't know ("?"): where that leads is the player's to find out.
+      if (places.length === 1 && places[0] !== "?" && oneSpot) {
         const here = this.core.host.position();
         const door = [...doors].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;

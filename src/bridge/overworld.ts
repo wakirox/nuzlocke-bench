@@ -535,6 +535,8 @@ export function findPath(
   const tc = tx - v.originX;
   const tr = ty - v.originY;
   if (tr < 0 || tr >= v.grid.length || tc < 0 || tc >= v.grid[0].length) return null;
+  // A square the run hasn't seen (fog of war) isn't something to walk up to and face, like a sign.
+  if (v.grid[tr][tc] === "?") return null;
   // A hole asked for is gone into, like a door (the burned mansion's top floor is left that way):
   // paths still never cross one on the way somewhere else.
   if (v.grid[tr][tc] === "O") {

@@ -8,6 +8,7 @@ import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { boxedSquares, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
+import type { SeenMaps } from "./seen";
 
 export interface Brief {
   location: string;
@@ -56,6 +57,8 @@ export interface AiHost {
   rules(): string;
   /** Sprite indices of trainers already beaten on this map. */
   beatenTrainers(): number[];
+  /** What the run has seen of each map (fog of war), or nothing to hide (a host without one). */
+  seen?(): SeenMaps | null;
   /** Trainers on this map with their teams. */
   mapTrainers(): { x: number; y: number; name: string; beaten: boolean }[];
   /** The running ROM — tileset block data for full-map reads. */
@@ -229,8 +232,12 @@ export class BridgeCore {
     return !!gb && !!this.host.version() && !this.host.position().battle && this.game.isDark(gb);
   }
 
-  /** The visible screen, or the whole current map (needs the ROM for tileset blocks). */
-  view(full: boolean) {
+  /**
+   * The visible screen, or the whole current map (needs the ROM for tileset blocks), as the map
+   * data has it: everything, seen or not. For the game's own mechanics only (which way a door's mat
+   * is pressed); what the player is shown or walks by is view().
+   */
+  rawView(full: boolean) {
     const version = this.host.version();
     if (!version) throw new Error("No game is running.");
     const pos = this.host.position();
@@ -240,10 +247,26 @@ export class BridgeCore {
       : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom);
   }
 
+  /**
+   * The screen or the whole map as the run knows it (SeenMaps): squares never on screen are "?",
+   * doors not yet been through lead to "?". Paths are planned on this, so a walk can't find a way
+   * the player hasn't seen. In the dark the screen shows only what's lit (renderDarkView) and nothing
+   * is remembered. The whole map's closed lower-floor patches are sealed before the fog.
+   */
+  view(full: boolean) {
+    const raw = this.rawView(full);
+    const v = full ? sealFromWholeMap(raw, raw) : raw;
+    const seen = this.host.seen?.();
+    if (!seen || this.dark()) return v;
+    const pos = this.host.position();
+    if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
+    return seen.fog(v, pos.map);
+  }
+
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
   screenView() {
     const screen = this.view(false);
-    return this.host.rom() ? sealFromWholeMap(screen, this.view(true)) : screen;
+    return this.host.rom() ? sealFromWholeMap(screen, this.rawView(true)) : screen;
   }
 
   /**
@@ -266,8 +289,10 @@ export class BridgeCore {
     const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
+    // Only trainers on squares the map shows (a "?" square hides who stands there).
     const trainers = this.host.mapTrainers()
-      .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H);
+      .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H)
+      .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?");
     return renderView(v) + trainerList(trainers);
   }
 

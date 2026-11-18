@@ -15,6 +15,7 @@ import { Tracker, type TrackerSnapshot } from "./tracker/tracker";
 import { ConvoView, OPEN_RESULTS, type ConvoEvent } from "./ui/convo";
 import { partyFocus, realTime, renderEncounters, renderEnemy, renderEvents, renderParty, renderRun } from "./ui/tracker-view";
 import { AiBridge } from "./bridge/ai-bridge";
+import { SeenMaps, type SeenData } from "./bridge/seen";
 import { battleMoves, brief, summarize } from "./bridge/summary";
 import { KIND_CANDY_CAP, KIND_LEVEL_CAP, KIND_TOP_UP, Recorder, type ReplayLog, type SavedReplay } from "./emulator/replay";
 
@@ -153,6 +154,8 @@ let aiConnected = false;
 let fontSig: Uint8Array | null = null;
 /** Records the current run for replay; `runRom` is the exact ROM it runs on. */
 let recorder: Recorder | null = null;
+/** What the run has seen of each map (the AI's maps show only that), saved with the autosave. */
+let seen: SeenMaps | null = null;
 let runRom: Uint8Array | null = null;
 const lastHtml: Record<string, string> = {};
 // Browser-local preferences. Their names are from the app's first name; renaming them would
@@ -324,6 +327,7 @@ async function launch(r: CurrentRun) {
   const core = await loadCore();
   const extRam = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
   const snapshot = (await kv.get<TrackerSnapshot>(KEYS.tracker)) ?? null;
+  seen = new SeenMaps(await kv.get<SeenData>(KEYS.seen));
 
   const rom = r.rom.slice();
   gb = new GameBoy(core, {
@@ -389,6 +393,7 @@ function teardown(flushBattery = true) {
   tracker = null;
   recorder = null;
   runRom = null;
+  seen = null;
   state = null;
   fontSig = null;
   for (const k of Object.keys(lastHtml)) delete lastHtml[k];
@@ -439,6 +444,17 @@ function syncHardCap(g: GameBoy, t: Tracker, s: GameState) {
   if (candy != null && t.game.candyCapInRom(g) !== candy) g.intervene(KIND_CANDY_CAP, candy, () => t.game.setCandyCapInRom(g, candy));
 }
 
+/**
+ * The run's memory of the maps: the screen around the player is seen (not in the dark or a battle),
+ * and a jump to another map is a door gone through, both ends (a map edge crossed too: harmless,
+ * no door stands there). The first poll on a new map is skipped: the screen may not be drawn yet.
+ */
+function noteSeen(prev: GameState | null, s: GameState) {
+  if (!seen || !prev || !s.started || !prev.started || s.battle !== 0 || prev.battle !== 0) return;
+  if (prev.map !== s.map) seen.wentThrough(prev.map, prev.x, prev.y, s.map, s.x, s.y);
+  else if (!s.dark) seen.sawScreen(s.map, s.x, s.y);
+}
+
 /** The trainer who started the current battle: map + sprite index (to remember it once beaten). */
 let engagedTrainer: { map: number; sprite: number } | null = null;
 
@@ -448,6 +464,7 @@ function pollState() {
   const game = gameFor(run.data.version);
   state = game.readGameState(gb);
   syncHardCap(gb, tracker, state);
+  noteSeen(prev, state);
   // Trainer battles: find the sprite whose trainer class + number (wMapSpriteExtraData) match
   // the opponent's; fall back to the nearest trainer sprite.
   if (prev && prev.battle === 0 && state.battle === 2) {
@@ -546,6 +563,7 @@ async function autosave() {
     if (gb === owner) {
       await kv.set(KEYS.tracker, snap);
       if (log) await kv.set(KEYS.replay, log);
+      if (seen?.takeChanged()) await kv.set(KEYS.seen, seen.data);
     }
     autosaveProblem = null;
     if (autosaveFailed) {
@@ -881,6 +899,7 @@ const bridge = new AiBridge(
     brief: () => (tracker && state ? brief(tracker, state) : null),
     takePoisonHurt: () => tracker?.takePoisonHurt() ?? [],
     takeMapsEntered: () => tracker?.takeMapsEntered() ?? [],
+    seen: () => seen,
     newEvents: () => {
       if (!tracker) return [];
       const n = Math.min(tracker.eventCount - eventsSeen, tracker.snap.events.length);

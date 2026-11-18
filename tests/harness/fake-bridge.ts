@@ -8,6 +8,8 @@ import type { Button, GameBoy } from "../../src/emulator/gameboy";
 import type { AiHost } from "../../src/bridge/ai-bridge";
 import type { GameAdapter, ScreenLayout } from "../../src/games/adapter";
 import type { Position } from "../../src/games/types";
+import type { OverworldView } from "../../src/bridge/overworld";
+import type { SeenMaps } from "../../src/bridge/seen";
 
 export const COLS = 20;
 export const ROWS = 18;
@@ -42,6 +44,12 @@ export interface FakeHostOptions {
   outcome?: string | null;
   /** Fields of the game summary the bridge reads (e.g. battle: "wild", bag). */
   summary?: Record<string, unknown>;
+  /** The map view the game returns for the screen or the whole map (readView / readFullMap). */
+  view?: OverworldView;
+  /** What the run has seen of each map (the host's seen()); null or absent: nothing hidden. */
+  seen?: SeenMaps | null;
+  /** Trainers on the map (mapTrainers). */
+  trainers?: { x: number; y: number; name: string; beaten: boolean }[];
 }
 
 export class FakeHost {
@@ -80,6 +88,8 @@ export class FakeHost {
       readScreenText: () => this.rows,
       crashedAt: () => false,
       isDark: () => false,
+      readView: () => this.opts.view,
+      readFullMap: () => this.opts.view,
     } as unknown as GameAdapter;
   }
 
@@ -118,7 +128,8 @@ export class FakeHost {
       battleHp: () => null,
       fontSignature: () => null,
       beatenTrainers: () => [],
-      mapTrainers: () => [],
+      seen: () => this.opts.seen ?? null,
+      mapTrainers: () => this.opts.trainers ?? [],
       rom: () => null,
       canvas: this.canvas,
     } as unknown as AiHost;

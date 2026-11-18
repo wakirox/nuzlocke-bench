@@ -25,6 +25,7 @@ const LEGEND = [
   ["#", "# blocked"],
   [".", ". walkable"],
   ["~", "~ water (Surf; walkable while surfing)"],
+  ["?", "? not seen yet (never on your screen: go there to see it; walks don't cross it)"],
   ["*", "* ice (step on it and you slide that way until something stops you; walk_to plans the slides)"],
   ['"', '" tall grass'],
   ["v<>", "v < > one-way ledge (hop that way)"],
