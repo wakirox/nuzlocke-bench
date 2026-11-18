@@ -33,6 +33,10 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
       const mv = t.data.moves[id];
       if (!mv) return { id };
       const def = defenderSpecies != null ? sp(defenderSpecies)?.types ?? [] : null;
+      // Fixed damage (a set number of HP, or the user's level) ignores type, but for immunity; no STAB either.
+      const fixed = mv.power > 0 && G.fixedDamage(id, mv.power);
+      let effectiveness = def && mv.power > 0 ? G.effectiveness(mv.type, def) : undefined;
+      if (fixed && effectiveness != null && effectiveness > 0) effectiveness = 1;
       return {
         slot: i + 1,
         name: mv.name,
@@ -42,8 +46,8 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
         accuracy: mv.accuracy,
         pp: mon.pp[i],
         maxPp: mv.pp,
-        stab: (sp(mon.species)?.types ?? []).includes(mv.type) && mv.power > 0,
-        effectiveness: def && mv.power > 0 ? G.effectiveness(mv.type, def) : undefined,
+        stab: (sp(mon.species)?.types ?? []).includes(mv.type) && mv.power > 0 && !fixed,
+        effectiveness,
       };
     }).filter(Boolean);
 
@@ -113,9 +117,11 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
       : s.battle === 1 ? "wild" : s.battle === 2 ? "trainer" : s.battle === -1 ? "lost" : "none",
     menuCursor: extra.menuCursor,
     lead,
+    // Every member's moves, types and stats, as the party screen's summary pages show a player at any time.
     party: s.party.map((m, i) => ({ slot: i + 1, species: t.name(m.species), nickname: m.nickname, level: m.level, hp: m.hp, maxHp: m.maxHp, status: G.statusName(m.status),
       dead: t.isDead(m), overLevelCap: cap ? m.level > cap.level : undefined,
-      expToNextLevel: t.data.species[m.species] ? Math.max(0, G.expForLevel(t.data.species[m.species].curve, m.level + 1) - m.exp) : undefined })),
+      expToNextLevel: t.data.species[m.species] ? Math.max(0, G.expForLevel(t.data.species[m.species].curve, m.level + 1) - m.exp) : undefined,
+      types: sp(m.species)?.types, stats: m.stats, moves: describeMoves(m, inBattle && s.enemy ? s.enemy.species : null).flatMap((mv) => (mv ? [moveLine(mv)] : [])) })),
     nuzlocke: {
       levelCap: cap,
       thisArea: (() => {
@@ -136,6 +142,18 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     catches: t.snap.catches.map((c) => ({ species: t.name(c.species), level: c.level, map: t.data.mapNames[c.map] || c.mapConst, gift: c.gift })),
     recentRuleEvents: t.snap.events.slice(-8).map((e) => `[${e.severity}] ${e.text}`),
   };
+}
+
+/**
+ * A party member's move in one short string ("SURF: WATER 95 2× 15/15pp", "GROWL: NORMAL status 40/40pp"):
+ * the lead's moves have every field, the rest of the party this much (six full movesets as objects
+ * would double get_state). The name ends at the colon; the multiplier sits before the PP, where
+ * hideEffectiveness drops it.
+ */
+export function moveLine(m: { id?: number; name?: string; type?: string; power?: number; pp?: number; maxPp?: number; effectiveness?: number }): string {
+  if (m.name == null || m.power == null) return `#${m.id}`;
+  const e = m.effectiveness == null ? "" : m.effectiveness === 0 ? " no effect" : ` ${m.effectiveness}×`;
+  return `${m.name}: ${m.type} ${m.power > 0 ? m.power : "status"}${e} ${m.pp}/${m.maxPp}pp`;
 }
 
 /** One short line per field, returned after every action. */

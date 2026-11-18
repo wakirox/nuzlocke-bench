@@ -190,7 +190,7 @@ export class AiBridge {
       case "throw_ball":
         return this.capture.throwBall(p.nickname ? String(p.nickname).toLowerCase() : null, p.ball ? String(p.ball).toLowerCase() : null);
       case "use_item":
-        return this.menus.useItem(String(p.item ?? ""), p.pokemon ? String(p.pokemon) : null);
+        return this.menus.useItem(String(p.item ?? ""), p.pokemon ? String(p.pokemon) : null, p.move ? String(p.move) : null);
       case "fight_trainer":
         return this.travel.fightTrainer(Number(p.x), Number(p.y));
       case "hunt":

@@ -32,6 +32,20 @@ export function normalizeStep(step) {
   return { tool, args: { ...rest, ...(args ?? {}) } };
 }
 
+/**
+ * Why a walk's report says it ended before getting where it was going ("up 2/6 — stopped: blocked…",
+ * "stopped short: the only way on crosses…", "3 legs → stopped: NOVA is hurt by poison"), or null.
+ * Crossing into the next map is how a walk out of a map ends, and a battle is caught on its own.
+ * Of an exit_map's retries (" | retry: ") only the last says where it ended.
+ */
+export function walkCutShort(walk) {
+  if (typeof walk !== "string") return null;
+  const last = walk.split(" | retry: ").at(-1);
+  const why = [...last.matchAll(/\bstopped(?: short)?:? (.+?)(?= —|; | \(ran from|$)/g)].at(-1)?.[1].trim();
+  if (!why || /^(?:entered a new map|a battle started)/.test(why)) return null;
+  return why.split(/\. (?=[A-Za-z])/)[0];
+}
+
 /** Why the batch can't go on after this step's result, or null. */
 export function stopReason(r) {
   if (!r || typeof r !== "object") return null;
@@ -41,6 +55,11 @@ export function stopReason(r) {
   if (r.saveWarning) return "autosave is failing";
   if (s.battle && s.battle !== "none") return "in battle";
   if (r.stopped) return `the step stopped early (${r.stopped})`;
+  // The next steps were planned from where this one should have ended.
+  const short = walkCutShort(r.walk);
+  if (short) return `the walk stopped short (${short})`;
+  // fight_trainer that talked to someone but started no battle.
+  if (typeof r.note === "string" && /^No battle started\b/.test(r.note)) return "no battle started";
   if (r.events?.some((e) => /^\[(warning|violation)\]/.test(e))) return "a rule event";
   return null;
 }

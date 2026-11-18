@@ -50,11 +50,14 @@ const BORDER = new Set([..."┌┐└┘─│"]);
  * to the smallest box around it. Text outside every box comes last. Rows matter in the few 2-D
  * menus (the battle menu, the naming keyboard): pressing down moves to the next row.
  */
-// Tiles the screen reader writes as two letters (PK, MN, 'r, 'm): one square each, so the columns
-// line up again; written back out as the letters.
-const TILES = [["PK", "\uE0E1"], ["MN", "\uE0E2"], ["'r", "\uE0E4"], ["'m", "\uE0E5"]];
-const oneSquare = (l) => TILES.reduce((s, [t, c]) => s.replace(new RegExp(`(?<![A-Z])${t}(?=MN|[^A-Za-z]|$)`, "g"), c), l.replace(/PKMN/g, "\uE0E1\uE0E2"));
-const letters = (l) => TILES.reduce((s, [t, c]) => s.split(c).join(t), l);
+// Tiles the screen reader writes as two characters (PK, MN, and the contractions 'd 'l 'm 'r 's 't 'v):
+// one square each, so the columns line up again; written back out as the characters.
+const TILES = [["PK", "\uE0E1"], ["MN", "\uE0E2"]];
+// A contraction tile follows a letter (IT's, MOM's, you're, I'm) and can be followed by one (you'll, you've).
+const CONTRACTIONS = [..."dlmrstv"].map((ch, i) => [`'${ch}`, String.fromCharCode(0xe0f0 + i)]);
+const oneSquare = (l) => CONTRACTIONS.reduce((s, [t, c]) => s.replace(new RegExp(`(?<=[A-Za-z\u00E9])${t}`, "g"), c),
+  TILES.reduce((s, [t, c]) => s.replace(new RegExp(`(?<![A-Z])${t}(?=MN|[^A-Za-z]|$)`, "g"), c), l.replace(/PKMN/g, "\uE0E1\uE0E2")));
+const letters = (l) => [...TILES, ...CONTRACTIONS].reduce((s, [t, c]) => s.split(c).join(t), l);
 
 export function plainScreen(rawLines) {
   const lines = rawLines.map(oneSquare);
@@ -147,7 +150,7 @@ export function plainScreen(rawLines) {
  */
 export function hideEffectiveness(text) {
   return text
-    .replace(/ (?:\d+(?:\.\d+)?×|no effect)(?= \d+pp)/g, "")
+    .replace(/ (?:\d+(?:\.\d+)?×|no effect)(?= \d+(?:\/\d+)?pp)/g, "")
     .replace(/,"effectiveness(?:VsYou)?":[^,}\]]*/g, "")
     .replace(/"effectiveness(?:VsYou)?":[^,}\]]*,?/g, "");
 }

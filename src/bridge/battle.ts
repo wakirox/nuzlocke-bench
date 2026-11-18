@@ -14,6 +14,12 @@ export class Battle {
     if (!this.core.host.position().battle) throw new Error("switch: only in battle (outside, use make_lead).");
     const mon = this.core.partyMember(which);
     if (mon.hp <= 0) throw new Error(`${mon.nickname} has fainted.`);
+    // The one already out: the game says so and leaves the party list open, with no turn played.
+    const out = this.core.summary()?.lead;
+    const party = this.core.summary()?.party?.find((m) => m.slot === mon.slot);
+    if (out && party && out.nickname === party.nickname && out.species === party.species && out.level === party.level && out.maxHp === party.maxHp) {
+      throw new Error(`${mon.nickname} is already out. Nothing was pressed.`);
+    }
     const messages: string[] = [];
     if (!this.core.screenText().some((l) => l.includes("▶"))) messages.push(...(await this.menus.advanceText(20)).messages);
     if (this.menus.cursorOn("YES") || this.menus.cursorOn("NO")) {
@@ -53,11 +59,21 @@ export class Battle {
 
     const moves = this.core.host.battleMoves();
     const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    // With no PP left in any move, FIGHT uses STRUGGLE by itself (no move list): any move named does that.
+    const noPpAtAll = moves.length > 0 && moves.every((m) => m.pp <= 0);
     const target = typeof move === "number" || /^\d$/.test(String(move))
       ? moves.find((m) => m.slot === Number(move))
       : moves.find((m) => norm(m.name) === norm(String(move)));
-    if (!target) throw new Error(`Unknown move "${move}". Known: ${moves.map((m) => `${m.slot}=${m.name}`).join(", ")}`);
-    if (target.pp <= 0) throw new Error(`${target.name} has no PP left.`);
+    if (!target && !(noPpAtAll && norm(String(move)) === "STRUGGLE")) {
+      throw new Error(`Unknown move "${move}". Known: ${moves.map((m) => `${m.slot}=${m.name}`).join(", ")}${noPpAtAll ? " (no PP left in any: STRUGGLE, or any of them, uses Struggle)" : ""}`);
+    }
+    // No PP is refused only where the list would let you pick it: a turn the game plays by itself
+    // (recharging, locked into a move, asleep) needs FIGHT pressed whatever the PP (checked below).
+    const refuseNoPp = async () => {
+      if (!target || target.pp > 0 || noPpAtAll) return;
+      await this.core.tap("b", 4, 10);
+      throw new Error(`${target.name} has no PP left. Backed out to the battle menu.`);
+    };
 
     if (!moveListOpen() && this.menus.battleMenuCursor()) {
       // Cursor to FIGHT (a step at a time, see battleMenuTo), open the move list.
@@ -75,9 +91,18 @@ export class Battle {
       await gb.runFrames(20, 8);
       if (!this.core.screenText().some((l) => moves.some((m) => l.includes("▶") && norm(l).includes(norm(m.name))))) {
         const turn = await this.menus.advanceText(40);
-        return this.core.result({ used: null, note: "No move to pick this turn (asleep, frozen, recharging or locked in): the turn played out.", messages: turn.messages, stopped: turn.stopped });
+        const note = noPpAtAll
+          ? "No PP left in any move: STRUGGLE was used."
+          : "No move to pick this turn (asleep, frozen, recharging or locked in): the turn played out.";
+        return this.core.result({ used: noPpAtAll ? "STRUGGLE" : null, note, messages: turn.messages, stopped: turn.stopped });
       }
       chosen = cursorLine();
+    }
+    await refuseNoPp();
+    if (!target) {
+      // Struggle asked for, yet the list opened: the game wants a move picked after all.
+      await this.core.tap("b", 4, 10);
+      throw new Error(`The move list opened: pick one of ${moves.map((m) => `${m.slot}=${m.name}`).join(", ")}. Backed out to the battle menu.`);
     }
     // Straight up or down to it, never wrapping past an end (a press off the end can count as a pick).
     // By its row, not its name: one move's name can sit inside another's.
@@ -93,6 +118,13 @@ export class Battle {
     }
     await this.core.tap("a", 4, 20);
     const turn = await this.menus.advanceText(40);
+    // Still on the move list after saying something: the game refused the move ("X is disabled!") and
+    // no turn was played. (Looked at twice: the list stays drawn a moment after a move is picked.)
+    const stillOnList = () => moveListOpen() && cursorSlot() > 0;
+    if (turn.messages.length && stillOnList() && (await gb.runFrames(20, 8), stillOnList())) {
+      await this.core.tap("b", 4, 10);
+      return this.core.result({ used: null, note: `${target.name} wasn't used: the game refused it (see the messages), so no turn was played. Back at the battle menu: pick another move.`, messages: turn.messages });
+    }
     return this.core.result({ used: target.name, messages: turn.messages, stopped: turn.stopped });
   }
 }

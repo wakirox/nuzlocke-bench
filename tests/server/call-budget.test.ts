@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { callBudget, endRun, limitCalls, outOfCalls } from "../../mcp-server/call-budget.mjs";
+import { UNCOUNTED_RESULT, callBudget, endRun, limitCalls, outOfCalls } from "../../mcp-server/call-budget.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { instrumentTools } from "../../mcp-server/run-log.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -53,6 +53,22 @@ describe("tool-call budget", () => {
     expect(runEnded(last)).toBe(true);
     expect(textOf(await server.tools.get("press")!({}))).toBe(outOfCalls(3));
     expect(played).toBe(3);
+  });
+
+  it("gives back a call refused before the game ran (a batch's bad arguments), even the last one", async () => {
+    const server = fakeServer();
+    const dir = mkdtempSync(join(tmpdir(), "budget-"));
+    const budget = callBudget({ max: 2, dir });
+    limitCalls(server, budget);
+    server.registerTool("do", { inputSchema: {} }, async () => ({ ...text("Step 1 (walk_to): x: expected number"), isError: true, [UNCOUNTED_RESULT]: true }));
+    server.registerTool("press", { inputSchema: {} }, async () => text("pressed"));
+    await server.tools.get("press")!({});
+    const refused = await server.tools.get("do")!({});
+    expect(textOf(refused)).not.toContain("RUN ENDED");
+    expect(refused).not.toHaveProperty(UNCOUNTED_RESULT);
+    expect(budget.used()).toBe(1);
+    expect(readFileSync(join(dir, "tool-calls.txt"), "utf8")).toBe("1");
+    expect(textOf(await server.tools.get("press")!({}))).toBe(`pressed\n${outOfCalls(2)}`);
   });
 
   it("doesn't add a second end to a run that ended on its last call", () => {

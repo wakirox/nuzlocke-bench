@@ -620,24 +620,22 @@
       "type": "object",
       "properties": {
         "nickname": {
-          "description": "Nickname for the catch (letters)",
+          "description": "Nickname for the catch (letters A–Z, up to 10)",
           "type": "string",
-          "maxLength": 10
+          "pattern": "^[A-Za-z]{1,10}$"
         },
         "ball": {
+          "description": "Which ball to throw (in the game reserve its own balls are thrown: safari, or leave it out)",
           "type": "string",
           "enum": [
             "poke",
             "great",
             "ultra",
-            "master"
-          ],
-          "description": "Which ball to throw"
+            "master",
+            "safari"
+          ]
         }
       },
-      "required": [
-        "ball"
-      ],
       "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
@@ -687,16 +685,20 @@
   },
   {
     "name": "use_item",
-    "description": "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody). Closes the menus after.",
+    "description": "Outside battle: use a bag item, on a party Pokémon when it needs one (e.g. SUPER POTION on BEAKER, REPEL on nobody), and on one of its moves for items that ask which (ETHER, PP UP). Closes the menus after.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "item": {
           "type": "string",
-          "description": "Item name, e.g. \"SUPER POTION\", \"REPEL\""
+          "description": "Item name as the bag lists it, e.g. \"SUPER POTION\", \"REPEL\""
         },
         "pokemon": {
           "description": "Target: nickname, species or slot",
+          "type": "string"
+        },
+        "move": {
+          "description": "For items used on one move (ETHER, PP UP…): the move's name",
           "type": "string"
         }
       },

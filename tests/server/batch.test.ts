@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { BATCH_TOOLS, normalizeStep, runBatch, stepSummary, stepToolError, stopReason } from "../../mcp-server/batch.mjs";
+import { BATCH_TOOLS, normalizeStep, runBatch, stepSummary, stepToolError, stopReason, walkCutShort } from "../../mcp-server/batch.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { createFormatter, pickSections } from "../../mcp-server/format.mjs";
 
@@ -119,5 +119,36 @@ describe("get_state only=[...]", () => {
     // get_map and get_state may end a batch (server.mjs FINAL_READS); other reads are refused with that said.
     expect(stepToolError("get_screen")).toBe("get_screen can't be a step: reads answer you, so call get_screen on its own (before or after the do). Only get_map or get_state may end a batch.");
     expect(stepToolError("teleport")).toMatch(/^"teleport" isn't a step\. Steps can be: walk, walk_to/);
+  });
+
+  it("stops after a walk cut short: the next steps were planned from where it should have ended", async () => {
+    const short = [
+      "up 2/6 — stopped: blocked (a person is in the way)",
+      "right 3 — stopped short: the only way on crosses an unbeaten trainer's sight at (8, 4) (HIKER). walk_to that trainer (interact) to fight it on purpose, or choose another target.",
+      "down 1/4 — stopped: NOVA is hurt by poison (20→19/28 HP)",
+      "3 legs → stopped: no way further right on this map from where you stand — try another direction or get_map",
+    ];
+    for (const walk of short) {
+      const { calls, exec } = scripted([ok({ walk }), ok()]);
+      const r = await runBatch([{ tool: "walk_to", args: { x: 9, y: 4 } }, { tool: "walk_to", args: { x: 9, y: 2, interact: true } }], exec);
+      expect(calls).toHaveLength(1);
+      expect(r.stopped).toMatch(/after step 1 \(walk_to\): the walk stopped short \(/);
+    }
+    expect(walkCutShort(short[1])).toBe("the only way on crosses an unbeaten trainer's sight at (8, 4) (HIKER)");
+  });
+
+  it("goes on after a walk that got there, crossed into the next map, or ran from a battle on the way", () => {
+    for (const walk of [
+      "up 3/3 — arrived",
+      "left 2/2, up 1/1 — arrived (ran from RATTY), facing up",
+      "up 4/4 — arrived; crossing: up 1/3 — stopped: entered a new map",
+      "up 2/6 — stopped: blocked | retry: up 4/4 — arrived; crossing: up 1/3 — stopped: entered a new map",
+      "2 legs → entered a new map",
+      "already there",
+    ]) expect(walkCutShort(walk)).toBeNull();
+  });
+
+  it("stops when fight_trainer talked to someone but no battle started", () => {
+    expect(stopReason(ok({ note: "No battle started: talking to them didn't start a fight (already beaten, a story battle that isn't due yet, or not a trainer)." }))).toBe("no battle started");
   });
 });

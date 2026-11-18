@@ -15,6 +15,27 @@ const battleAction = (layout: ScreenLayout, option: string): BattleAction | null
   const o = letters(option);
   return (Object.keys(layout.battleMenu) as BattleAction[]).find((a) => letters(layout.battleMenu[a].label) === o) ?? null;
 };
+/** The menu cells on screen as normalized text (letters and digits), and which of them the ▶ is on. */
+function menuCells(lines: string[]): { cursor: string[]; all: string[] } {
+  const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const cursor: string[] = [];
+  const all: string[] = [];
+  for (const line of lines) {
+    const i = line.indexOf("▶");
+    if (i >= 0) cursor.push(norm(line.slice(i + 1).split(/\s{2,}|[│┐┘]/)[0]));
+    for (const cell of line.split(/\s{2,}|[│┐┘┌└─▶▷]/)) if (norm(cell)) all.push(norm(cell));
+  }
+  return { cursor, all };
+}
+
+/** See Menus.cursorOn. */
+export function cursorOnOption(lines: string[], option: string): boolean {
+  const want = option.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const { cursor, all } = menuCells(lines);
+  if (cursor.includes(want)) return true;
+  return cursor.some((c) => c.startsWith(want)) && !all.includes(want);
+}
+
 /** A menu label as a regular expression that matches just that text. */
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -32,6 +53,13 @@ function hpChanges(before: { you: BattlerHp; foe: BattlerHp }, after: { you: Bat
 }
 
 export class Menus {
+  /**
+   * A candy or TM stopped on a move question: once it's answered the game goes back to the bag, which
+   * in Crystal fills the screen (no start menu peeking out to recognize it by). The next start-menu
+   * opening backs out of it.
+   */
+  private bagLeftOpen = false;
+
   constructor(private core: BridgeCore) {}
 
   /**
@@ -146,14 +174,13 @@ export class Menus {
     return { messages, stopped: "press limit reached" };
   }
 
-  /** Is the ▶ cursor directly in front of `option` anywhere on screen? */
+  /**
+   * Is the ▶ cursor directly in front of `option` anywhere on screen? The option under it may run on
+   * ("POKé" for POKéMON), but not when the screen lists the option asked for by itself: of BUBBLEBEAM
+   * and BUBBLE, "BUBBLE" means BUBBLE (a move question would otherwise forget the wrong move).
+   */
   cursorOn(option: string): boolean {
-    const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const want = norm(option);
-    return this.core.screenText().some((line) => {
-      const i = line.indexOf("▶");
-      return i >= 0 && norm(line.slice(i + 1).split(/\s{2,}|[│┐┘]/)[0]).startsWith(want);
-    });
+    return cursorOnOption(this.core.screenText(), option);
   }
 
   /**
@@ -186,6 +213,10 @@ export class Menus {
       throw new Error(q
         ? `No menu cursor (▶) on screen: a quantity is being chosen (${q}). press up/down to change it, then a to confirm.`
         : "No menu cursor (▶) on screen.");
+    }
+    // The naming keyboard isn't a menu of options: sweeping it would type letters.
+    if (this.core.screenText().some((l) => /A B C D E F G H I/.test(l.replace(/▶/g, " ").replace(/ +/g, " ")))) {
+      throw new Error("The naming keyboard is open: choose doesn't type. press name:NAME types a name (letters, up to 10) and confirms it.");
     }
     // The battle menu: step to the option from where the cursor is (see battleMenuTo).
     const action = battleAction(this.core.layout, option);
@@ -283,16 +314,18 @@ export class Menus {
 
     await this.openStartMenu();
     await this.choose(this.core.layout.startMenu.party);
-    // The party screen's ▶ sits on each entry's HP row (Gen 1: rows 1, 3, 5…), not its name, so move by
-    // slot. It opens where the last pick was (e.g. after Rare Candies), and stays on the picked
-    // Pokémon after SWITCH.
-    const row = this.partyCursorRow();
-    const at = row >= 0 ? this.core.layout.partyScreen.slotAt(row) : 0;
-    for (let i = at; i < target.slot - 1; i++) await this.core.tap("down", 4, 10);
-    for (let i = at; i > target.slot - 1; i--) await this.core.tap("up", 4, 10);
+    // The party screen fades in and drops presses meanwhile, and opens where the last pick was (e.g.
+    // after Rare Candies): steer by the ▶ on screen (steerParty), never by counting presses.
+    const backOut = async (why: string) => {
+      const screen = this.core.screenText().join("\n");
+      await this.closeMenus();
+      throw new Error(`${why}, so the party wasn't reordered. Screen:\n${screen}`);
+    };
+    if (!(await this.steerParty(target.slot - 1))) await backOut(`Couldn't put the cursor on ${target.nickname}`);
     await this.core.tap("a", 4, 30);
     await this.choose("SWITCH");
-    for (let i = 1; i < target.slot; i++) await this.core.tap("up", 4, 10);
+    // The cursor stays on the picked Pokémon after SWITCH: up to the lead's slot.
+    if (!(await this.steerParty(0))) await backOut("Couldn't put the cursor on the lead's slot");
     await this.core.tap("a", 4, 60);
     // Back out of the party screen and the start menu (the screen fades between them, so
     // keep pressing B until the start menu is really gone).
@@ -364,6 +397,7 @@ export class Menus {
       const after = await this.advanceText(40, { pastTheEnd: true });
       log.push(...after.messages);
       if (this.cursorOn("YES") || after.messages.some((m) => this.core.layout.texts.moveQuestion.test(m))) {
+        this.bagLeftOpen = true;
         return this.core.result({ messages: log, stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
       }
     }
@@ -377,6 +411,8 @@ export class Menus {
 
   /** Types an A–Z name on the naming keyboard (cursor starts on "A"), then confirms. */
   async typeName(name: string): Promise<void> {
+    // Only letters are steered to (by their place in the alphabet): anything else would send the cursor off the grid.
+    if (!/^[A-Z]{1,10}$/.test(name)) throw new Error(`"${name}" can't be typed: capital letters A–Z only, up to 10.`);
     // Let the keyboard finish opening before the first input.
     await this.core.requireGb().runFrames(60, 8);
     const { lettersPerRow, nameRow, confirm } = this.core.layout.keyboard;
@@ -386,7 +422,7 @@ export class Menus {
     let col = 0;
     for (let attempt = 0; attempt < 2; attempt++) {
       // Clear anything typed so far (B deletes one letter; the cursor stays put).
-      for (let i = 0; i < 8 && typed(); i++) await this.core.tap("b", 4, 10);
+      for (let i = 0; i < 10 && typed(); i++) await this.core.tap("b", 4, 10);
       for (const ch of name) {
         const i = ch.charCodeAt(0) - 65; // keyboard rows hold the same number of letters (Gen 1: A–I, J–R, S–Z)
         const r = Math.floor(i / lettersPerRow);
@@ -411,8 +447,15 @@ export class Menus {
     if (this.core.host.brief()?.lead) {
       throw new Error("start_game only works on a fresh run (this one already has a Pokémon).");
     }
-    // Title screen / intro: press START until the main menu shows.
-    for (let i = 0; i < 60 && !this.cursorOn("NEW GAME"); i++) await this.core.tap("start", 6, 45);
+    // Title screen / intro: press START until the main menu shows. In the game world (started, no
+    // Pokémon yet) START opens the start menu instead: close it and say so, rather than toggling it on.
+    for (let i = 0; i < 60 && !this.cursorOn("NEW GAME"); i++) {
+      await this.core.tap("start", 6, 45);
+      if (this.startMenuShown()) {
+        await this.closeMenus();
+        throw new Error("The game has already started: you're in the game world. Walk on from here (start_game is for the title screen).");
+      }
+    }
     if (!this.cursorOn("NEW GAME")) throw new Error("Couldn't reach the main menu (is there a save file? use the menu manually).");
 
     // Options: TEXT SPEED fast, BATTLE ANIMATION off, BATTLE STYLE set.
@@ -573,6 +616,14 @@ export class Menus {
     // The start menu shows both of these; the bag left open covers all of it but its last rows.
     const { bag, exit } = this.core.layout.startMenu;
     const shows = (word: string) => this.core.screenText().some((l) => new RegExp(`\\b${word}\\b`).test(l));
+    // The bag a move question went back to (see bagLeftOpen): B leads out of it to the start menu.
+    if (this.bagLeftOpen) {
+      this.bagLeftOpen = false;
+      for (let i = 0; i < 4 && this.core.screenText().some((l) => l.includes("▶")) && !(shows(exit) && shows(bag)); i++) {
+        await this.core.tap("b", 4, 16);
+        await this.core.settledScreen();
+      }
+    }
     for (let i = 0; i < 10; i++) {
       if (shows(exit) && !shows(bag)) await this.core.tap("b", 4, 16); // a text box may only now have uncovered it
       else if (this.core.screenText().some((l) => l.includes("▶"))) break;
@@ -603,13 +654,21 @@ export class Menus {
   }
 
   /** Outside battle: use a bag item (on a party Pokémon when it asks which). */
-  async useItem(query: string, target: string | null): Promise<unknown> {
+  async useItem(query: string, target: string | null, move: string | null = null): Promise<unknown> {
     if (this.core.host.position().battle) throw new Error("item: outside battle only (items in battle break the Nuzlocke rules; use 'ball' for Poké Balls).");
     const norm = (x: string) => x.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const bag = this.core.summary()?.bag ?? [];
-    const it = bag.find((b) => norm(b.item) === norm(query)) ?? bag.find((b) => norm(b.item).includes(norm(query)));
-    if (!it) throw new Error(`No "${query}" in the bag (${bag.map((b) => b.item).join(", ")}).`);
+    const summary = this.core.summary();
+    const bag = summary?.bag ?? [];
+    // The item named, never another in its place: "POTION" once they're used up isn't a MAX POTION.
+    const it = bag.find((b) => norm(b.item) === norm(query));
+    if (!it) {
+      const like = bag.filter((b) => norm(b.item).includes(norm(query))).map((b) => b.item);
+      throw new Error(`No "${query}" in the bag${like.length ? ` (similar: ${like.join(", ")}: name the one you mean)` : ""}. In the bag: ${bag.map((b) => b.item).join(", ") || "nothing"}.`);
+    }
     const mon = target ? this.core.partyMember(target) : null;
+    // Party moves read "NAME: TYPE …" (summary.ts moveLine).
+    const monMoves = (mon ? summary?.party?.find((m) => m.slot === mon.slot)?.moves ?? [] : []).map((m) => m.split(":")[0]);
+    if (move && mon && !monMoves.some((n) => norm(n) === norm(move))) throw new Error(`${mon.nickname} doesn't know ${move} (its moves: ${monMoves.join(", ")}).`);
     await this.openStartMenu();
     await this.choose(this.core.layout.startMenu.bag);
     await this.chooseInBag(it.item);
@@ -622,14 +681,31 @@ export class Menus {
     if (messages.some((m) => /which/i.test(m)) || this.partyScreenOpen()) {
       if (!mon) {
         await this.closeMenus();
-        throw new Error(`${it.item} needs a target: item:${query.toLowerCase().replace(/ /g, "_")}:NAME`);
+        throw new Error(`${it.item} needs a target: use_item again with pokemon (a nickname, species or slot). Nothing was used.`);
       }
       if (!(await this.steerParty(mon.slot - 1))) throw new Error(`Couldn't put the cursor on ${mon.nickname}.`);
       await this.core.tap("a", 4, 30);
       messages.push(...(await this.advanceText(20)).messages);
+      // An evolution stone's scene: let it play to the end (a B press during it would call it off).
+      const evolving = () => /evolving/i.test(messages.join(" ")) && !/evolved\s+into/i.test(messages.join(" "));
+      for (let i = 0; i < 8 && evolving() && !this.core.screenText().some((l) => l.includes("▶")); i++) {
+        await this.core.requireGb().runFrames(60, 8);
+        messages.push(...(await this.advanceText(20)).messages);
+      }
       // A TM into a full moveset asks which move to delete: leave that choice open.
       if (this.cursorOn("YES") && this.core.layout.texts.moveQuestion.test(messages.join(" "))) {
+        this.bagLeftOpen = true;
         return this.core.result({ used: it.item, on: mon?.nickname, messages, stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
+      }
+      // An item for one move (ETHER, PP UP) opens the Pokémon's moves: pick the one asked for.
+      const cell = (l: string) => norm(l.slice(l.indexOf("▶") + 1).split(/\s{2,}|[│┐┘]/)[0]);
+      const onMoveList = this.core.screenText().some((l) => l.includes("▶") && monMoves.some((n) => norm(n) === cell(l)));
+      if (onMoveList) {
+        if (!move) {
+          await this.closeMenus();
+          throw new Error(`${it.item} is used on one move: use_item again with move (${mon.nickname}'s moves: ${monMoves.join(", ")}). Nothing was used.`);
+        }
+        messages.push(...(((await this.choose(move)) as { messages?: string[] }).messages ?? []));
       }
     }
     await this.closeMenus();

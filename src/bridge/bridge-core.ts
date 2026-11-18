@@ -89,7 +89,8 @@ export const DEFAULT_POLICIES: Policies = { encounters: "stop", trainers: "avoid
 export interface Summary {
   run?: { ruleset?: string };
   battle?: string;
-  party?: { slot: number; species: string; nickname: string; level: number; hp: number }[];
+  party?: { slot: number; species: string; nickname: string; level: number; hp: number; maxHp?: number; moves?: string[] }[];
+  lead?: { species?: string; nickname?: string; level?: number; maxHp?: number } | null;
   bag?: { item: string; qty: number }[];
   enemy?: { species?: string; level?: number } | null;
   nuzlocke?: { thisArea?: string | { species: string; status: string } };
