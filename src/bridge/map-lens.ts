@@ -27,28 +27,23 @@ export function asRawView(v: AnyOverworldView): RawOverworldView {
   return { ...v, stage: "raw" };
 }
 
-/** Stamps a view ready for player/model consumption as `"known"`. */
-export function asKnownView(v: AnyOverworldView): KnownOverworldView {
-  return { ...v, stage: "known" };
-}
-
 export interface MaskLensOptions {
   /** Whether map coordinate `(x, y)` is visible in the masked view (`false` becomes `"?"`). */
   isVisible: (x: number, y: number) => boolean;
-  /** Optional door projection applied to each visible door (e.g. hiding unknown destinations as `"?"`). */
-  mapDoor?: (door: Door, visibleDoors: Door[]) => Door;
+  /** Optional batch projection applied to visible doors (e.g. hiding unknown destinations as `"?"`). */
+  mapDoors?: (visibleDoors: Door[]) => Door[];
 }
 
 /**
  * Atomically masks `grid`, `doors`, `watchers`, and `watched` to `isVisible` squares, returning a
  * `"known"` view where unseen trainers and unseen watched squares are both stripped.
  */
-export function maskView(view: AnyOverworldView, { isVisible, mapDoor }: MaskLensOptions): KnownOverworldView {
+export function maskView(view: AnyOverworldView, { isVisible, mapDoors }: MaskLensOptions): KnownOverworldView {
   const grid = view.grid.map((row, r) =>
     row.map((ch, c) => (isVisible(view.originX + c, view.originY + r) ? ch : "?")),
   );
   const visibleDoors = view.doors?.filter((d) => isVisible(d.x, d.y));
-  const doors = visibleDoors && mapDoor ? visibleDoors.map((d) => mapDoor(d, visibleDoors)) : visibleDoors;
+  const doors = visibleDoors && mapDoors ? mapDoors(visibleDoors) : visibleDoors;
   // Trainers' sight only from trainers the run has seen, onto squares it has seen: otherwise an
   // unseen trainer's ! (and where it stands) would show through the fog, and paths steer round it.
   const W = view.grid[0]?.length ?? 0;

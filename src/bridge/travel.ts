@@ -2,7 +2,7 @@
 // own routes, field moves and pacing the grass.
 
 import { hasFog, mapHasGrass, planFrontierEdge, planFrontierTarget, seenSteps } from "./map-lens";
-import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, renderView, sealFromWholeMap, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
+import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, renderView, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -534,11 +534,10 @@ export class Travel {
       const sx1 = screen.originX + (screen.grid[0]?.length ?? 1) - 1, sy1 = screen.originY + screen.grid.length - 1;
       const xs = [x, ...(by ? [by.x] : [])], ys = [y, ...(by ? [by.y] : [])];
       const offScreen = at != null && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
-      const cropped = offScreen
+      const shown = offScreen
         ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
           Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
-        : null;
-      const shown = cropped ? (this.core.host.rom() ? sealFromWholeMap(cropped, this.core.rawView(true)) : cropped) : screen;
+        : screen;
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
     let report = "already there";

@@ -82,9 +82,9 @@ export class SeenMaps {
     const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
     return maskView(view, {
       isVisible: (x, y) => this.has(map, x, y),
-      mapDoor: (d, inSight) => {
+      mapDoors: (inSight) => {
         const known = inSight.filter((k) => this.knowsDoor(map, k, bottomRow));
-        return known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null };
+        return inSight.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
       },
     });
   }

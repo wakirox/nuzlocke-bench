@@ -10,7 +10,7 @@ import {
   planFrontierEdge,
   planFrontierTarget,
 } from "../../src/bridge/map-lens";
-import { renderView, sealFromWholeMap, type OverworldView } from "../../src/bridge/overworld";
+import { exitsLine, renderView, sealFromWholeMap, type OverworldView } from "../../src/bridge/overworld";
 
 function makeView(rows: string[], extra: Partial<OverworldView> = {}): OverworldView {
   const grid = rows.map((r) => [...r]);
@@ -24,7 +24,10 @@ describe("map-lens stage pipeline", () => {
       "@..T",
       "...D",
     ], {
-      doors: [{ x: 3, y: 1, to: "CAVE_B1F", tx: 2, ty: 2 }],
+      doors: [
+        { x: 1, y: 1, to: "SECRET_ROOM", tx: 2, ty: 2 },
+        { x: 3, y: 1, to: "CAVE_B1F", tx: 2, ty: 2 },
+      ],
       // Square (1,0) is watched by an unseen trainer at (3,0); square (0,1) by a seen trainer at (1,1).
       watchers: new Map([
         [1, [[3, 0]]],
@@ -35,21 +38,21 @@ describe("map-lens stage pipeline", () => {
 
     const known = maskView(raw, {
       isVisible: (x) => x <= 1,
-      mapDoor: (d) => ({ ...d, to: "?", tx: null, ty: null }),
+      mapDoors: (doors) => doors.map((d) => ({ ...d, to: "?", tx: null, ty: null })),
     });
 
     expect(known.stage).toBe("known");
     expect(known.grid.map((r) => r.join(""))).toEqual(["@.??", "..??"]);
-    // Door at x=3 is unseen and dropped.
-    expect(known.doors).toEqual([]);
+    // Door at x=3 is unseen and dropped; seen door at x=1 has its unknown destination masked.
+    expect(known.doors).toEqual([{ x: 1, y: 1, to: "?", tx: null, ty: null }]);
     // Unseen trainer at (3,0) cannot project sight onto seen square (1,0).
     expect(known.watched?.has(1)).toBe(false);
     expect(known.watched?.has(4)).toBe(true);
     expect(known.watchers?.get(4)).toEqual([[1, 1]]);
   });
 
-  it("enforces view stages at compile time for raw map geometry and player-visible rendering", () => {
-    const raw = asRawView(makeView(['@."']));
+  it("enforces view stages at compile time so raw and guessed views cannot leak into printed maps", () => {
+    const raw = asRawView(makeView(['@."'], { exits: [] }));
     const known = maskView(raw, { isVisible: (x) => x === 0 });
     const guessed = guessUnseenView(known);
 
@@ -59,9 +62,15 @@ describe("map-lens stage pipeline", () => {
     if (Date.now() < 0) {
       // @ts-expect-error fogged ("known") views cannot be used to classify whether a map has grass
       mapHasGrass(known);
+      // @ts-expect-error fogged ("known") views cannot be re-sealed with raw data (would overwrite "?" with "#")
+      sealFromWholeMap(known, raw);
       // @ts-expect-error fogged ("known") views cannot be passed as the un-fogged whole map for sealing
-      sealFromWholeMap(known, known);
-      // @ts-expect-error optimistic ("guessed") views must never be rendered into player-facing map text
+      sealFromWholeMap(raw, known);
+      // @ts-expect-error raw unfogged views must never be rendered into model-facing map text
+      renderView(raw);
+      // @ts-expect-error raw unfogged views must never be rendered into model-facing exits lines
+      exitsLine(raw);
+      // @ts-expect-error optimistic ("guessed") views must never be rendered into model-facing map text
       renderView(guessed);
     }
   });

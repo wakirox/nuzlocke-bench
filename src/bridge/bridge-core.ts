@@ -6,8 +6,8 @@ import type { GameVersion } from "../rom/types";
 import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
-import { asKnownView, asRawView } from "./map-lens";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type KnownOverworldView, type RawOverworldView, type SightOptions } from "./overworld";
+import { asRawView } from "./map-lens";
+import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -303,22 +303,26 @@ export class BridgeCore {
    * the player hasn't seen. In the dark the screen shows only what's lit (renderDarkView) and nothing
    * is remembered. The whole map's closed lower-floor patches are sealed before the fog.
    */
-  view(full: boolean): KnownOverworldView {
+  view(full: boolean): FoggedView {
     const raw = this.rawView(full);
-    const v = full ? sealFromWholeMap(raw, raw) : raw;
+    const v = full
+      ? sealFromWholeMap(raw, raw)
+      : (this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw);
     const seen = this.host.seen?.();
-    if (!seen || this.dark()) return asKnownView(v);
-    // A view is read once a move is over: the game has settled on whatever map it's on.
-    this.noteSeen(true);
+    if (!seen) return { ...v, stage: undefined };
+    if (!this.dark()) {
+      // A view is read once a move is over: the game has settled on whatever map it's on.
+      this.noteSeen(true);
+      const pos = this.host.position();
+      if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
+    }
     const pos = this.host.position();
-    if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
     return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1);
   }
 
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */
-  screenView(): KnownOverworldView {
-    const screen = this.view(false);
-    return this.host.rom() ? sealFromWholeMap(screen, this.rawView(true)) : screen;
+  screenView(): FoggedView {
+    return this.view(false);
   }
 
   /**
@@ -336,7 +340,9 @@ export class BridgeCore {
     if (!this.host.version() || this.host.position().battle) return "(in battle — no map)";
     if (this.dark()) {
       // A box or menu over the cave hides what's under it: those squares are dark, not lit.
-      return renderDarkView(this.screenView(), litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+      const raw = this.rawView(false);
+      const sealed = this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw;
+      return renderDarkView(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
     }
     const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
