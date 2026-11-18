@@ -7,9 +7,9 @@
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { UNCOUNTED } from "./tool-catalog.mjs";
 
-/** Tools that don't count: they aren't play. */
-export const UNCOUNTED = new Set(["report_issue"]);
+export { UNCOUNTED };
 
 /** The line that ends a run out of calls (like format.mjs's 🏁 line, which the run log and the runner read). */
 export const outOfCalls = (max) => `🏁 RUN ENDED — out of calls: all ${max} tool calls of this run are used`;
@@ -39,8 +39,8 @@ export function callBudget({ max, dir }) {
 
 /**
  * Marks a refused call's result as not counting, like a tool's own argument errors, which the
- * SDK rejects before any budget is taken. limitCalls gives the call back; the run log
- * (run-log.mjs instrumentTools, the outer wrapper) records it as uncounted and drops the mark.
+ * SDK rejects before any budget is taken. `withCallBudget` gives the call back; the run log
+ * (`run-log.mjs` `createToolLogger`, the outer wrapper) records it as uncounted and drops the mark.
  */
 export const UNCOUNTED_RESULT = "uncountedCall";
 
@@ -52,12 +52,12 @@ export function endRun(result, max) {
 }
 
 /**
- * Wraps server.registerTool so every tool registered afterwards counts against `budget`: the
- * call that uses the last one ends the run, and calls after it don't reach the game.
+ * Wraps one tool handler so each call counts against `budget` (when `counted` is true): the call
+ * that uses the last one ends the run, and calls after it don't reach the game.
  */
-export function limitCalls(server, budget) {
-  const registerTool = server.registerTool.bind(server);
-  server.registerTool = (name, config, handler) => registerTool(name, config, UNCOUNTED.has(name) ? handler : async (...cbArgs) => {
+export function withCallBudget(budget, handler, { counted = true } = {}) {
+  if (!budget || !counted) return handler;
+  return async (...cbArgs) => {
     const turn = budget.take();
     if (turn.spent) return { content: [{ type: "text", text: outOfCalls(budget.max) }] };
     const result = await handler(...cbArgs);
@@ -67,5 +67,5 @@ export function limitCalls(server, budget) {
       return result;
     }
     return turn.last ? endRun(result, budget.max) : result;
-  });
+  };
 }

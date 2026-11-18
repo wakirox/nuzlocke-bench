@@ -61,16 +61,13 @@ export function transcriptLines({ n, name, args, started, result }) {
 }
 
 /**
- * Wraps server.registerTool so every tool registered afterwards is logged to `file`
- * (null = don't log). Call before registering tools. The first line is a session header
- * (`session`: benchmark preset, harness version…); `status()` gives the latest game status,
- * `mapsEntered()` the maps entered since it was last called.
- */
-/**
- * @param {any} server
+ * Creates a per-call run logger (`wrap(name, handler)`) that writes one JSON line per call to
+ * `file` (null = don't log). The first line is a session header (`session`: benchmark preset,
+ * harness version…); `status()` gives the latest game status, `mapsEntered()` the maps entered
+ * since it was last called.
  * @param {{ file: string | null, log?: (...args: any[]) => void, now?: () => number, status?: () => any, mapsEntered?: () => any[], session?: any, onEntry?: ((entry: any) => any) | null, transcript?: string | null }} opts
  */
-export function instrumentTools(server, { file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null, transcript = null }) {
+export function createToolLogger({ file, log = () => {}, now = Date.now, status = () => null, mapsEntered = () => [], session = null, onEntry = null, transcript = null }) {
   let ready = false;
   const write = (entry) => {
     if (!file) return;
@@ -89,16 +86,13 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
   let seq = 0;
   let lastWhere;
   let lastFight = null;
-  const registerTool = server.registerTool.bind(server);
-  // Tools registered without an inputSchema get only (extra), not (args, extra).
-  server.registerTool = (name, config, handler) => registerTool(name, config, async (...cbArgs) => {
-    const args = config.inputSchema ? cbArgs[0] : {};
+  return (name, handler) => async (args, ...rest) => {
     const started = now();
     const n = ++seq;
     let result;
     let refused = false;
     try {
-      result = await handler(...cbArgs);
+      result = await handler(args, ...rest);
       // Refused before any of it ran (call-budget.mjs): logged as such, so the run's call count
       // leaves it out the way the budget does. The mark stops here, short of the MCP result.
       if (result?.[UNCOUNTED_RESULT]) {
@@ -141,5 +135,5 @@ export function instrumentTools(server, { file, log = () => {}, now = Date.now, 
         }
       }
     }
-  });
+  };
 }

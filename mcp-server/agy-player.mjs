@@ -51,9 +51,6 @@ export function agyWorkspaceConfig(server, toolNames) {
   return { mcpServers: { [AGY_SERVER]: { command, args, env, tools: Object.fromEntries(toolNames.map((t) => [t, { eager: true }])) } } };
 }
 
-/** The game's tool names, from the server's source (every registerTool call). */
-export const serverToolNames = (source) => [...new Set([...source.matchAll(/registerTool\(\s*"([a-z_]+)"/g)].map((m) => m[1]))];
-
 /** agy's name for a game tool (mcp_bench_get_state) as Claude Code names it (mcp__nuzlocke-bench__get_state); null if it isn't one. */
 export function gameToolName(agyName) {
   const prefix = `mcp_${AGY_SERVER}_`;

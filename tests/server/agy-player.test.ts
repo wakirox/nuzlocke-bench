@@ -2,9 +2,12 @@
 // and anything but the game's tools caught. The events are agy 1.5.11's own (a test session, 2026-11-18), shortened.
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 // @ts-expect-error plain ESM module without type declarations
-import { AGY_DENIED, AgyTranslator, agyArgs, agySettings, agyTurn, agyWorkspaceConfig, gameToolName, serverToolNames, withoutTimes } from "../../mcp-server/agy-player.mjs";
+import { AGY_DENIED, AgyTranslator, agyArgs, agySettings, agyTurn, agyWorkspaceConfig, gameToolName, withoutTimes } from "../../mcp-server/agy-player.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { activeToolNames } from "../../mcp-server/tool-catalog.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { benchmarkPreset } from "../../mcp-server/benchmark.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { TokenMeter, runEnded } from "../../mcp-server/bench-runner.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -61,10 +64,22 @@ describe("agy's arguments and workspace", () => {
     expect(config.mcpServers.bench).toEqual({ ...server, tools: { get_state: { eager: true }, walk: { eager: true } } });
   });
 
-  it("finds the game's tools in the server's source", () => {
-    const names = serverToolNames(readFileSync("mcp-server/server.mjs", "utf8"));
-    expect(names).toEqual(expect.arrayContaining(["get_state", "do", "walk", "fight", "get_rules"]));
-    expect(new Set(names).size).toBe(names.length);
+  it("lists only the game's tools enabled for the run's preset and options", () => {
+    const all = activeToolNames();
+    expect(all).toEqual(expect.arrayContaining(["get_state", "do", "walk", "fight", "get_rules", "save_state", "new_run", "report_issue"]));
+    expect(all).not.toContain("hint");
+    expect(new Set(all).size).toBe(all.length);
+
+    const preset = activeToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap"), reportIssue: false });
+    expect(preset).not.toContain("save_state");
+    expect(preset).not.toContain("load_state");
+    expect(preset).not.toContain("new_run");
+    expect(preset).not.toContain("report_issue");
+    expect(preset).not.toContain("hint");
+
+    const hints = activeToolNames({ preset: benchmarkPreset("hardcore-nuzlocke+firstrival+hardcap+hints"), reportIssue: true });
+    expect(hints).toContain("hint");
+    expect(hints).toContain("report_issue");
   });
 });
 
