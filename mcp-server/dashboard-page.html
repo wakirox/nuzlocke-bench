@@ -303,7 +303,6 @@ function oneRun(r) {
   ];
   const captures = r.captures ?? [];
   const alive = captures.filter((c) => !c.died).length;
-  const dark = r.dark ? `<section><h2>The dark tunnel</h2><p class="note">${esc(r.dark.result)}</p><div class="tiles" style="margin:0">${[[r.dark.calls, "calls"], [r.dark.deaths, "deaths inside"], [r.dark.flashAt ?? "—", "Flash at call"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div></section>` : "";
   const capturesTable = !r.captures ? "" : `<section><h2>Captures</h2><p class="note">${captures.length ? `${captures.length} Pokémon, ${alive} not recorded as dead.${r.outcome === "wipe" ? " The one that fainted last in the wipe isn't marked." : ""} A dash means the run gave it no name we can find.` : "No captures recorded for this run."}</p>${captures.length ? `<div class="scroll"><table><thead><tr><th>Name</th><th>Species</th><th>Caught at</th><th class="num">Level caught</th><th class="num">Last known level</th><th>Status</th></tr></thead><tbody>${captures.map((c) => row([`<td>${esc(c.nickname ?? "—")}</td>`, `<td>${esc(c.species)}</td>`, `<td>${esc(c.where ?? "")}</td>`, `<td class="num">${c.level ?? ""}</td>`, `<td class="num">${c.lastLevel ?? ""}</td>`, c.died ? `<td class="status-dead">Died: ${esc(c.died)}</td>` : `<td>Alive</td>`])).join("")}</tbody></table></div>` : ""}</section>`;
   const mon = (m) => {
     const name = m.nickname && m.nickname !== m.species ? `${esc(m.nickname)} <span>${esc(m.species)}</span>` : esc(m.species);
@@ -364,8 +363,7 @@ function oneRun(r) {
     ${capsTable ? fold(capsTable) : ""}
     ${areasTable ? fold(areasTable) : ""}
     ${capturesTable ? fold(capturesTable) : ""}
-    ${fightsTable ? fold(fightsTable) : ""}
-    ${dark ? fold(dark) : ""}`;
+    ${fightsTable ? fold(fightsTable) : ""}`;
 }
 
 function route() {
