@@ -2,135 +2,23 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "./styles.css";
-import { BRIDGE_HTTP, WATCHED } from "./bridge/endpoint";
+import { WATCHED } from "./bridge/endpoint";
+import { AiBridge } from "./bridge/ai-bridge";
+import type { SeenData } from "./bridge/seen";
 import { GameBoy, loadCore } from "./emulator/gameboy";
 import { attachInput } from "./emulator/input";
+import type { ReplayLog, SavedReplay } from "./emulator/replay";
+import { detectVersion, gameFor } from "./games";
 import { readRom } from "./rom/client";
 import { RULESETS, RULESET_IDS, goalText, isKnownRuleset, type ChallengeMode } from "./rulesets";
+import { RunSession, infiniteCandies, runScore } from "./run-session";
+import { KEYS, backupOk, clearRun, exportAll, importAll, kv, restoreFromDisk, type BaseRom, type CurrentRun, type RunRecord, type TrackerSnapshot } from "./storage";
 import { NUZLOCKE_RULES } from "./tracker/rules/nuzlocke";
-import { KEYS, backupOk, clearRun, exportAll, importAll, kv, restoreFromDisk, type BaseRom, type CurrentRun, type RunRecord } from "./storage";
-import { detectVersion, gameFor } from "./games";
-import type { GameState } from "./games/types";
-import { Tracker, type TrackerSnapshot } from "./tracker/tracker";
-import { ConvoView, OPEN_RESULTS, type ConvoEvent } from "./ui/convo";
+import { ConvoPanel } from "./ui/convo-panel";
 import { partyFocus, realTime, renderEncounters, renderEnemy, renderEvents, renderParty, renderRun } from "./ui/tracker-view";
-import { AiBridge } from "./bridge/ai-bridge";
-import { SeenMaps, type SeenData } from "./bridge/seen";
-import { battleMoves, brief, summarize } from "./bridge/summary";
-import { KIND_CANDY_CAP, KIND_LEVEL_CAP, KIND_TOP_UP, Recorder, type ReplayLog, type SavedReplay } from "./emulator/replay";
 
 // A watched run (several windows tiled small): fit the game screen to the window.
 if (WATCHED) document.documentElement.classList.add("watch");
-
-// ---- The model's conversation beside the game (runs played with npm run bench) ----
-const CONVO_KEY = "nuzlocke.convo";
-let convoNext = 0;
-let convoTimer = 0;
-let convo: ConvoView | null = null;
-/** Follow the newest entries until the reader scrolls up; scrolling back to the bottom follows again. */
-let convoFollow = true;
-/** The list's scroll position as last seen: only scrolling up (not the list growing) stops following. */
-let convoTop = 0;
-/** Entries that came in while the reader was scrolled up (on the "Jump to latest" button). */
-let convoUnseen = 0;
-// Collapsed (the default): only the newest results are shown whole, older ones are one line each.
-const COLLAPSE_KEY = "nuzlocke.convoOlderCollapsed";
-// What the model has used so far (benchmark runs): in the Run panel, polled while an AI is connected.
-type Usage = { tokens: number; turns: number; model?: string | null; effort?: string | null };
-let modelUsage: string | null = null;
-let usageTick = 0;
-function showUsage(u: Usage | null | undefined) {
-  // The model it runs on: a quiet label above the log (older servers don't send it).
-  $("convo-model").textContent = u?.model ? `${u.model}${u.effort ? ` · ${u.effort} effort` : ""}` : "";
-  const text = u && u.turns ? `${(u.tokens / 1e6).toFixed(1)}M tokens · ${u.turns.toLocaleString("en-US")} turns` : null;
-  if (text === modelUsage) return;
-  modelUsage = text;
-  $("convo-usage").textContent = text ?? "";
-  if (tracker && state) setHtml("t-run", renderRun(tracker, state, modelUsage));
-}
-async function pollUsage() {
-  try {
-    const r = await fetch(`${BRIDGE_HTTP}/transcript/usage`);
-    showUsage(((await r.json()) as { usage?: Usage | null }).usage);
-  } catch {
-    /* no server: nothing to show */
-  }
-}
-async function pollConvo() {
-  try {
-    const r = await fetch(`${BRIDGE_HTTP}/transcript?from=${convoNext}`);
-    const feed = (await r.json()) as { events: ConvoEvent[]; next: number; missing?: boolean; usage?: Usage | null };
-    // A server from before the usage field: ask its own route.
-    if (feed.usage === undefined) void pollUsage();
-    else showUsage(feed.usage);
-    $("convo-state").textContent = feed.missing ? "No transcript: only runs played with npm run bench have one" : "";
-    if (convo && feed.events.length) {
-      for (const e of feed.events) convo.add(e);
-      convo.settle();
-      if (!convoFollow) convoUnseen += feed.events.filter((e) => e.kind !== "result").length;
-    }
-    // Also when the last try found the list hidden (no height yet, so nothing scrolled).
-    if (convoFollow && (feed.events.length || !convoTop)) followConvo();
-    // Live: something happened in the last minute (a finished run's log is just a log).
-    $("convo-live").hidden = !(convo?.last && Date.now() - convo.last < 60_000);
-    showJump();
-    convoNext = feed.next;
-  } catch {
-    $("convo-state").textContent = "Game server not reachable";
-  }
-}
-function followConvo() {
-  const list = $("convo-list");
-  list.scrollTop = list.scrollHeight;
-  convoTop = list.scrollTop;
-}
-function showJump() {
-  const jump = $("convo-jump");
-  jump.hidden = convoFollow;
-  jump.textContent = convoUnseen ? `${convoUnseen} new · Jump to latest` : "Jump to latest";
-}
-function showConvo(on: boolean) {
-  localStorage.setItem(CONVO_KEY, on ? "1" : "0");
-  $("convo").hidden = !on;
-  $("game").classList.toggle("with-convo", on);
-  $("btn-convo").classList.toggle("on", on);
-  clearInterval(convoTimer);
-  if (on) {
-    void pollConvo();
-    convoTimer = window.setInterval(() => void pollConvo(), 2000);
-  }
-}
-function collapseConvo(on: boolean) {
-  localStorage.setItem(COLLAPSE_KEY, on ? "1" : "0");
-  $("convo-list").classList.toggle("collapsed", on);
-  $("convo-collapse").textContent = on ? "Expand all" : `Only the last ${OPEN_RESULTS} open`;
-  convo?.reset();
-  if (convoFollow) followConvo();
-}
-document.addEventListener("DOMContentLoaded", () => {
-  const list = $("convo-list");
-  convo = new ConvoView(list);
-  $("btn-convo").addEventListener("click", () => showConvo(Boolean($("convo").hidden)));
-  $("convo-collapse").addEventListener("click", () => collapseConvo(!list.classList.contains("collapsed")));
-  collapseConvo(localStorage.getItem(COLLAPSE_KEY) !== "0");
-  list.addEventListener("scroll", () => {
-    if (!list.clientHeight) return;
-    if (list.scrollHeight - list.scrollTop - list.clientHeight < 40) convoFollow = true;
-    else if (list.scrollTop < convoTop - 1) convoFollow = false;
-    convoTop = list.scrollTop;
-    if (convoFollow) convoUnseen = 0;
-    showJump();
-  });
-  $("convo-jump").addEventListener("click", () => {
-    convoFollow = true;
-    convoUnseen = 0;
-    followConvo();
-    showJump();
-  });
-  // A screenshot decodes after it's added and makes the list taller: stay at the bottom.
-  list.addEventListener("load", () => convoFollow && followConvo(), true);
-  if (localStorage.getItem(CONVO_KEY) === "1") showConvo(true);
-});
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -139,28 +27,25 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 
 let baseRom: BaseRom | null = null;
 let run: CurrentRun | null = null;
-let gb: GameBoy | null = null;
-let tracker: Tracker | null = null;
-let state: GameState | null = null;
+let session: RunSession | null = null;
 let detachInput: (() => void) | null = null;
-let frameCount = 0;
 let ffSpeed = 1;
 let ffHeld = false;
 let autosaveTimer = 0;
 let realTimer = 0;
 let lastRealTick = 0;
+let usageTick = 0;
 let renderQueued = false;
 let aiConnected = false;
-let fontSig: Uint8Array | null = null;
-/** Records the current run for replay; `runRom` is the exact ROM it runs on. */
-let recorder: Recorder | null = null;
-/** What the run has seen of each map (the AI's maps show only that; the bridge fills it), saved with the autosave. */
-let seen: SeenMaps | null = null;
-let runRom: Uint8Array | null = null;
 const lastHtml: Record<string, string> = {};
 // Browser-local preferences. Their names are from the app's first name; renaming them would
 // drop what each browser remembers, so they stay.
 const VOLUME_KEY = "kaizo.volume";
+
+const convoPanel = new ConvoPanel((usage) => {
+  if (session?.state) setHtml("t-run", renderRun(session.tracker, session.state, usage));
+});
+document.addEventListener("DOMContentLoaded", () => convoPanel.mount());
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -265,13 +150,15 @@ function bindSetup() {
   });
 
   $("start").addEventListener("click", async () => {
-    await startNewRun({ mode: setupMode(),
+    await startNewRun({
+      mode: setupMode(),
       rareCandies: $<HTMLInputElement>("rare-candies").checked,
       hardLevelCaps: $<HTMLInputElement>("hard-level-caps").checked,
       firstRivalFree: $<HTMLInputElement>("first-rival-free").checked,
       endOnViolation: $<HTMLInputElement>("end-on-violation").checked,
       lenientRules: lenientRulesChosen(),
-      goalBadges: Number($<HTMLSelectElement>("goal").value) || 0 });
+      goalBadges: Number($<HTMLSelectElement>("goal").value) || 0,
+    });
   });
 }
 
@@ -293,13 +180,19 @@ async function startNewRun(opts: { mode?: ChallengeMode; rareCandies?: boolean; 
     const attempt = ((await kv.get<number>(KEYS.attempts)) ?? 0) + 1;
     await kv.set(KEYS.attempts, attempt);
     await clearRun();
-    run = { attempt, mode, rom: result.rom, data: result.data, startedAt: Date.now(),
+    run = {
+      attempt,
+      mode,
+      rom: result.rom,
+      data: result.data,
+      startedAt: Date.now(),
       rareCandies: rs.rareCandies && (opts.rareCandies ?? run?.rareCandies ?? true),
       hardLevelCaps: rs.options.hardLevelCaps && (opts.hardLevelCaps ?? run?.hardLevelCaps ?? false),
       firstRivalFree: rs.options.firstRivalFree && (opts.firstRivalFree ?? run?.firstRivalFree ?? false),
       endOnViolation: opts.endOnViolation ?? (run?.mode === mode ? run?.endOnViolation : undefined) ?? rs.endOnViolationByDefault,
       lenientRules: opts.lenientRules ?? (run?.mode === mode ? run?.lenientRules : undefined) ?? [],
-      goalBadges: (opts.goalBadges ?? run?.goalBadges) || undefined };
+      goalBadges: (opts.goalBadges ?? run?.goalBadges) || undefined,
+    };
     await kv.set(KEYS.run, run);
     status.textContent = "Starting…";
     // Boot each new run in a freshly loaded page: a clean emulator instance
@@ -325,38 +218,45 @@ async function launch(r: CurrentRun) {
   updateRunMeta();
 
   const core = await loadCore();
-  const extRam = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
-  const snapshot = (await kv.get<TrackerSnapshot>(KEYS.tracker)) ?? null;
-  seen = new SeenMaps(await kv.get<SeenData>(KEYS.seen));
+  const [extRam, snapshot, seenData, auto, savedReplay] = await Promise.all([
+    kv.get<Uint8Array>(KEYS.battery),
+    kv.get<TrackerSnapshot>(KEYS.tracker),
+    kv.get<SeenData>(KEYS.seen),
+    kv.get<Uint8Array>(KEYS.autoState),
+    kv.get<ReplayLog>(KEYS.replay),
+  ]);
 
   const rom = r.rom.slice();
-  gb = new GameBoy(core, {
+  const gb = new GameBoy(core, {
     canvas: $<HTMLCanvasElement>("screen"),
     rom,
-    extRam,
+    extRam: extRam ?? null,
     onBatterySave: (ram) => void kv.set(KEYS.battery, ram),
-    onFrame,
+    onFrame: () => session?.stepFrame(),
   });
-  const auto = await kv.get<Uint8Array>(KEYS.autoState);
   if (auto) gb.loadState(auto);
-  // Recording: a new run starts from power-on; a resumed one continues its saved log. The log is
-  // saved together with autoState, so it normally ends exactly here — if not, resync with a state.
-  runRom = rom;
-  const savedLog = await kv.get<ReplayLog>(KEYS.replay);
-  recorder = new Recorder(savedLog ?? { start: gb.saveState() });
-  if (savedLog && savedLog.endTicks !== gb.ticks) recorder.state(gb.saveState());
-  gb.recorder = recorder;
+
+  session = new RunSession({
+    run: r,
+    rom,
+    gb,
+    snapshot: snapshot ?? null,
+    savedReplay: savedReplay ?? null,
+    seenData: seenData ?? null,
+    onTrackerChange: queueRender,
+    onPoll: ({ justEnded }) => {
+      if (justEnded) {
+        void persistTracker();
+        showOutcome();
+      }
+      queueRender();
+    },
+  });
+
   gb.volume = Number($<HTMLInputElement>("volume").value);
   gb.externalControl = aiConnected;
   applySpeed();
 
-  eventsSeen = 0;
-  tracker = new Tracker(r.data, r.mode, snapshot, queueRender, {
-    hardLevelCaps: !!r.hardLevelCaps, firstRivalFree: !!r.firstRivalFree,
-    endOnViolation: r.endOnViolation ?? RULESETS[r.mode].endOnViolationByDefault,
-    lenientRules: r.lenientRules ?? [],
-    goalBadges: r.goalBadges,
-  });
   detachInput = attachInput(gb, {
     onFastForward: (held) => { ffHeld = held; applySpeed(); },
     onSaveState: () => void saveSlot("manual"),
@@ -371,16 +271,15 @@ async function launch(r: CurrentRun) {
     const now = Date.now();
     const gap = now - lastRealTick;
     lastRealTick = now;
-    if (!tracker || gap <= 0 || gap > 60_000) return; // a gap that long is a closed laptop, not play
-    tracker.addRealTime(gap);
+    if (!session || !session.addRealTime(gap)) return;
     const el = document.querySelector("#t-run .real-time");
-    if (el && tracker.snap.realMs != null) el.textContent = realTime(tracker.snap.realMs);
-    if (aiConnected && $("convo").hidden && ++usageTick % 5 === 0) void pollUsage();
+    if (el && session.tracker.snap.realMs != null) el.textContent = realTime(session.tracker.snap.realMs);
+    if (aiConnected && convoPanel.hidden && ++usageTick % 5 === 0) void convoPanel.pollUsage();
   }, 1000);
-  pollState();
+  session.poll();
   renderAll();
   renderHistory();
-  if (tracker.snap.outcome) showOutcome();
+  if (session.tracker.snap.outcome) showOutcome();
 }
 
 function teardown(flushBattery = true) {
@@ -388,14 +287,8 @@ function teardown(flushBattery = true) {
   clearInterval(realTimer);
   detachInput?.();
   detachInput = null;
-  gb?.destroy(flushBattery);
-  gb = null;
-  tracker = null;
-  recorder = null;
-  runRom = null;
-  seen = null;
-  state = null;
-  fontSig = null;
+  session?.destroy(flushBattery);
+  session = null;
   for (const k of Object.keys(lastHtml)) delete lastHtml[k];
 }
 
@@ -413,71 +306,6 @@ function hardCapText(li: HTMLElement): string | null {
   }
   if (li.dataset.rule === "wipe") return "A wipe (every living Pokémon fainted; the dead don't count, healed or not) ends the run.";
   return null;
-}
-
-/** Nuzlocke option, on unless turned off: Rare Candies never run out (level caps still apply). */
-const infiniteCandies = (r: CurrentRun) => RULESETS[r.mode].rareCandies && r.rareCandies !== false;
-
-function onFrame() {
-  frameCount++;
-  // The bottomless Rare Candies start after the first rival battle: that fight is played at the starter's own level.
-  if (gb && run && infiniteCandies(run) && gameFor(run.data.version).firstRivalBattleFought(gb)) {
-    const g = gb, game = gameFor(run.data.version), candy = game.data.items.rareCandy;
-    g.intervene(KIND_TOP_UP, candy, () => game.topUpItem(g, candy));
-  }
-  if (frameCount % 6 === 0) pollState();
-}
-
-/**
- * Hard level caps option: keep the level the game's experience and Rare Candies stop at equal to
- * the current cap (it rises with each badge). The loaded ROM starts at 100 on every page load, so
- * this also sets it after a resume. Recorded by name (KIND_LEVEL_CAP) for playback.
- */
-function syncHardCap(g: GameBoy, t: Tracker, s: GameState) {
-  // Not before there's a party: at power-on, RAM is noise (it can read as a badge).
-  if (!s.party.length) return;
-  const level = t.levelCapForRom(s);
-  if (level == null) return;
-  if (t.game.levelCapInRom(g) !== level) g.intervene(KIND_LEVEL_CAP, level, () => t.game.setLevelCapInRom(g, level));
-  // In the League experience may pass the cap, but Rare Candies still stop there.
-  const candy = t.candyCapForRom(s);
-  if (candy != null && t.game.candyCapInRom(g) !== candy) g.intervene(KIND_CANDY_CAP, candy, () => t.game.setCandyCapInRom(g, candy));
-}
-
-/** The trainer who started the current battle: map + sprite index (to remember it once beaten). */
-let engagedTrainer: { map: number; sprite: number } | null = null;
-
-function pollState() {
-  if (!gb || !tracker || !run) return;
-  const prev = state;
-  const game = gameFor(run.data.version);
-  state = game.readGameState(gb);
-  syncHardCap(gb, tracker, state);
-  // Trainer battles: find the sprite whose trainer class + number (wMapSpriteExtraData) match
-  // the opponent's; fall back to the nearest trainer sprite.
-  if (prev && prev.battle === 0 && state.battle === 2) {
-    const foe = state.enemyTrainer;
-    const sprites = game.trainerSprites(gb, prev.x, prev.y);
-    const exact = foe && sprites.find((t) => {
-      const who = game.spriteTrainer(gb!, t.index);
-      return who.trainerClass === foe.trainerClass && who.number === foe.number;
-    });
-    const near = sprites
-      .map((t) => ({ t, d: Math.abs(t.x - prev.x) + Math.abs(t.y - prev.y) }))
-      .sort((a, b) => a.d - b.d)[0];
-    engagedTrainer = exact ? { map: prev.map, sprite: exact.index } : near && near.d <= 6 ? { map: prev.map, sprite: near.t.index } : null;
-  }
-  if (prev && prev.battle === 2 && state.battle === 0) {
-    if (engagedTrainer && state.party.some((m) => m.hp > 0)) tracker.noteTrainerBeaten(engagedTrainer.map, engagedTrainer.sprite);
-    engagedTrainer = null;
-  }
-  const hadOutcome = tracker.snap.outcome;
-  tracker.update(state);
-  if (!hadOutcome && tracker.snap.outcome) {
-    void persistTracker();
-    showOutcome();
-  }
-  queueRender();
 }
 
 function queueRender() {
@@ -500,7 +328,8 @@ let partyPick: string | null = null;
 let lastFocus = "";
 
 function renderAll() {
-  if (!tracker || !state) return;
+  if (!session?.state) return;
+  const { tracker, state } = session;
   const focus = partyFocus(state);
   if (focus !== lastFocus) {
     // A new fighter (or lead) takes the main card again.
@@ -511,7 +340,7 @@ function renderAll() {
   // One slot: the foe in battle, else the area's wild Pokémon (so it's never empty and nothing moves).
   setHtml("t-enemy", renderEnemy(tracker, state) || renderEncounters(tracker, state) ||
     (state.started ? `<section class="card"><h3>Wild Pokémon</h3><p class="muted">None here.</p></section>` : ""));
-  setHtml("t-run", renderRun(tracker, state, modelUsage));
+  setHtml("t-run", renderRun(tracker, state, convoPanel.usageText));
   setHtml("t-events", renderEvents(tracker));
   updateRunMeta();
 }
@@ -531,27 +360,26 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 async function persistTracker() {
-  if (tracker) await kv.set(KEYS.tracker, tracker.snap);
+  if (session) await kv.set(KEYS.tracker, session.tracker.snap);
 }
 
-/** tracker.eventCount already shown in a tool result (AI bridge). */
-let eventsSeen = 0;
 let autosaveFailed = false;
 let autosaveProblem: string | null = null;
 
 async function autosave() {
-  if (!gb || !tracker) return;
+  if (!session) return;
   try {
-    // Capture both now: if the run is replaced mid-save, don't write its tracker over the new run's.
-    const machine = gb.saveState();
-    const log = recorder?.log(gb.ticks);
-    const snap = tracker.snap;
-    const owner = gb;
-    await kv.set(KEYS.autoState, machine);
-    if (gb === owner) {
-      await kv.set(KEYS.tracker, snap);
-      if (log) await kv.set(KEYS.replay, log);
-      if (seen?.takeChanged()) await kv.set(KEYS.seen, seen.data);
+    // Capture now: if the run is replaced mid-save, don't write its tracker over the new run's.
+    const owner = session;
+    const snap = session.captureAutosave();
+    await kv.set(KEYS.autoState, snap.autoState);
+    if (session === owner) {
+      await kv.set(KEYS.tracker, snap.tracker);
+      await kv.set(KEYS.replay, snap.replay);
+      if (snap.seen) {
+        await kv.set(KEYS.seen, snap.seen);
+        session.markSeenSaved();
+      }
     }
     autosaveProblem = null;
     if (autosaveFailed) {
@@ -576,63 +404,48 @@ async function autosave() {
   }
 }
 
-/** Victory beats everything; then badges; then the lead's best level. */
-function runScore(outcome: RunRecord["outcome"], badges: number, level: number): number {
-  return (outcome.kind === "victory" ? 1_000_000 : 0) + badges * 1000 + level;
-}
-
-/** Keeps the recording of the furthest run so far. */
 /** Finished runs' recordings kept for checking (scripts/verify-run.mjs): the most recent ones. */
 const KEEP_RUN_REPLAYS = 20;
 
+/** Keeps the recording of the furthest run so far. */
 async function keepIfBest(outcome: RunRecord["outcome"], lead: string, level: number, badges: number) {
-  if (!gb || !recorder || !runRom || !run) return;
-  const score = runScore(outcome, badges, level);
-  const saved: SavedReplay = {
-    ...recorder.log(gb.ticks),
-    rom: runRom,
-    data: run.data,
-    options: tracker?.options,
-    meta: {
-      attempt: run.attempt, mode: run.mode, version: run.data.version, lead, level, badges,
-      outcome: outcome.detail, score, recordedAt: Date.now(),
-    },
-  };
+  if (!session) return;
+  const { run: r } = session;
+  const { score, savedReplay } = session.buildSavedReplay(outcome, lead, level, badges);
   // Every finished run's recording, so any attempt can be checked (saves/replay.attempt-N.json).
-  await kv.set(KEYS.runReplay(run.attempt), saved);
-  if (run.attempt > KEEP_RUN_REPLAYS) await kv.del(KEYS.runReplay(run.attempt - KEEP_RUN_REPLAYS));
-  const best = await kv.get<SavedReplay>(bestKey(run.mode));
+  await kv.set(KEYS.runReplay(r.attempt), savedReplay);
+  if (r.attempt > KEEP_RUN_REPLAYS) await kv.del(KEYS.runReplay(r.attempt - KEEP_RUN_REPLAYS));
+  const best = await kv.get<SavedReplay>(bestKey(r.mode));
   if (best && best.meta.score >= score) return;
-  await kv.set(bestKey(run.mode), saved);
+  await kv.set(bestKey(r.mode), savedReplay);
 }
 
 /**
  * A save at a story milestone, kept for good: the MCP server asks on the call that first reaches
  * one. The machine, the tracker and the battery as they are now, and how far the recording has
- * got, so a run can be continued from there (scripts/snapshot-run.mjs --milestone) without
- * replaying it from power-on.
+ * got (plus `seen` map memory for fog of war), so a run can be continued from there
+ * (`scripts/snapshot-run.mjs --milestone`) without replaying it from power-on.
  */
 async function saveMilestone(id: string) {
-  if (!gb || !tracker) return;
+  if (!session) return;
   const battery = (await kv.get<Uint8Array>(KEYS.battery)) ?? null;
-  // With the run's memory of the maps (fog of war), so a test resumed from here remembers what it saw.
-  await kv.set(KEYS.milestone(id), { state: gb.saveState(), tracker: structuredClone(tracker.snap), battery, ticks: gb.ticks, seen: seen ? structuredClone(seen.data) : undefined });
+  await kv.set(KEYS.milestone(id), session.captureMilestone(battery));
 }
 
 async function saveSlot(slot: string) {
-  if (!gb) return;
-  await kv.set(`${KEYS.slotState}.${slot}`, gb.saveState());
+  if (!session) return;
+  await kv.set(`${KEYS.slotState}.${slot}`, session.gb.saveState());
   flash(`Saved state${slot === "manual" ? "" : ` (${slot})`}.`);
 }
 
 async function loadSlot(slot: string): Promise<boolean> {
-  if (!gb) return false;
+  if (!session) return false;
   const st = await kv.get<Uint8Array>(`${KEYS.slotState}.${slot}`);
   if (!st) {
     flash("No saved state yet.");
     return false;
   }
-  const ok = gb.loadState(st);
+  const ok = session.gb.loadState(st);
   flash(ok ? "Loaded state." : "Couldn't load that state.");
   return ok;
 }
@@ -644,8 +457,8 @@ function flash(text: string) {
 }
 
 function applySpeed() {
-  if (!gb) return;
-  gb.speed = ffHeld ? Math.max(ffSpeed, 4) : ffSpeed;
+  if (!session) return;
+  session.gb.speed = ffHeld ? Math.max(ffSpeed, 4) : ffSpeed;
   $("btn-ff").textContent = `Speed ${ffSpeed}×`;
 }
 
@@ -673,7 +486,7 @@ function bindToolbar() {
   $("vol-icon").innerHTML = Number(volumeInput.value) > 0 ? SOUND_ON : SOUND_OFF;
   volumeInput.addEventListener("input", (e) => {
     const v = (e.target as HTMLInputElement).value;
-    if (gb) gb.volume = Number(v);
+    if (session) session.gb.volume = Number(v);
     $("vol-icon").innerHTML = Number(v) > 0 ? SOUND_ON : SOUND_OFF;
     try {
       localStorage.setItem(VOLUME_KEY, v);
@@ -713,17 +526,23 @@ function bindToolbar() {
   // A party tile shows that Pokémon in the main card.
   $("t-lead").addEventListener("click", (e) => {
     const tile = (e.target as HTMLElement).closest<HTMLElement>(".tile");
-    if (!tile || !state) return;
-    partyPick = tile.dataset.uid === partyFocus(state) ? null : tile.dataset.uid ?? null;
+    if (!tile || !session?.state) return;
+    partyPick = tile.dataset.uid === partyFocus(session.state) ? null : tile.dataset.uid ?? null;
     renderAll();
   });
   window.addEventListener("beforeunload", () => {
-    if (gb) {
+    if (session) {
       // Best effort: IndexedDB writes usually complete during unload.
-      void kv.set(KEYS.autoState, gb.saveState());
-      if (recorder) void kv.set(KEYS.replay, recorder.log(gb.ticks));
-      void persistTracker();
-      if (seen?.takeChanged()) void kv.set(KEYS.seen, seen.data);
+      const owner = session;
+      const snap = session.captureAutosave();
+      void kv.set(KEYS.autoState, snap.autoState);
+      void kv.set(KEYS.replay, snap.replay);
+      void kv.set(KEYS.tracker, snap.tracker);
+      if (snap.seen) {
+        void kv.set(KEYS.seen, snap.seen).then(() => {
+          if (session === owner) owner.markSeenSaved();
+        });
+      }
     }
   });
   document.addEventListener("visibilitychange", () => {
@@ -743,10 +562,10 @@ async function abandonToSetup() {
 
 async function recordRun(outcome: RunRecord["outcome"]) {
   if (!run) return;
-  const lead = state?.party[0]?.species ? state.party[0] : tracker?.snap.lastLead;
-  const leadName = lead && tracker ? tracker.name(lead.species) : "—";
-  const level = Math.max(lead?.level ?? 0, tracker?.snap.maxLevel ?? 0);
-  const badges = tracker?.snap.maxBadges ?? 0;
+  const lead = session?.state?.party[0]?.species ? session.state.party[0] : session?.tracker.snap.lastLead;
+  const leadName = lead && session ? session.tracker.name(lead.species) : "—";
+  const level = Math.max(lead?.level ?? 0, session?.tracker.snap.maxLevel ?? 0);
+  const badges = session?.tracker.snap.maxBadges ?? 0;
   const history = (await kv.get<RunRecord[]>(KEYS.history)) ?? [];
   // Recorded as soon as the run ends, and again by "New run": keep a single entry per attempt.
   if (history.some((h) => h.attempt === run!.attempt && h.startedAt === run!.startedAt)) {
@@ -769,9 +588,9 @@ async function recordRun(outcome: RunRecord["outcome"]) {
 }
 
 function showOutcome() {
-  if (!tracker?.snap.outcome || !run) return;
-  const o = tracker.snap.outcome;
-  gb?.setPaused(true);
+  if (!session?.tracker.snap.outcome || !run) return;
+  const o = session.tracker.snap.outcome;
+  session.gb.setPaused(true);
   // Save the result (history + best replay) now, not only when "New run" is clicked.
   void recordRun(o).then(() => renderHistory());
   const next = async () => {
@@ -785,8 +604,8 @@ function showOutcome() {
   } else if (o.kind === "lost") {
     modal("Run over", `${o.detail} Going on could only break a rule, so the run is lost.`, [["New run", next, "primary"]]);
   } else {
-    modal("🏆 Victory!", `${o.detail} ${RULESETS[run.mode].label} complete — ${tracker.snap.dead.length} lost along the way.`,
-      [["New run", next, "primary"], ["Keep playing", () => gb?.setPaused(false)]]);
+    modal("🏆 Victory!", `${o.detail} ${RULESETS[run.mode].label} complete — ${session.tracker.snap.dead.length} lost along the way.`,
+      [["New run", next, "primary"], ["Keep playing", () => session?.gb.setPaused(false)]]);
   }
 }
 
@@ -851,12 +670,12 @@ let aiStatusText = "";
 const bridge = new AiBridge(
   {
     booted,
-    gb: () => gb,
+    gb: () => session?.gb ?? null,
     canvas: $<HTMLCanvasElement>("screen"),
-    refresh: () => pollState(),
-    summary: () => (tracker && state && run ? summarize(tracker, state, run, { menuCursor: gb ? gameFor(run.data.version).menuCursor(gb) : 0 }) : null),
+    refresh: () => void session?.poll(),
+    summary: () => session?.summary() ?? null,
     newRun: async (opts) => {
-      if (tracker?.snap.outcome) await recordRun(tracker.snap.outcome);
+      if (session?.tracker.snap.outcome) await recordRun(session.tracker.snap.outcome);
       else if (run) await recordRun({ kind: "abandoned", detail: "Abandoned (AI)" });
       $("modal").hidden = true;
       await startNewRun(opts);
@@ -872,37 +691,20 @@ const bridge = new AiBridge(
     saveMilestone: (id) => saveMilestone(id),
     saveProblem: () => autosaveProblem,
     loadState: (slot) => loadSlot(`ai-${slot}`),
-    version: () => run?.data.version ?? null,
-    game: () => (run ? gameFor(run.data.version) : null),
-    rom: () => run?.rom ?? null,
-    beatenTrainers: () => (gb && run && tracker ? tracker.snap.beatenTrainers[gameFor(run.data.version).currentMap(gb)] ?? [] : []),
-    mapTrainers: () => {
-      if (!gb || !run || !tracker) return [];
-      const game = gameFor(run.data.version);
-      const beaten = tracker.snap.beatenTrainers[game.currentMap(gb)] ?? [];
-      const here = game.position(gb);
-      return game.trainerSprites(gb, here.x, here.y).map((s) => {
-        const { trainerClass: cls } = game.spriteTrainer(gb!, s.index);
-        return { x: s.x, y: s.y, name: run!.data.trainerClasses?.[cls - 1] || `class ${cls}`, beaten: beaten.includes(s.index) };
-      });
-    },
-    brief: () => (tracker && state ? brief(tracker, state) : null),
-    takePoisonHurt: () => tracker?.takePoisonHurt() ?? [],
-    takeMapsEntered: () => tracker?.takeMapsEntered() ?? [],
-    seen: () => seen,
-    newEvents: () => {
-      if (!tracker) return [];
-      const n = Math.min(tracker.eventCount - eventsSeen, tracker.snap.events.length);
-      eventsSeen = tracker.eventCount;
-      return n > 0 ? tracker.snap.events.slice(-n).map((e) => `[${e.severity}] ${e.text}`) : [];
-    },
-    battleMoves: () => (tracker && state ? battleMoves(tracker, state) : []),
-    battleHp: () => (gb && run ? gameFor(run.data.version).readBattleHp(gb) : null),
-    position: () => {
-      if (!gb || !run) return { x: 0, y: 0, map: 0, battle: false };
-      return gameFor(run.data.version).position(gb);
-    },
-    fontSignature: () => (run ? (fontSig ??= gameFor(run.data.version).fontSignature(run.rom)) : null),
+    version: () => session?.run.data.version ?? run?.data.version ?? null,
+    game: () => session?.adapter ?? (run ? gameFor(run.data.version) : null),
+    rom: () => session?.rom ?? run?.rom ?? null,
+    beatenTrainers: () => session?.beatenTrainers() ?? [],
+    mapTrainers: () => session?.mapTrainers() ?? [],
+    brief: () => session?.brief() ?? null,
+    takePoisonHurt: () => session?.tracker.takePoisonHurt() ?? [],
+    takeMapsEntered: () => session?.tracker.takeMapsEntered() ?? [],
+    seen: () => session?.seen ?? null,
+    newEvents: () => session?.takeNewEvents() ?? [],
+    battleMoves: () => session?.battleMoves() ?? [],
+    battleHp: () => session?.battleHp() ?? null,
+    position: () => session?.position() ?? { x: 0, y: 0, map: 0, battle: false },
+    fontSignature: () => session?.fontSig ?? null,
     // No run, no rules: a default ruleset here would be read as the rules of the run to come.
     rules: () => !run ? "No run is loaded yet. Start one (new_run, or the page's setup), then read the rules." : [
       `- Goal: ${goalText({ goalBadges: run.goalBadges })}. The run is won the moment it's reached.`,
@@ -928,9 +730,9 @@ const bridge = new AiBridge(
     $("ai-badge").hidden = status !== "connected";
     aiConnected = status === "connected";
     document.documentElement.classList.toggle("ai-playing", aiConnected);
-    if (gb) {
-      gb.externalControl = aiConnected;
-      if (status === "connected") gb.setPaused(false);
+    if (session) {
+      session.gb.externalControl = aiConnected;
+      if (status === "connected") session.gb.setPaused(false);
     }
     aiStatusText =
       status === "connected" ? "The model is connected through MCP — the game advances only when it sends inputs." :
@@ -941,7 +743,13 @@ const bridge = new AiBridge(
 );
 
 if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).__bench = { gb: () => gb, run: () => run, tracker: () => tracker, state: () => state, save: () => autosave() };
+  (window as unknown as Record<string, unknown>).__bench = {
+    gb: () => session?.gb ?? null,
+    run: () => run,
+    tracker: () => session?.tracker ?? null,
+    state: () => session?.state ?? null,
+    save: () => autosave(),
+  };
 }
 
 // Remember the AI-control toggle across reloads (key name kept from the app's first name, like VOLUME_KEY).
@@ -950,7 +758,7 @@ const AI_PREF_DB_KEY = "aiControl";
 
 /** Downloads every save (run, states, tracker, history, replays) as one file. */
 async function exportSave() {
-  if (gb) await autosave();
+  if (session) await autosave();
   const blob = new Blob([await exportAll()], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
