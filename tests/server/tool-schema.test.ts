@@ -62,6 +62,8 @@ describe("the tools the model is offered", () => {
     expect(compact.instructions).toBe(plain.instructions);
     const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);
     expect(compact.map(same)).toEqual(plain.map(same));
+  }, 30_000);
+
   it("adds b to get_map's legend only when NUZLOCKE_BOULDER_SWITCH is on, leaving everything else unchanged", async () => {
     const plain = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap");
     const withSwitch = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_BOULDER_SWITCH: "1" });
@@ -71,5 +73,11 @@ describe("the tools the model is offered", () => {
     expect(withSwitch.instructions).toBe(plain.instructions);
     const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);
     expect(withSwitch.map(same)).toEqual(plain.map(same));
+
+    // Compact + boulderSwitch together: get_map's description includes b in both Map legend and the compact Points note.
+    const both = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_GRID: "compact", NUZLOCKE_BOULDER_SWITCH: "1" });
+    const bothDesc = both.find((t) => t.name === "get_map")?.description ?? "";
+    expect(bothDesc).toContain("b boulder on a floor switch");
+    expect(bothDesc).toContain("I C S P $ H B b o O");
   }, 30_000);
 });

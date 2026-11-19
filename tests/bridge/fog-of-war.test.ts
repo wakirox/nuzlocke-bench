@@ -313,6 +313,8 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
     // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
     expect(compact).toContain("y 15   ?????");
+  });
+
   it("shows b through decorate and SeenMaps fog only when boulderSwitch is on and the switch was seen uncovered", async () => {
     // @ts-expect-error plain ESM module without type declarations
     const { legendFor } = await import("../../mcp-server/format.mjs");
@@ -425,6 +427,38 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
       cave.putBoulder(1, 1, 0);
       expect(core.rawView(true).grid[0][1]).toBe("B");
       expect(core.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+    }
+
+    // 5. Stationary noteSeen (button presses in menus/text boxes) never reads rawView, and view() scans switches only once.
+    {
+      const cave = makeCave();
+      let fullReads = 0, screenReads = 0;
+      const seen = new SeenMaps();
+      const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: MAP, x: 0, y: 1 }, seen });
+      const rawHost = host.asHost();
+      const adapter = {
+        ...host.adapter,
+        mapSize: () => ({ w: 4, h: 2 }),
+        readFullMap: (_gb: unknown, _rom: Uint8Array, px: number, py: number, beaten: number[], bs?: boolean) => {
+          fullReads++;
+          return readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs);
+        },
+        readView: (_gb: unknown, px: number, py: number, beaten: number[], _rom: Uint8Array | null, bs?: boolean) => {
+          screenReads++;
+          return readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs);
+        },
+      };
+      const core = new BridgeCore({ ...rawHost, game: () => adapter, rom: () => cave.rom });
+      core.boulderSwitch = true;
+      core.noteSeen(); // first look at (0,1) records switches once
+      expect(screenReads).toBe(1);
+      // Repeated stationary presses (text boxes, menus, advance_text) do not re-read the screen.
+      for (let i = 0; i < 5; i++) core.noteSeen();
+      expect(screenReads).toBe(1);
+      // view(true) reads the full map once and does not re-read the screen inside noteSeen.
+      core.view(true);
+      expect(fullReads).toBe(1);
+      expect(screenReads).toBe(1);
     }
   });
 });

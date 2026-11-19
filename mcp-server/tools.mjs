@@ -6,7 +6,7 @@ import { z } from "zod";
 import { BATCH_TOOLS, FINAL_READ_TOOLS, TOOL_CATALOG, stepToolError } from "./tool-catalog.mjs";
 import { normalizeStep, runBatch, stepSummary } from "./batch.mjs";
 import { UNCOUNTED_RESULT, withCallBudget } from "./call-budget.mjs";
-import { COMPACT_GRID_NOTE, NARROW_GRID_NOTE, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
+import { NARROW_GRID_NOTE, compactGridNote, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
 import { applyPreset } from "./benchmark.mjs";
 import { entriesOf, NOTES_MAX, numbered, updateNotes } from "./notes.mjs";
 import { hintState, nextHint } from "./hints.mjs";
@@ -55,7 +55,7 @@ async function mapResult({ legend, ...a } = {}, { call, afterAction, grid, bould
   // The legend on request only (in every map it would cost tokens on each call), and only for
   // the symbols this map has.
   const text = (r.content ?? []).map((c) => c.text ?? "").join("\n");
-  const key = legend && !r.isError ? legendFor(grid === "compact" ? compactGrids(text) : text, { boulderSwitch }) : null;
+  const key = legend && !r.isError ? legendFor(grid === "compact" ? compactGrids(text, { boulderSwitch }) : text, { boulderSwitch }) : null;
   if (key) r.content = [...r.content, { type: "text", text: key }];
   return r;
 }
@@ -71,7 +71,7 @@ const FINAL_READS = { get_map: mapResult, get_state: stateResult };
 
 /**
  * Tool definitions keyed by tool name; merged with TOOL_CATALOG below so metadata and handlers stay
- * in lockstep. `description` and `schema` may be functions of `{ preset, grid, hideEffectiveness, rulesetIds }`.
+ * in lockstep. `description` and `schema` may be functions of `{ preset, grid, hideEffectiveness, boulderSwitch, rulesetIds }`.
  * @type {Record<string, { title: string, description: string | ((env: any) => string), schema: Record<string, any> | ((env: any) => Record<string, any>), run: (args: any, ctx: any) => Promise<any> }>}
  */
 const DEFINITIONS = {
@@ -293,7 +293,7 @@ const DEFINITIONS = {
     description: ({ grid, boulderSwitch }) =>
       "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
       "Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
-      mapLegend({ boulderSwitch }) + (grid === "compact" ? COMPACT_GRID_NOTE : grid === "narrow" ? NARROW_GRID_NOTE : ""),
+      mapLegend({ boulderSwitch }) + (grid === "compact" ? compactGridNote({ boulderSwitch }) : grid === "narrow" ? NARROW_GRID_NOTE : ""),
     schema: {
       full: z.boolean().optional().describe("Whole current map instead of the screen"),
       legend: z.boolean().optional().describe("Add what each symbol on this map means to the result"),
@@ -612,7 +612,7 @@ export function registerTools(server, {
   let reports = 0;
 
   const shown = (text) => {
-    const t = grid === "compact" ? compactGrids(text) : grid === "narrow" ? narrowGrids(text) : text;
+    const t = grid === "compact" ? compactGrids(text, { boulderSwitch }) : grid === "narrow" ? narrowGrids(text) : text;
     return hideEffectiveness ? stripEffectiveness(t) : t;
   };
   const narrow = (r) => ({ ...r, content: r.content.map((c) => (c.type === "text" ? { ...c, text: shown(c.text) } : c)) });

@@ -50,7 +50,7 @@ import { writeSummary } from "../mcp-server/run-summary.mjs";
 const argv = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = argv.indexOf(`--${name}`);
-  return i < 0 ? fallback : argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : true;
+  return i < 0 ? fallback : argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[i + 1] : true;
 };
 if (argv.includes("--help") || argv.includes("-h")) {
   console.log(`Plays one benchmark run with Claude Code (claude -p) and records it in runs/<id>/.
@@ -198,10 +198,8 @@ if (grid !== undefined && grid !== "narrow" && grid !== "wide" && grid !== "comp
   console.error("--grid takes compact, wide or narrow (the default).");
   process.exit(1);
 }
-const boulderSwitchAt = argv.indexOf("--boulder-switch");
-const boulderSwitchVal = boulderSwitchAt < 0
-  ? (resumedAgent.boulderSwitch ? "on" : "off")
-  : argv[boulderSwitchAt + 1] && !argv[boulderSwitchAt + 1].startsWith("-") ? argv[boulderSwitchAt + 1] : "on";
+const rawBoulderSwitch = opt("boulder-switch", resumedAgent.boulderSwitch ? "on" : "off");
+const boulderSwitchVal = rawBoulderSwitch === true ? "on" : rawBoulderSwitch;
 if (boulderSwitchVal !== "on" && boulderSwitchVal !== "off") {
   console.error("--boulder-switch takes on or off.");
   process.exit(1);

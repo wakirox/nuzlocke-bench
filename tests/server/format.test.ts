@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGrids, createFormatter, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences } from "../../mcp-server/format.mjs";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGridNote, compactGrids, createFormatter, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences } from "../../mcp-server/format.mjs";
 import { renderView } from "../../src/bridge/overworld";
 
 const SCREEN = ["┌──────────────────┐", "│Wild BASEMON      │", "│appeared!         │", "└──────────────────┘"];
@@ -328,12 +328,36 @@ describe("legendFor", () => {
       expect(row[x5Col]).not.toBe(" ");
     }
     expect(legendFor(out)).toContain('" tall grass');
-  it("explains b in the legend only when boulderSwitch is on", () => {
+  });
+
+  it("explains b in the legend and handles b in compactGrids only when boulderSwitch is on", () => {
     expect(MAP_LEGEND).not.toContain("b boulder on a floor switch");
     expect(mapLegend({ boulderSwitch: true })).toContain("B boulder, b boulder on a floor switch, o floor switch");
+    expect(COMPACT_GRID_NOTE).not.toContain("B b o O");
+    expect(compactGridNote({ boulderSwitch: true })).toContain("I C S P $ H B b o O");
 
     const map = ["       0  1  2  3", "y  5   #  b  B  o"].join("\n");
     expect(legendFor(map)).toBe("Legend: B boulder, o floor switch, # blocked.");
     expect(legendFor(map, { boulderSwitch: true })).toBe("Legend: B boulder, b boulder on a floor switch, o floor switch, # blocked.");
+
+    // Compact + boulderSwitch: `b` is listed in Points and identical rows with `b` never collapse.
+    const cave = renderView({
+      grid: [
+        [..."..@.."],
+        [..."..b.."],
+        [..."..b.."],
+        [..."..B.o"],
+      ],
+      originX: 0, originY: 0, pc: 2, pr: 0,
+    });
+    const out = compactGrids(cave, { boulderSwitch: true });
+    expect(out).toBe([
+      "       0",
+      "y  0   ..@..",
+      "y  1   ..b..",
+      "y  2   ..b..",
+      "y  3   ..B.o",
+      "Points: B (2,3); b (2,1), (2,2); o (4,3).",
+    ].join("\n"));
   });
 });

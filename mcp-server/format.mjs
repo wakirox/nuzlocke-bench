@@ -194,14 +194,21 @@ export function plainErrorScreen(text) {
 export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
-export const COMPACT_GRID_NOTE =
-  " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
-  "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
-  "Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (I C S P $ H B o O), " +
-  "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22).";
+export function compactGridNote({ boulderSwitch = false } = {}) {
+  const syms = boulderSwitch ? "I C S P $ H B b o O" : "I C S P $ H B o O";
+  return (
+    " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
+    "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
+    `Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (${syms}), ` +
+    "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22)."
+  );
+}
+export const COMPACT_GRID_NOTE = compactGridNote();
 
 const COMPACT_POINTS = ["I", "C", "S", "P", "$", "H", "B", "o", "O"];
+const COMPACT_POINTS_BOULDER_SWITCH = ["I", "C", "S", "P", "$", "H", "B", "b", "o", "O"];
 const INTERACTIVE = /[@TN$HFIDGSPCBoO]/;
+const INTERACTIVE_BOULDER_SWITCH = /[@TN$HFIDGSPCBboO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
 
@@ -211,7 +218,9 @@ const mod5 = (x) => ((x % 5) + 5) % 5;
  * edge snapped to a multiple of 5), identical consecutive non-interactive rows collapsed (y14-17),
  * a Points line for seen targets, and a shorter Cliffs line.
  */
-export function compactGrids(text) {
+export function compactGrids(text, { boulderSwitch = false } = {}) {
+  const pointSyms = boulderSwitch ? COMPACT_POINTS_BOULDER_SWITCH : COMPACT_POINTS;
+  const interactive = boulderSwitch ? INTERACTIVE_BOULDER_SWITCH : INTERACTIVE;
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
@@ -224,11 +233,11 @@ export function compactGrids(text) {
       const cells = Array.from({ length: xs.length }, (_, k) => lines[j][5 + 3 * k + 2]);
       rawRows.push({ y: Number(lines[j].slice(1, 4)), cells });
     }
-    const bySym = new Map(COMPACT_POINTS.map((s) => [s, []]));
+    const bySym = new Map(pointSyms.map((s) => [s, []]));
     for (const row of rawRows) {
       for (let c = 0; c < xs.length; c++) bySym.get(row.cells[c])?.push(`(${x0 + c},${row.y})`);
     }
-    const pointParts = COMPACT_POINTS.flatMap((s) => (bySym.get(s).length ? [`${s} ${bySym.get(s).join(", ")}`] : []));
+    const pointParts = pointSyms.flatMap((s) => (bySym.get(s).length ? [`${s} ${bySym.get(s).join(", ")}`] : []));
     const pointsLine = pointParts.length ? `Points: ${pointParts.join("; ")}.` : null;
 
     let rMin = rawRows.findIndex((r) => r.cells.some((ch) => ch !== "#"));
@@ -260,7 +269,7 @@ export function compactGrids(text) {
     for (let r = rMin; r <= rMax; r++) {
       const blocks = rawRows[r].cells.slice(cStart, cMax + 1).map((ch, k) => (k > 0 && mod5(trimmedXs[k]) === 0 ? ` ${ch}` : ch)).join("");
       const prev = collapsed[collapsed.length - 1];
-      if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !INTERACTIVE.test(blocks)) prev.yEnd = rawRows[r].y;
+      if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !interactive.test(blocks)) prev.yEnd = rawRows[r].y;
       else collapsed.push({ y0: rawRows[r].y, yEnd: rawRows[r].y, blocks });
     }
     // Size the row-tag column from the widest row label so y >= 100 ranges (e.g. y96-101, y102-143)
