@@ -12,6 +12,7 @@
 //        [--grid compact|wide]  map grid format: compact 5-square blocks, wide, or narrow (default)
 //        [--boulder-switch [on|off]]  show a boulder on a previously seen uncovered floor switch as b (Gen 1; carried on --resume)
 //        [--map-points [on|off]]  add the Points coordinate line under the map and repeat the x header at the bottom of tall maps
+//        [--trainer-facing]     say which way on-screen trainers face on the Trainers (T) line (default off)
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
 // Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
 // choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
@@ -90,6 +91,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --grid <compact|wide>  map grid format: compact (5-square blocks), wide (two spaces), or narrow (default)
   --boulder-switch [on|off]  show a boulder on a previously seen uncovered floor switch as b (Gen 1 only; default: off; carried on --resume)
   --map-points [on|off]  list coordinates of seen items, Cut trees, things to read or use, PCs, clerks, nurses, boulders, switches and holes under the map and repeat the x header at the bottom of tall maps (default: off; bare --map-points means on)
+  --trainer-facing     say which way on-screen trainers face on the Trainers (T) line (default: off)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
   --no-report          leave out report_issue (by default every run has it and is asked to report tools that let it down)
@@ -214,6 +216,7 @@ if (mapPointsVal !== "on" && mapPointsVal !== "off") {
   process.exit(1);
 }
 const mapPoints = mapPointsVal === "on";
+const trainerFacing = argv.includes("--trainer-facing");
 
 // Driver workspace & CLI checks run before creating the run folder so refused setups leave runs/ clean.
 try {
@@ -247,6 +250,7 @@ writeFileSync(run.player, JSON.stringify({
   playtest,
   ...(boulderSwitch ? { boulderSwitch: true } : {}),
   ...(mapPoints ? { mapPoints: true } : {}),
+  ...(trainerFacing ? { trainerFacing: true } : {}),
   ...(experimental ? { experimental } : {}),
   ...(observers ? { observers } : {}),
 }));
@@ -267,6 +271,7 @@ const config = mcpConfig({
   effectiveness,
   boulderSwitch,
   mapPoints,
+  trainerFacing,
   report,
   observer,
 });
@@ -375,6 +380,7 @@ player.onExit((code) => {
     ...(grid ? { grid } : {}),
     ...(boulderSwitch ? { boulderSwitch: true } : {}),
     ...(mapPoints ? { mapPoints: true } : {}),
+    ...(trainerFacing ? { trainerFacing: true } : {}),
     ...(observers ? { observers } : {}),
     // Maps on request (get_map, or show_map on a move): recorded so reports can tell runs from before apart.
     maps: "ask",

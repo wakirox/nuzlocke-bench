@@ -14,7 +14,7 @@ const run = (...args: string[]) => spawnSync(process.execPath, ["scripts/bench-r
 
 describe("bench-run's options", () => {
   it("get through every option check to the last one, with and without hints and --effectiveness", () => {
-    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"], ["--boulder-switch", "-o", "hardcap"], ["--boulder-switch", "off"], ["--map-points", "-o", "hardcap"], ["--map-points", "off"], ["--boulder-switch", "--map-points"]]) {
+    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"], ["--boulder-switch", "-o", "hardcap"], ["--boulder-switch", "off"], ["--map-points", "-o", "hardcap"], ["--map-points", "off"], ["--trainer-facing", "-o", "hardcap"], ["--boulder-switch", "--map-points", "--trainer-facing"]]) {
       const r = run(...extra, "--port", "1");
       expect(r.stderr).not.toMatch(/ReferenceError|TypeError|SyntaxError/);
       expect(r.stderr).toMatch(/--port takes a whole number/);

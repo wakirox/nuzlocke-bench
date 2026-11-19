@@ -374,6 +374,7 @@ export class AiBridge {
   /** Applies opt-in bridge options sent once on connect by the MCP server. */
   private setOptions(p: Record<string, unknown>): { ok: true } {
     if (typeof p.boulderSwitch === "boolean") this.core.boulderSwitch = p.boulderSwitch;
+    if (typeof p.trainerFacing === "boolean") this.core.trainerFacing = p.trainerFacing;
     return { ok: true };
   }
 

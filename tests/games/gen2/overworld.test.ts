@@ -1,7 +1,8 @@
 // Crystal's text map: squares by collision type, and trainer parties from the ROM's trainer groups.
 
 import { describe, expect, it } from "vitest";
-import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty } from "../../../src/games/gen2/overworld";
+import { trainerFacing } from "../../../src/bridge/overworld";
+import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
 import { A } from "../../../src/games/gen2/ram";
 
 /** A ROM with CollisionPermissionTable (bank $13) saying water for $29 and wall for $07, land otherwise. */
@@ -201,5 +202,41 @@ describe("Crystal people on screen", () => {
   it("off screen keep their flag's word", () => {
     const loaded = { x: 5, y: 5, hidden: false, loaded: true };
     expect(hideUnloadedOnScreen([loaded, { ...clerk, x: 40, y: 0 }], 5, 5).map((o) => o.hidden)).toEqual([false, false]);
+  });
+
+  it("trainerFacing checks the real 10×9 screen window (not just whether a struct is loaded)", () => {
+    const ram = new Uint8Array(0x10000);
+    ram[A.xCoord] = 10;
+    ram[A.yCoord] = 10;
+    ram[OW.objectEventCount] = 3;
+    const putTrainer = (idx: number, structId: number, x: number, y: number, facingByte?: number) => {
+      const m = OW.mapObjects + idx * 16;
+      ram[m] = structId;
+      ram[m + 1] = 1; // sprite
+      ram[m + 2] = y + 4;
+      ram[m + 3] = x + 4;
+      ram[m + 6] = 0xff; ram[m + 7] = 0xff; // always on
+      ram[m + 8] = 2; // OBJECTTYPE.TRAINER
+      ram[m + 9] = 3; // sightRange
+      ram[m + 12] = 0xff; ram[m + 13] = 0xff; // no hide flag
+      if (structId !== 0xff) {
+        const s = OW.objectStructs + structId * 40;
+        ram[s] = 1; // sprite loaded
+        ram[s + 0x08] = facingByte ?? 0;
+        ram[s + 0x10] = x + 4;
+        ram[s + 0x11] = y + 4;
+      }
+    };
+    // Player at (10, 10): 10×9 screen covers x 6..15 (-4..+5) and y 6..14 (-4..+4).
+    putTrainer(1, 1, 15, 10, 0x0c); // rightmost screen column (+5), loaded, facing right
+    putTrainer(2, 2, 16, 10, 0x0c); // just past right screen edge (+6), still loaded in wObjectStructs
+    putTrainer(3, 0xff, 30, 10); // unloaded far off screen
+    const mem = { read8: (a: number) => ram[a], read16be: () => 0, readBytes: () => new Uint8Array() };
+    const sprites = trainerSprites(mem, 10, 10);
+    expect(sprites.map((s) => ({ x: s.x, onScreen: s.onScreen, facing: trainerFacing(s) }))).toEqual([
+      { x: 15, onScreen: true, facing: "right" },
+      { x: 16, onScreen: false, facing: undefined },
+      { x: 30, onScreen: false, facing: undefined },
+    ]);
   });
 });

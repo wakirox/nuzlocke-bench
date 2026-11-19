@@ -125,6 +125,8 @@ describe("dashboardRuns", () => {
     expect(objectivesTable([envOnly])).toContain("haiku-5-5 boulder-switch");
     expect(off({}, { mapPoints: true }).notOfficial).toBe("map points shown");
     expect(off({ mapPoints: true }, {}).notOfficial).toBe("map points shown");
+    expect(off({}, { trainerFacing: true }).notOfficial).toBe("trainer facing shown");
+    expect(off({ trainerFacing: true }, {}).notOfficial).toBe("trainer facing shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
     expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");

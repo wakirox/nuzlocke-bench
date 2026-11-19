@@ -185,4 +185,40 @@ describe("a new map's first full view", () => {
     const on = await call("get_map", { full: true });
     expect(String(on.map)).toMatch(/y\s*0\s+@\s+b/);
   });
+
+  it("asks the host for trainer facing only after set_options enables it (off by default)", async () => {
+    const { call, host } = bridgeFor([{ rows: screenRows() }], {
+      position: { inWorld: true, map: 7, x: 0, y: 0 },
+      view: { grid: [["@", "T"]], originX: 0, originY: 0, pc: 0, pr: 0 },
+      trainers: [{ x: 1, y: 0, name: "SCOUT", beaten: false, facing: "left" }],
+    });
+    await call("get_map", { full: true });
+    expect(host.mapTrainersCalls.length).toBeGreaterThan(0);
+    expect(host.mapTrainersCalls.every((v) => v === false)).toBe(true);
+    host.mapTrainersCalls.length = 0;
+    await call("set_options", { trainerFacing: true });
+    const on = await call("get_map", { full: true });
+    expect(host.mapTrainersCalls).toEqual([true]);
+    expect(String(on.map)).toContain("Trainers (T): (1,0) SCOUT facing left.");
+  });
+
+  it("applies every option in one set_options message (the server sends them together on connect)", async () => {
+    const { SeenMaps } = await import("../../src/bridge/seen");
+    const seen = new SeenMaps();
+    seen.sawScreen(7, 0, 0);
+    seen.sawSwitches(7, { grid: [["@", "o", "T"]], originX: 0, originY: 0, pc: 0, pr: 0 }, 0, 0);
+    const { call, host } = bridgeFor([{ rows: screenRows() }], {
+      position: { inWorld: true, map: 7, x: 0, y: 0 },
+      view: { grid: [["@", "b", "T"]], originX: 0, originY: 0, pc: 0, pr: 0 },
+      trainers: [{ x: 2, y: 0, name: "SCOUT", beaten: false, facing: "left" }],
+      seen,
+    });
+    await call("set_options", { boulderSwitch: true, trainerFacing: true });
+    host.mapTrainersCalls.length = 0;
+    const on = await call("get_map", { full: true });
+    expect(String(on.map)).toMatch(/y\s*0\s+@\s+b\s+T/);
+    expect(host.mapTrainersCalls.length).toBeGreaterThan(0);
+    expect(host.mapTrainersCalls.every((v) => v === true)).toBe(true);
+    expect(String(on.map)).toContain("Trainers (T): (2,0) SCOUT facing left.");
+  });
 });

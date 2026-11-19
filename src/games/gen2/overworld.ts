@@ -177,12 +177,15 @@ export function beatenTrainers(mem: MemoryReader, rom: Uint8Array): number[] {
 }
 
 /** Trainer people on the current map (map coordinates). */
-export function trainerSprites(mem: MemoryReader, _playerX: number, _playerY: number): TrainerSprite[] {
+export function trainerSprites(mem: MemoryReader, playerX: number, playerY: number): TrainerSprite[] {
   return mapObjects(mem)
     .filter((o) => o.type === OBJECTTYPE.TRAINER && !o.hidden)
     .map((o) => {
       const [dx, dy] = FACING[o.facing ?? 0] ?? [0, 1];
-      return { index: o.index, x: o.x, y: o.y, dx, dy, onScreen: o.facing !== null, sight: o.sightRange > 0 };
+      const onScreen = o.facing !== null
+        && o.x >= playerX - PLAYER_COL && o.x < playerX - PLAYER_COL + VIEW_W
+        && o.y >= playerY - PLAYER_ROW && o.y < playerY - PLAYER_ROW + VIEW_H;
+      return { index: o.index, x: o.x, y: o.y, dx, dy, onScreen, sight: o.sightRange > 0 };
     });
 }
 

@@ -161,4 +161,54 @@ describe("RunSession", () => {
     expect(savedReplay.meta).toMatchObject({ attempt: 3, lead: "CHARIZARD", level: 55, badges: 8, score });
     expect(score).toBeGreaterThan(runScore({ kind: "wipe", detail: "Lost" }, 8, 100));
   });
+
+  it("includes trainer facing in mapTrainers only when requested, and only for unbeaten on-screen sprites", () => {
+    const fakeGb = {
+      ticks: 0,
+      recorder: null,
+      read8: () => 0,
+      read16be: () => 0,
+      readBytes: (_a: number, len: number) => new Uint8Array(len),
+      write8: () => {},
+      saveState: () => new Uint8Array([1]),
+      intervene: (_k: number, _a: number, fn: () => void) => fn(),
+      destroy: () => {},
+    } as unknown as GameBoy;
+    const rom = new Uint8Array(0x20000);
+    const data = { ...trackerData("red"), trainerClasses: ["SCOUT", "GUARD", "SAILOR"] };
+    const session = new RunSession({
+      run: { attempt: 1, mode: "nuzlocke", rom, data, startedAt: 0 },
+      rom,
+      gb: fakeGb,
+    });
+    session.tracker.noteTrainerBeaten(0, 2);
+    const sprites = [
+      { index: 1, x: 4, y: 2, dx: 0, dy: 1, onScreen: true, sight: true },
+      // Beaten trainer on screen: facing must still be omitted.
+      { index: 2, x: 5, y: 3, dx: -1, dy: 0, onScreen: true, sight: true },
+      // Unbeaten trainer off screen (has a dx/dy vector, but onScreen is false): facing omitted.
+      { index: 3, x: 16, y: 10, dx: 1, dy: 0, onScreen: false, sight: true },
+    ];
+    Object.assign(session, {
+      adapter: {
+        ...session.adapter,
+        currentMap: () => 0,
+        position: () => ({ x: 4, y: 5, map: 0, battle: false }),
+        trainerSprites: () => sprites,
+        spriteTrainer: (_gb: GameBoy, idx: number) => ({ trainerClass: idx, number: 1 }),
+      },
+    });
+    // Default (includeFacing false): no facing computed at all.
+    expect(session.mapTrainers()).toEqual([
+      { x: 4, y: 2, name: "SCOUT", beaten: false },
+      { x: 5, y: 3, name: "GUARD", beaten: true },
+      { x: 16, y: 10, name: "SAILOR", beaten: false },
+    ]);
+    // Opt-in (includeFacing true): only unbeaten on-screen trainers get facing.
+    expect(session.mapTrainers(true)).toEqual([
+      { x: 4, y: 2, name: "SCOUT", beaten: false, facing: "down" },
+      { x: 5, y: 3, name: "GUARD", beaten: true },
+      { x: 16, y: 10, name: "SAILOR", beaten: false },
+    ]);
+  });
 });

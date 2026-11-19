@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type RawOverworldView, type SightOptions } from "./overworld";
+import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -60,8 +60,8 @@ export interface AiHost {
   beatenTrainers(): number[];
   /** What the run has seen of each map (fog of war), or nothing to hide (a host without one). */
   seen?(): SeenMaps | null;
-  /** Trainers on this map with their teams. */
-  mapTrainers(): { x: number; y: number; name: string; beaten: boolean }[];
+  /** Trainers on this map (class, beaten, and optionally facing for unbeaten on-screen ones). */
+  mapTrainers(includeFacing?: boolean): MapTrainer[];
   /** The running ROM — tileset block data for full-map reads. */
   rom(): Uint8Array | null;
   /** Both battlers' names and HP (null outside battle), to say what each hit did. */
@@ -135,6 +135,8 @@ export class BridgeCore {
   mapAsked = false;
   /** Show a boulder on a previously seen floor switch as `b` (opt-in via NUZLOCKE_BOULDER_SWITCH). */
   boulderSwitch = false;
+  /** Include facing direction for unbeaten on-screen trainers (opt-in via NUZLOCKE_TRAINER_FACING). */
+  trainerFacing = false;
 
   async tap(button: Button | Button[], hold = 6, gap = 20): Promise<void> {
     const gb = this.requireGb();
@@ -367,7 +369,7 @@ export class BridgeCore {
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
     // Only trainers on squares the map shows (a "?" square hides who stands there).
-    const trainers = this.host.mapTrainers()
+    const trainers = this.host.mapTrainers(this.trainerFacing)
       .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H)
       .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?");
     return renderView(v) + trainerList(trainers);

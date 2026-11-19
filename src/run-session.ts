@@ -4,6 +4,7 @@
 
 import { battleMoves, brief, summarize } from "./bridge/summary";
 import type { Brief, MoveInfo } from "./bridge/bridge-core";
+import { trainerFacing, type MapTrainer } from "./bridge/overworld";
 import { SeenMaps, type SeenData } from "./bridge/seen";
 import type { GameBoy } from "./emulator/gameboy";
 import { KIND_CANDY_CAP, KIND_LEVEL_CAP, KIND_TOP_UP, Recorder, type ReplayLog, type SavedReplay } from "./emulator/replay";
@@ -258,12 +259,14 @@ export class RunSession {
     return this.tracker.snap.beatenTrainers[this.adapter.currentMap(this.gb)] ?? [];
   }
 
-  mapTrainers(): { x: number; y: number; name: string; beaten: boolean }[] {
+  mapTrainers(includeFacing = false): MapTrainer[] {
     const beaten = this.beatenTrainers();
     const here = this.adapter.position(this.gb);
     return this.adapter.trainerSprites(this.gb, here.x, here.y).map((s) => {
       const { trainerClass: cls } = this.adapter.spriteTrainer(this.gb, s.index);
-      return { x: s.x, y: s.y, name: this.run.data.trainerClasses?.[cls - 1] || `class ${cls}`, beaten: beaten.includes(s.index) };
+      const isBeaten = beaten.includes(s.index);
+      const facing = includeFacing && !isBeaten ? trainerFacing(s) : undefined;
+      return { x: s.x, y: s.y, name: this.run.data.trainerClasses?.[cls - 1] || `class ${cls}`, beaten: isBeaten, ...(facing ? { facing } : {}) };
     });
   }
 

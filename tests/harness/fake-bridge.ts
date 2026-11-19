@@ -49,7 +49,7 @@ export interface FakeHostOptions {
   /** What the run has seen of each map (the host's seen()); null or absent: nothing hidden. */
   seen?: SeenMaps | null;
   /** Trainers on the map (mapTrainers). */
-  trainers?: { x: number; y: number; name: string; beaten: boolean }[];
+  trainers?: { x: number; y: number; name: string; beaten: boolean; facing?: Dir }[];
   /** The current map's size in squares (mapSize; 10×9 by default, a screen). */
   mapSize?: { w: number; h: number };
   /**
@@ -67,6 +67,8 @@ export interface FakeHostOptions {
 export class FakeHost {
   /** Every button pressed, in order (chords count each button, in the order they went down). */
   readonly presses: Button[] = [];
+  /** Every includeFacing flag passed to mapTrainers, in order. */
+  readonly mapTrainersCalls: boolean[] = [];
   /** Total frames the bridge ran. */
   frames = 0;
   index = 0;
@@ -185,7 +187,10 @@ export class FakeHost {
       fontSignature: () => null,
       beatenTrainers: () => [],
       seen: () => this.opts.seen ?? null,
-      mapTrainers: () => this.opts.trainers ?? [],
+      mapTrainers: (includeFacing = false) => {
+        this.mapTrainersCalls.push(includeFacing);
+        return this.opts.trainers ?? [];
+      },
       // A world's whole map is read through the ROM path (readFullMap); any non-null ROM will do.
       rom: () => (this.opts.world ? new Uint8Array(0) : null),
       canvas: this.canvas,
