@@ -28,6 +28,15 @@ describe("snapshot call mapping", () => {
     expect(firstMatch(target, polls)).toBe(5);
   });
 
+  it("matches a 0.3.0 call by the log's pos (the map's own x, y), not the 📍 line's count from the origin", () => {
+    // The 📍 line says x-2 y3 (from where the run arrived); the map's own square is (6,25).
+    const entry = { n: 911, where: "ROUTE 10 [ROUTE_10] x-2 y3 facing up | battle: none", pos: [6, 25], playTime: "2:19:02" };
+    expect(parseWhere(entry.where)).toMatchObject({ x: -2, y: 3 });
+    expect(firstMatch(callTarget(entry), [sample({ x: -2, y: 3 }), sample()])).toBe(1);
+    const rows = compareWithLog(entry, { playTime: "2:19:02", mapConst: "ROUTE_10", battle: "none", x: 6, y: 25 });
+    expect(rows.find((r: { label: string }) => r.label === "x/y")).toMatchObject({ ok: true });
+  });
+
   it("ignores x/y in the dark and finds a second alone", () => {
     const dark = callTarget({ n: 912, where: "CAVE (2) [CAVE_1F] | battle: none", playTime: "2:19:02" });
     expect(firstMatch(dark, [sample(), sample({ mapConst: "CAVE_1F", x: 9, y: 9 })])).toBe(1);

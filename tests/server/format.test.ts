@@ -416,12 +416,32 @@ describe("grids with negative x (0.3.0: coordinates count from where the run arr
     expect(lines.slice(0, 3)).toEqual(["      - - - -", "      1 1    ", "      1 0 9 8"]);
   });
 
-  it("wide: widens the columns so an x of three characters doesn't run into the next", () => {
-    const lines = wideGrids(map(-11)).split("\n");
+  it("wide: the bridge widens the columns so an x of three characters doesn't run into the next", () => {
+    const lines = map(-11).split("\n");
     expect(lines[0]).toBe("      -11 -10  -9  -8");
     expect(lines[1]).toBe("y -1    #   .   @   .");
-    // Columns of two characters at most stay as the bridge drew them.
-    expect(wideGrids(map(-3))).toBe(map(-3));
+    expect(wideGrids(map(-11))).toBe(map(-11));
+    // Columns of two characters at most stay 3 wide, as before.
+    expect(map(-3).split("\n")[0]).toBe("      -3 -2 -1  0");
+  });
+
+  it("reaches -100 on a tall or wide map entered at its far end: wider labels, parsed by every grid", () => {
+    const far = renderView({ grid: [[..."#.@"], [..."..."]], originX: -101, originY: -100, pc: 2, pr: 0 });
+    const lines = far.split("\n");
+    expect(lines[0]).toBe("       -101 -100  -99");
+    expect(lines[1]).toBe("y-100     #    .    @");
+    expect(lines[2]).toBe("y -99     .    .    .");
+    expect(narrowGrids(far).split("\n")).toEqual([
+      "       - - -",
+      "       1 1  ",
+      "       0 0 9",
+      "       1 0 9",
+      "y-100  # . @",
+      "y -99  . . .",
+    ]);
+    // -100 starts a 5-column block: a space before it.
+    expect(compactGrids(far)).toMatch(/^y-100 +# \.@$/m);
+    expect(wideGrids(far, { points: true })).toContain(far);
   });
 
   it("compact: rulers and row ranges take negative coordinates", () => {

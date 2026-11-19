@@ -103,5 +103,7 @@ describe("doors and routes in the model's coordinates", () => {
     expect(core.routes.link("HERE", "THERE")).toEqual({ door: [10, 9] });
     expect((await dispatch("routes")).routes).toEqual(["HERE → THERE: door (-2,3)"]);
     await expect(dispatch("note_route", { from: "THERE", to: "HERE", door: { x: 0, y: 0 } })).rejects.toThrow(/haven't been on THERE yet/);
+    // go_to's "no noted route" lists the routes in the model's coordinates too.
+    await expect(dispatch("go_to", { map: "ZERO" })).rejects.toThrow(/Known: HERE → THERE: door \(-2,3\)\./);
   });
 });

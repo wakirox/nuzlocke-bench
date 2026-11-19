@@ -81,6 +81,19 @@ describe("SeenMaps: the dark", () => {
     expect(s.fogDark(v, MAP).grid).toEqual([["#", ".", ".", "?"], ["?", "@", "?", "?"]]);
   });
 
+  it("shows no trainer's sight in the dark, even from one standing on a square remembered as floor", () => {
+    const s = new SeenMaps();
+    s.sawDark(MAP, [[".", ".", "."]], 0, 0);
+    const v = {
+      grid: [[".", "T", "."], ["#", "@", "#"]], originX: 0, originY: 0, pc: 1, pr: 1,
+      watched: new Set([0, 2]), watchers: new Map([[0, [[1, 0]]], [2, [[1, 0]]]]),
+    } as unknown as OverworldView;
+    const fogged = s.fogDark(v, MAP);
+    expect(fogged.watched).toBeUndefined();
+    expect(fogged.watchers).toBeUndefined();
+    expect(fogged.grid[0]).toEqual([".", ".", "."]);
+  });
+
   it("is kept with the run's seen data; runs that never were in the dark save no dark field", () => {
     const s = new SeenMaps();
     s.sawDark(MAP, [["."]], 3, 3);
@@ -106,6 +119,18 @@ describe("BridgeCore: the dark map", () => {
     expect(Object.keys(whole.rows).map(Number).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
     // Nothing went into the lit memory: a map lit later (Flash) shows what it always did.
     expect(seen.data.squares).toEqual({});
+  });
+
+  it("notes the ladder just come down when the move's map is read in the dark, and sets the map's origin there", () => {
+    const { host, core, seen } = darkCave();
+    host.moveTo({ map: MAP + 1, x: 20, y: 4 });
+    core.noteSeen(); // on the floor above: where the ladder down is
+    host.moveTo({ map: MAP, x: 26, y: 4 });
+    core.noteSeen(); // just warped: not settled yet
+    core.mapText(); // the move's result reads the map: settled now
+    expect(seen.data.doors[MAP]).toEqual([[26, 4]]);
+    expect(seen.data.doors[MAP + 1]).toEqual([[20, 4]]);
+    expect(seen.origin(MAP)).toEqual([26, 4]);
   });
 
   it("remembers a ladder the player stands on as a ladder", () => {

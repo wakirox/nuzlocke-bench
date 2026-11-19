@@ -331,13 +331,14 @@ export class BridgeCore {
       : (this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw);
     const seen = this.host.seen?.();
     if (!seen) return { ...v, stage: undefined };
+    // A view is read once a move is over: the game has settled on whatever map it's on (the door
+    // just come through is noted, the map's origin set), dark or not.
+    // Pass scanSwitches=false so noteSeen doesn't fetch a second rawView; we already have `raw`.
+    this.noteSeen(true, false);
     if (this.dark()) {
       this.noteDark(seen);
       return seen.fogDark(v, this.host.position().map, this.game.mapSize(this.requireGb()).h - 1);
     }
-    // A view is read once a move is over: the game has settled on whatever map it's on.
-    // Pass scanSwitches=false so noteSeen doesn't fetch a second rawView; we already have `raw`.
-    this.noteSeen(true, false);
     const pos = this.host.position();
     if (!pos.battle) {
       seen.sawScreen(pos.map, pos.x, pos.y);
@@ -374,7 +375,6 @@ export class BridgeCore {
     // A box or menu over the cave hides what's under it: those squares are dark, not lit.
     const now = darkSquares(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
     const pos = this.host.position();
-    seen.originAt(pos.map, pos.x, pos.y);
     // The view shows @ where the player stands, but they know what's under them: a ladder (they
     // came by it: stepping onto one takes you away), else floor. Without it, where each move
     // ended would stay "?" once the player walks on.

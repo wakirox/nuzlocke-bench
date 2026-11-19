@@ -234,6 +234,9 @@ export function brief(t: Tracker, s: GameState, origin?: [number, number] | null
     // For the run log only (the MCP server doesn't print it): the coordinates no longer say whether
     // the map was dark, and the dark-tunnel score needs to know (report.mjs darkTunnel).
     ...(s.dark && s.battle === 0 ? { dark: true } : {}),
+    // For the run log only too: the map's own coordinates, which a replay of the run reads
+    // (scripts/snapshot-lib.mjs), where the 📍 line counts from the map's origin.
+    ...(inWorld && !hideCoords(s) ? { pos: [s.x, s.y] } : {}),
     // With no Pokémon of your own a battle is a scene the game plays (Yellow's opening: the professor catching the partner Pokémon).
     battle: s.battle > 0 && !s.party.some((m) => m.species) ? "a scene (you have no Pokémon yet: advance_text plays it)"
       : s.battle === 1 ? "wild" : s.battle === 2 ? "trainer" : s.battle === -1 ? "lost" : "none",

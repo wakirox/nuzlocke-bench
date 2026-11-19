@@ -353,7 +353,11 @@ export function renderView(view: FoggedView): string {
     ? { ...view, grid: view.grid.map((line, r) => line.map((ch, c) => (closed.has(r * VW + c) ? "#" : ch))) }
     : view;
   const cols = v.grid[0]?.length ?? 0;
-  const header = "     " + Array.from({ length: cols }, (_, c) => String(v.originX + c).padStart(3)).join("");
+  // Columns 3 wide and row labels 3 wide, wider when a coordinate needs it: since 0.3.0 they count
+  // from where the run arrived, so a map entered at its far end reaches -10, or -100 on a tall one.
+  const xw = Math.max(3, ...Array.from({ length: cols }, (_, c) => String(v.originX + c).length + 1));
+  const yw = Math.max(3, ...v.grid.map((_, r) => String(v.originY + r).length));
+  const header = " ".repeat(yw + 2) + Array.from({ length: cols }, (_, c) => String(v.originX + c).padStart(xw)).join("");
   const W = v.grid[0]?.length ?? 0;
   // Water too while surfing: a swimmer's gaze over the sea is what walk_to and travel steer around.
   // On foot the water stays water (a gaze over a pond isn't a way across it).
@@ -362,7 +366,7 @@ export function renderView(view: FoggedView): string {
     const out = shown(ch, r, c);
     return out === "." && v.tiles && v.lowerFloor?.(v.tiles[r][c]) ? "," : out;
   };
-  const rows = v.grid.map((line, r) => `y${String(v.originY + r).padStart(3)} ` + line.map((ch, c) => levelled(ch, r, c).padStart(3)).join(""));
+  const rows = v.grid.map((line, r) => `y${String(v.originY + r).padStart(yw)} ` + line.map((ch, c) => levelled(ch, r, c).padStart(xw)).join(""));
   const runs = doorRuns(v);
   const exits = exitsLine(v);
   const doors = runs.length

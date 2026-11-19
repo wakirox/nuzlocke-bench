@@ -210,6 +210,21 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
   });
 
+  it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
+    // This map's (0,0) at its corner; the next map's elsewhere: the door's square is said before going through.
+    const seen = new SeenMaps({ squares: {}, doors: {}, origins: { [MAP]: [0, 0], [MAP + 1]: [3, 3] } });
+    seen.sawScreen(MAP, 5, 2);
+    const { host, travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
+    const walkTo = travel.walkTo.bind(travel);
+    vi.spyOn(travel, "walkTo").mockImplementation(async (x, y, interact) => {
+      const out = await walkTo(x, y, interact);
+      host.moveTo({ map: MAP + 1, x: 4, y: 4 }); // through the door
+      return out;
+    });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk).toContain("out through the door at (5, 8) to VIRIDIAN_POKECENTER");
+  });
+
   it("with no door in sight after heading that way, says so and doesn't look again", async () => {
     const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 2);

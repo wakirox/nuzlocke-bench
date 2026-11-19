@@ -175,8 +175,16 @@ describe("the model panel's picture of a dark map", () => {
     expect(grid?.ys).toEqual([5, 6]);
   });
 
-  it("reads a narrow header with a sign row (x below -9)", () => {
-    const grid = findGrid(["      - -", "      1 1", "      2 1", "y  5  # .", "y  6  . @"]);
+  it("reads a narrow header with a sign row (x below -9), and with a hundreds row", () => {
+    expect(findGrid(["      - -", "      1 1", "      2 1", "y  5  # .", "y  6  . @"])?.x0).toBe(-12);
+    expect(findGrid(["       - -", "       1 1", "       0 0", "       1 0", "y-100  # .", "y -99  . @"])?.x0).toBe(-101);
+    expect(findGrid(["      - -", "      3 2", "y  5  # .", "y  6  . @"])?.x0).toBe(-3);
+  });
+
+  it("reads a wide header whose columns widened for -10 and beyond", () => {
+    const grid = findGrid(["      -12 -11 -10  -9", "y -1    #   .   @   .", "y  0    .   .   .   ."]);
     expect(grid?.x0).toBe(-12);
+    expect(grid?.ys).toEqual([-1, 0]);
+    expect(grid?.cells[0]).toEqual(["#", ".", "@", "."]);
   });
 });

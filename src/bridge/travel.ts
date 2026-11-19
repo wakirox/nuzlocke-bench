@@ -116,7 +116,7 @@ export class Travel {
       if (here === target) return;
       const plan = this.core.routes.plan(here, target);
       if (!plan) {
-        const known = this.core.routes.list();
+        const known = this.core.routes.list(this.core.shownOn);
         throw new Error(
           `No noted route from ${here} to ${target}${log.length > 1 ? ` (got as far as ${log.join(" → ")})` : ""}. ` +
           `go_to only follows routes you noted with note_route. Known: ${known.length ? known.join("; ") : "none yet"}.`,
@@ -154,7 +154,7 @@ export class Travel {
           throw new Error(`Stopped on the way (${where}): ${stop}. The route itself is fine: deal with that, then go_to again. The walk: ${walked}.`);
         }
         throw new Error(
-          `Your route ${describeLink(here, next, link)} didn't get there (${where}). ` +
+          `Your route ${describeLink(here, next, link, this.core.shownOn)} didn't get there (${where}). ` +
           `The walk: ${walked || "nothing"}. If the route is wrong, fix it with note_route or forget_route.`,
         );
       }
@@ -526,8 +526,10 @@ export class Travel {
       const at = full.grid[y - full.originY]?.[x - full.originX];
       // Past the map's edge, but never on screen: a player can't tell that from a square not seen yet
       // (saying "outside this map" would let walk_to measure the map).
+      // In the dark, "seen" is what the dark view showed (SeenMaps.dark), not the lit memory.
       const seen = this.core.host.seen?.();
-      const unseenOutside = at == null && !!seen && !seen.has(startMap, x, y);
+      const sawIt = seen && (this.core.dark() ? seen.sawInDark(startMap, x, y) : seen.has(startMap, x, y));
+      const unseenOutside = at == null && !!seen && !sawIt;
       const blocker = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(this.core.shownView(full), sx, sy);
       const by = blocker && { what: blocker.what, x: blocker.x + x - sx, y: blocker.y + y - sy };
       const why = unseenOutside || at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
@@ -736,8 +738,10 @@ export class Travel {
       if (places.length === 1 && places[0] !== "?" && oneSpot) {
         const here = this.core.host.position();
         const door = [...doors].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
+        // Said in this map's coordinates: once through the door the player is on the next map.
+        const doorAt = this.core.at(door.x, door.y);
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;
-        return { ...out, walk: `no edge exits here, so out through the door at ${this.core.at(door.x, door.y)} to ${places[0]}: ${String(out.walk ?? "")}` };
+        return { ...out, walk: `no edge exits here, so out through the door at ${doorAt} to ${places[0]}: ${String(out.walk ?? "")}` };
       }
       throw new Error(`This map has no exit ${dir}: leave through a door (D) — walk_to its square to go through it. Doors: ${(this.core.shownView({ ...full, doors }).doors ?? []).map((d) => `(${d.x},${d.y}) → ${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`).join("; ") || "none seen"}.`);
     }

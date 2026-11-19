@@ -99,8 +99,9 @@ function codedGrid(lines: string[]): Grid | null {
   const rows = lines.slice(first, rowsEnd);
   const head = lines.slice(start, first);
   const rowBody = (l: string) => l.replace(ROW_TAG, "");
+  // The compact grid's ruler is one line; a narrow header with long row labels (y-100) is several.
   const isCompact = rows.some((l) => /^y\s*-?\d+--?\d+ /.test(l) || /\S{2}/.test(rowBody(l)))
-    || (rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
+    || (head.length <= 1 && rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
   if (isCompact) {
     const cells: string[][] = [];
     const ys: number[] = [];
@@ -122,17 +123,17 @@ function codedGrid(lines: string[]): Grid | null {
   }
   const cells = rows.map((l) => l.slice(5).trim().split(/\s+/));
   const ys = rows.map((l) => Number(l.slice(1, 5)));
-  // x of the first column: the wide header is numbers; the narrow one is tens over ones, with a
-  // sign row above them when x goes below -9 (0.3.0: coordinates count from where the run arrived).
+  // x of the first column: the wide header is numbers (its columns widen for -10 and beyond); the
+  // narrow one is digits read down each column, with a sign row on top when x goes below -9 and a
+  // hundreds row for 100 or more (0.3.0: coordinates count from where the run arrived).
   let x0 = 0;
-  if (head.length === 1 && /\d\s{1,2}\d/.test(head[0]) && head[0].trim().split(/\s+/).length === cells[0].length) x0 = Number(head[0].trim().split(/\s+/)[0]);
+  const numbers = head.length === 1 ? head[0].trim().split(/\s+/) : [];
+  if (numbers.length === cells[0].length && numbers.every((n) => /^-?\d+$/.test(n))) x0 = Number(numbers[0]);
   else if (head.length) {
-    const ones = head[head.length - 1];
-    const tens = head.length > 1 ? head[head.length - 2] : "";
-    const sign = head.length > 2 ? head[head.length - 3] : "";
-    const col = ones.search(/[\d]/);
-    const t = (tens[col] ?? " ").trim();
-    x0 = t === "-" ? -Number(ones[col]) : ((sign[col] ?? " ").trim() === "-" ? -1 : 1) * Number(`${t}${ones[col]}`);
+    // The first column read top to bottom: a - (in a sign row, or in the tens row) and its digits.
+    const col = head[head.length - 1].search(/\d/);
+    const down = head.map((row) => row[col] ?? " ").join("");
+    x0 = (down.includes("-") ? -1 : 1) * Number(down.replace(/\D/g, ""));
   }
   return { cells, ys, x0, start, end, cliffs: cliffsOf(lines) };
 }

@@ -31,6 +31,8 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
     where: line("📍"),
     // In a dark map (the bridge's status says so; the 📍 line has coordinates in the dark too).
     dark: status?.dark || undefined,
+    // The map's own x, y (the 📍 line's count from where the run arrived): for replaying the run.
+    pos: status?.pos,
     outcome: line("🏁 RUN ENDED —") ?? stateOutcome(text),
     chars: text.length,
     images: content.filter((c) => c.type === "image").length || undefined,

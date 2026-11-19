@@ -121,6 +121,11 @@ export class SeenMaps {
     return (this.data.switches?.[map] ?? []).some(([a, b]) => a === x && b === y);
   }
 
+  /** Whether the dark view has shown square (x, y) of `map` (sawDark). */
+  sawInDark(map: number, x: number, y: number): boolean {
+    return `${x},${y}` in (this.data.dark?.[map] ?? {});
+  }
+
   has(map: number, x: number, y: number): boolean {
     return (this.data.squares[map]?.[y] ?? []).some(([a, b]) => x >= a && x <= b);
   }
@@ -183,7 +188,9 @@ export class SeenMaps {
   fogDark(view: AnyOverworldView, map: number, bottomRow?: number): KnownOverworldView {
     const known = this.data.dark?.[map] ?? {};
     const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
-    return maskView(view, {
+    // No trainers' sight in the dark: they're black sprites there, so no ! and no walk steering
+    // round one (maskView would keep a watcher standing on a square remembered as floor).
+    return maskView({ ...view, watched: undefined, watchers: undefined }, {
       isVisible: (x, y) => `${x},${y}` in known || (x === view.originX + view.pc && y === view.originY + view.pr),
       // A lower floor is "." on the grid, as on a lit map: renderView draws it "," from its tile.
       mapCell: (ch, x, y) => (ch === "@" ? ch : known[`${x},${y}`] === "," ? "." : known[`${x},${y}`]),
