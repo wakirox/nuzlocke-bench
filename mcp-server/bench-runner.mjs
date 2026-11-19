@@ -86,7 +86,7 @@ export function nextStep({ ended, result, nudges, maxNudges, maxTokens = Infinit
  * A playtest also gets an inbox, `inbox.txt` beside the run log: a line written there reaches the
  * model in its next tool result (mcp-server/inbox.mjs).
  */
-export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, headed, playtest, grid, effectiveness, boulderSwitch = false, mapPoints = false, trainerFacing = false, report = true, observer = null }) {
+export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, headed, playtest, grid, effectiveness, boulderSwitch = false, mapPoints = undefined, trainerFacing = false, report = true, observer = null }) {
   return {
     mcpServers: {
       "nuzlocke-bench": {
@@ -100,7 +100,8 @@ export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, h
           ...(grid ? { NUZLOCKE_GRID: grid } : {}),
           ...(effectiveness ? { NUZLOCKE_EFFECTIVENESS: effectiveness } : {}),
           ...(boulderSwitch ? { NUZLOCKE_BOULDER_SWITCH: "1" } : {}),
-          ...(mapPoints ? { NUZLOCKE_MAP_POINTS: "1" } : {}),
+          // Not given: the server decides (on in the hints group only).
+          ...(mapPoints != null ? { NUZLOCKE_MAP_POINTS: mapPoints ? "1" : "0" } : {}),
           ...(trainerFacing ? { NUZLOCKE_TRAINER_FACING: "1" } : {}),
           ...(observer ? { NUZLOCKE_OBSERVER: observer } : {}),
           NUZLOCKE_BENCHMARK: preset,

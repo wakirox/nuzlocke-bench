@@ -54,8 +54,6 @@ const BRIDGE_OPTIONS = {
   ...(BOULDER_SWITCH ? { boulderSwitch: true } : {}),
   ...(TRAINER_FACING ? { trainerFacing: true } : {}),
 };
-// Coordinate lists for seen points under the map (and bottom x header on tall maps), off until an A/B decides.
-const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? "");
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
 // (an A/B on 2026-11-07 found no difference in play at ~10% fewer tokens; the model asks when it needs one).
 // Results say how effective each move is against the foe only in the hints group: it's the answer to
@@ -63,6 +61,10 @@ const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? 
 // NUZLOCKE_EFFECTIVENESS=on|off overrides; set after PRESET below.
 const PRESET = benchmarkPreset(process.env.NUZLOCKE_BENCHMARK);
 const HIDE_EFFECTIVENESS = process.env.NUZLOCKE_EFFECTIVENESS ? process.env.NUZLOCKE_EFFECTIVENESS === "off" : !PRESET?.hints;
+// Coordinate lists for seen points under the map (and the x header again under tall maps): on in
+// the hints group, which helps the model read its maps (the owner, 2026-11-19); off elsewhere.
+// NUZLOCKE_MAP_POINTS=on|off overrides.
+const MAP_POINTS = process.env.NUZLOCKE_MAP_POINTS ? /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS) : !!PRESET?.hints;
 /** The app's rulesets (RULESETS in src/rulesets.ts); the first is the default. */
 const RULESET_IDS = ["nuzlocke"];
 // Also append to a log file: MCP clients usually hide stderr, which makes launch problems invisible.
@@ -235,7 +237,8 @@ const wrapLog = createToolLogger({
     grid: GRID_MODE,
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
-    ...(MAP_POINTS ? { mapPoints: true } : {}),
+    // Recorded when shown outside the hints group, where it's the default: reports label those runs.
+    ...(MAP_POINTS && !PRESET?.hints ? { mapPoints: true } : {}),
     ...optionsConfirmed,
     ...(optionsError ? { optionsError } : {}),
   }),

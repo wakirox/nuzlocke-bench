@@ -113,7 +113,9 @@ and scoring aren't settled yet.
 - **`-o hints`** (a separate group, not a clean result): a `hint` tool says the next story step (where to go and what
   starts it, never how to play it), and the first turn mentions it. The one exception is the last step before the
   elite rooms: stock up on healing items at the league's shop, since the elite battles come back to back. Each hint
-  uses a tool call. Hint runs also see how effective each move is against the foe.
+  uses a tool call. Hint runs also see how effective each move is against the foe, and the coordinates of what's
+  on their maps (items, signs, PCs…) listed under them, with the x header repeated under tall maps (`--map-points`
+  overrides).
 - **Move effectiveness** (since 2026-11-07) is shown only in the hints group: it's the answer to a battle's main
   choice, which the game itself only shows after the hit ("super effective", which every run still sees). An A/B
   (Haiku and Sonnet, 2026-11-07) found no harm in hiding it. `--effectiveness on|off` overrides; every run records
