@@ -65,6 +65,7 @@ Then give the server `NUZLOCKE_HEADLESS=1`, e.g. in `.mcp.json`:
 | `NUZLOCKE_HEADED=1` | Show the browser window, paced to watch the run |
 | `NUZLOCKE_HEADED=fast` | Show the window at full speed (an app window that fits the page to its size; `bench --watch`) |
 | `NUZLOCKE_GRID=compact\|wide` | Map grid format: `compact` (5-square blocks, trimmed rock margins, collapsed plain rows, `Points`/`Cliffs`), `wide` (two spaces), or `narrow` (default, one space) |
+| `NUZLOCKE_BOULDER_SWITCH=1` | Show a boulder sitting on a previously seen uncovered floor switch with its own map symbol (`b`; Gen 1 cave switches only — Gen 2 only emits `B`, though the legend still lists `b`; accepts `1`, `true`, `yes`, `on`; default: off) |
 | `NUZLOCKE_EFFECTIVENESS=on\|off` | Whether results say how effective each move is (default: only under a preset with `hints`) |
 | `NUZLOCKE_ROMS_DIR` | More ROM files for saves that keep the ROM by reference (default: `NUZLOCKE_ROM`'s folder) |
 | `NUZLOCKE_REPORT_ISSUE=0` | Leave out `report_issue` (on by default) |

@@ -30,6 +30,7 @@ const SYMBOLS: Record<string, [string, string]> = {
   P: ["#5ac8fa", "PC"],
   C: ["#1e6b2f", "tree to Cut"],
   B: ["#8d6e63", "boulder"],
+  b: ["#c0ca33", "boulder on a floor switch"],
   o: ["#f5f5f5", "floor switch"],
   O: ["#000000", "hole"],
   "=": ["#795548", "counter"],

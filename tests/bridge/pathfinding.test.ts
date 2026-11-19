@@ -574,6 +574,37 @@ describe("boulders and floor switches", () => {
     expect(v.watched!.has(1 * W + 2)).toBe(true);
     expect(v.watched!.has(1 * W + 4)).toBe(false);
   });
+
+  it("treats a boulder on a floor switch (b) like any boulder for walking, sight, cliffs and blockers", async () => {
+    const { renderView, wayBlockedBy } = await import("../../src/bridge/overworld");
+    const v = view([
+      "#######",
+      "#T.b..#",
+      "#@....#",
+      "#######",
+    ]);
+    const W = v.grid[0].length;
+    markWatched(v, [{ index: 1, x: OX + 1, y: OY + 1, dx: 1, dy: 0, onScreen: true, sight: true }], [], 5);
+    expect(v.watched!.has(1 * W + 2)).toBe(true);
+    expect(v.watched!.has(1 * W + 4)).toBe(false);
+    // Walking to b stops next to it facing it; walking past it goes round, never over it.
+    expect(findPath(v, OX + 3, OY + 1)).toEqual({ dirs: ["right", "up"], face: "right" });
+    const past = findPath(v, OX + 5, OY + 1, { avoidSight: false })!;
+    for (const [c, r] of follow(v, past.dirs)) expect(v.grid[r][c]).not.toBe("b");
+
+    // In a closed corridor, wayBlockedBy still names it as the boulder at (x,y).
+    const corridor = view(["#####", "#@b.#", "#####"]);
+    expect(wayBlockedBy(corridor, OX + 3, OY + 1)).toBe(`the boulder at (${OX + 2},${OY + 1})`);
+
+    // Cliff edges beside b still show (pushing it further would hit the cliff).
+    const cliff: OverworldView = {
+      grid: [["@", "b"], [".", "."]],
+      originX: 0, originY: 0, pc: 0, pr: 0,
+      tiles: [[1, 1], [1, 2]],
+      stepBlocked: (a, b) => a !== b,
+    };
+    expect(renderView(cliff)).toContain("y0|y1 at x1");
+  });
 });
 
 describe("holes in the floor", () => {

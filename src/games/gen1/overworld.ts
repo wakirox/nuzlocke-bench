@@ -350,6 +350,7 @@ function decorate(
   playerX: number,
   playerY: number,
   rom: Uint8Array | null = null,
+  boulderSwitch = false,
 ) {
   const A = addressesFor(version);
   const put = (x: number, y: number, ch: string) => {
@@ -393,7 +394,8 @@ function decorate(
   }
   // People/objects (slot 0 is the player). Map position from wSpriteStateData2
   // (+4/+5 = map y/x + 4); wMapSpriteExtraData says trainer class (≥200) or item. Boulders move
-  // when pushed, and this is where they are now (a boulder on a switch hides it).
+  // when pushed, and this is where they are now (a boulder on a switch hides it; with boulderSwitch
+  // on, decorate marks it `b` so SeenMaps.fog can show `b` when the switch was seen uncovered).
   for (let i = 1; i < 16; i++) {
     if (isFollower(version, i)) {
       const fy = mem.read8(A.spriteData2 + i * 16 + 4) - 4;
@@ -412,7 +414,7 @@ function decorate(
     const extra = mem.read8(A.mapSpriteExtra + (i - 1) * 2);
     const ch = spriteSymbol(version, pic, extra);
     const role = ch === "N" && rom ? spriteRole(mem, rom, version, i) : null;
-    put(x, y, role === "shop" ? "$" : role === "nurse" ? "H" : ch);
+    put(x, y, boulderSwitch && ch === "B" && grid[y - oy]?.[x - ox] === "o" ? "b" : role === "shop" ? "$" : role === "nurse" ? "H" : ch);
   }
   put(playerX, playerY, "@");
 }
@@ -428,8 +430,9 @@ export function readView(
   playerY: number,
   beaten: number[] = [],
   rom: Uint8Array | null = null,
+  boulderSwitch = false,
 ): OverworldView {
-  if (rom) return readArea(mem, rom, version, playerX, playerY, beaten, playerX - PLAYER_COL, playerY - PLAYER_ROW, VIEW_W, VIEW_H);
+  if (rom) return readArea(mem, rom, version, playerX, playerY, beaten, playerX - PLAYER_COL, playerY - PLAYER_ROW, VIEW_W, VIEW_H, boulderSwitch);
   const A = addressesFor(version);
   const rules = tileRules(mem, version);
   // Each 16×16 square is 2×2 tiles; the game checks its bottom-left tile for collision.
@@ -452,7 +455,7 @@ export function readView(
   }
   const originX = playerX - PLAYER_COL;
   const originY = playerY - PLAYER_ROW;
-  decorate(mem, version, grid, originX, originY, playerX, playerY, rom);
+  decorate(mem, version, grid, originX, originY, playerX, playerY, rom, boulderSwitch);
   const view: OverworldView = { grid, originX, originY, pc: PLAYER_COL, pr: PLAYER_ROW, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), surfing: rules.surfing };
   markWatched(view, trainerSprites(mem, version, playerX, playerY), beaten, SIGHT);
   return view;
@@ -469,11 +472,12 @@ export function readFullMap(
   playerX: number,
   playerY: number,
   beaten: number[] = [],
+  boulderSwitch = false,
 ): OverworldView {
   const A = addressesFor(version);
   const h = mem.read8(A.curMapHeight);
   const w = mem.read8(A.curMapWidth);
-  const view = readArea(mem, rom, version, playerX, playerY, beaten, 0, 0, w * 2, h * 2);
+  const view = readArea(mem, rom, version, playerX, playerY, beaten, 0, 0, w * 2, h * 2, boulderSwitch);
   // wCurMapConnections: bit 3 north, 2 south, 1 west, 0 east.
   const conn = mem.read8(A.mapConnections);
   const exits: Dir[] = [];
@@ -528,6 +532,7 @@ function readArea(
   y0: number,
   W: number,
   H: number,
+  boulderSwitch = false,
 ): OverworldView {
   const A = addressesFor(version);
   const rules = tileRules(mem, version, rom);
@@ -549,7 +554,7 @@ function readArea(
     grid.push(line);
     tiles.push(ids);
   }
-  decorate(mem, version, grid, x0, y0, playerX, playerY, rom);
+  decorate(mem, version, grid, x0, y0, playerX, playerY, rom, boulderSwitch);
   const beyond = (x: number, y: number) => {
     const t = tileAt(x, y);
     return t == null ? "#" : classify(t, rules);

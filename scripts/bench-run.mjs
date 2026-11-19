@@ -10,6 +10,7 @@
 //        [--playtest]           test the tools: the model is asked to look for what lets it down (not a benchmark result)
 //        [--no-report]          without report_issue (on by default: the model reports tools that let it down)
 //        [--grid compact|wide]  map grid format: compact 5-square blocks, wide, or narrow (default)
+//        [--boulder-switch [on|off]]  show a boulder on a previously seen uncovered floor switch as b (Gen 1; carried on --resume)
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
 // Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
 // choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
@@ -86,6 +87,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --observer <module>  a watch-only observer: an outside module that may look at the run, never play it
                        (mcp-server/observers.mjs); recorded with the run, which stays official
   --grid <compact|wide>  map grid format: compact (5-square blocks), wide (two spaces), or narrow (default)
+  --boulder-switch [on|off]  show a boulder on a previously seen uncovered floor switch as b (Gen 1 only; default: off; carried on --resume)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
   --no-report          leave out report_issue (by default every run has it and is asked to report tools that let it down)
@@ -196,6 +198,15 @@ if (grid !== undefined && grid !== "narrow" && grid !== "wide" && grid !== "comp
   console.error("--grid takes compact, wide or narrow (the default).");
   process.exit(1);
 }
+const boulderSwitchAt = argv.indexOf("--boulder-switch");
+const boulderSwitchVal = boulderSwitchAt < 0
+  ? (resumedAgent.boulderSwitch ? "on" : "off")
+  : argv[boulderSwitchAt + 1] && !argv[boulderSwitchAt + 1].startsWith("-") ? argv[boulderSwitchAt + 1] : "on";
+if (boulderSwitchVal !== "on" && boulderSwitchVal !== "off") {
+  console.error("--boulder-switch takes on or off.");
+  process.exit(1);
+}
+const boulderSwitch = boulderSwitchVal === "on";
 
 // Driver workspace & CLI checks run before creating the run folder so refused setups leave runs/ clean.
 try {
@@ -227,6 +238,7 @@ writeFileSync(run.player, JSON.stringify({
   preset,
   resumedFrom: resumed?.name ?? null,
   playtest,
+  ...(boulderSwitch ? { boulderSwitch: true } : {}),
   ...(experimental ? { experimental } : {}),
   ...(observers ? { observers } : {}),
 }));
@@ -245,6 +257,7 @@ const config = mcpConfig({
   playtest,
   grid,
   effectiveness,
+  boulderSwitch,
   report,
   observer,
 });
@@ -351,6 +364,7 @@ player.onExit((code) => {
     maxNudges,
     maxTokens,
     ...(grid ? { grid } : {}),
+    ...(boulderSwitch ? { boulderSwitch: true } : {}),
     ...(observers ? { observers } : {}),
     // Maps on request (get_map, or show_map on a move): recorded so reports can tell runs from before apart.
     maps: "ask",

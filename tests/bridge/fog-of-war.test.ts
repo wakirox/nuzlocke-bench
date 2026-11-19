@@ -313,6 +313,119 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
     // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
     expect(compact).toContain("y 15   ?????");
+  it("shows b through decorate and SeenMaps fog only when boulderSwitch is on and the switch was seen uncovered", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { legendFor } = await import("../../mcp-server/format.mjs");
+    const { addressesFor } = await import("../../src/games/gen1/ram");
+    const { readFullMap } = await import("../../src/games/gen1/overworld");
+    const A = addressesFor("red");
+
+    // Real Gen 1 cave map (4×2 squares: x 0..3, y 0..1) with floor switches at (1,0) and (3,0),
+    // read through real decorate (readFullMap) and masked through BridgeCore + SeenMaps.
+    const makeCave = () => {
+      const m = new Uint8Array(0x10000);
+      m[A.curMapTileset] = 0x11;
+      m[A.curMapWidth] = 2; m[A.curMapHeight] = 1;
+      m[A.collisionPtr] = 0x00; m[A.collisionPtr + 1] = 0x01;
+      m[A.grassTile] = 0x7f;
+      m[A.tilesetBank] = 2; m[A.tilesetBlocksPtr] = 0x00; m[A.tilesetBlocksPtr + 1] = 0x40;
+      const stride = 2 + 6;
+      m[0xc6e8 + 3 * stride + 3] = 1;
+      m[0xc6e8 + 3 * stride + 4] = 1;
+      const rom = new Uint8Array(0x100000);
+      rom.set([0x20, 0x2d, 0xff], 0x100);
+      m.set([0x20, 0x2d, 0xff], 0x100);
+      const block1 = 0x8010;
+      rom.fill(0x20, block1, block1 + 16);
+      rom[block1 + 2] = 0x2b; rom[block1 + 3] = 0x2c; rom[block1 + 6] = 0x2d; // switch at (1,0) and (3,0)
+      const mem = {
+        read8: (a: number) => m[a],
+        read16be: (a: number) => (m[a] << 8) | m[a + 1],
+        readBytes: (a: number, n: number) => m.slice(a, a + n),
+      };
+      const putBoulder = (slot: number, x: number, y: number) => {
+        m[A.spriteData1 + slot * 16] = A.boulderSprite;
+        m[A.spriteData2 + slot * 16 + 4] = y + 4;
+        m[A.spriteData2 + slot * 16 + 5] = x + 4;
+      };
+      return { m, mem, rom, putBoulder };
+    };
+
+    const bridgeForCave = (cave: ReturnType<typeof makeCave>, mapId: number, seen: SeenMaps, boulderSwitch: boolean) => {
+      const host = new FakeHost(layout, [{ rows: screenRows() }], {
+        position: { inWorld: true, map: mapId, x: 0, y: 1 },
+        seen,
+      });
+      const rawHost = host.asHost();
+      const adapter = {
+        ...host.adapter,
+        mapSize: () => ({ w: 4, h: 2 }),
+        readFullMap: (_gb: unknown, _rom: Uint8Array, px: number, py: number, beaten: number[], bs?: boolean) =>
+          readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs),
+        readView: (_gb: unknown, px: number, py: number, beaten: number[], _rom: Uint8Array | null, bs?: boolean) =>
+          readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs),
+      };
+      const core = new BridgeCore({ ...rawHost, game: () => adapter, rom: () => cave.rom });
+      core.boulderSwitch = boulderSwitch;
+      return core;
+    };
+
+    // 1. Switch at (1,0) seen uncovered, then boulder pushed onto it -> b (and survives SeenMaps save/load).
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 0, 0); // boulder starts off the switch
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, true);
+      expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(true);
+      // Push boulder onto (1,0), then restore SeenMaps from a cloned save (as run saves & milestones do).
+      cave.putBoulder(1, 1, 0);
+      const restored = new SeenMaps(structuredClone(seen.data));
+      const coreAfter = bridgeForCave(cave, MAP, restored, true);
+      expect(coreAfter.view(true).grid[0]).toEqual([".", "b", ".", "o"]);
+      expect(legendFor(coreAfter.mapText(true), { boulderSwitch: true })).toContain("b boulder on a floor switch");
+    }
+
+    // 2. Boulder already sitting on a switch the run never saw uncovered -> stays B.
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 1, 0); // already covering (1,0) before the player ever sees the room
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, true);
+      expect(core.rawView(true).grid[0][1]).toBe("b"); // decorate saw boulder on switch...
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(false); // ...but (1,0) was never seen uncovered
+      expect(core.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+      expect(legendFor(core.mapText(true), { boulderSwitch: true })).not.toContain("b boulder on a floor switch");
+    }
+
+    // 3. Boulder drops onto a switch from the floor above (map 2 -> map 1); switch on map 1 never seen -> stays B.
+    {
+      const upperMap = MAP + 1;
+      const seen = new SeenMaps();
+      // Even if the run saw a switch at (1,0) on the floor above, switches are tracked per map.
+      const upperCave = makeCave();
+      bridgeForCave(upperCave, upperMap, seen, true).view(true);
+      expect(seen.hasSwitch(upperMap, 1, 0)).toBe(true);
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(false);
+      // Drop down to lower floor where the boulder already rests on (1,0): stays B.
+      const lowerCave = makeCave();
+      lowerCave.putBoulder(1, 1, 0);
+      const lowerCore = bridgeForCave(lowerCave, MAP, seen, true);
+      expect(lowerCore.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+    }
+
+    // 4. Option off -> always B (even after seeing the switch uncovered), and no switches stored in SeenData.
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 0, 0);
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, false);
+      expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
+      expect(seen.data.switches).toBeUndefined();
+      cave.putBoulder(1, 1, 0);
+      expect(core.rawView(true).grid[0][1]).toBe("B");
+      expect(core.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+    }
   });
 });
 

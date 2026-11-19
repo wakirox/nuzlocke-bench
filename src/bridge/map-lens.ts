@@ -30,6 +30,8 @@ export function asRawView(v: AnyOverworldView): RawOverworldView {
 export interface MaskLensOptions {
   /** Whether map coordinate `(x, y)` is visible in the masked view (`false` becomes `"?"`). */
   isVisible: (x: number, y: number) => boolean;
+  /** Optional per-cell projection applied to visible squares (e.g. hiding unconfirmed boulder-on-switch `b` as `B`). */
+  mapCell?: (ch: string, x: number, y: number) => string;
   /** Optional batch projection applied to visible doors (e.g. hiding unknown destinations as `"?"`). */
   mapDoors?: (visibleDoors: Door[]) => Door[];
 }
@@ -38,9 +40,12 @@ export interface MaskLensOptions {
  * Atomically masks `grid`, `doors`, `watchers`, and `watched` to `isVisible` squares, returning a
  * `"known"` view where unseen trainers and unseen watched squares are both stripped.
  */
-export function maskView(view: AnyOverworldView, { isVisible, mapDoors }: MaskLensOptions): KnownOverworldView {
+export function maskView(view: AnyOverworldView, { isVisible, mapCell, mapDoors }: MaskLensOptions): KnownOverworldView {
   const grid = view.grid.map((row, r) =>
-    row.map((ch, c) => (isVisible(view.originX + c, view.originY + r) ? ch : "?")),
+    row.map((ch, c) => {
+      const x = view.originX + c, y = view.originY + r;
+      return isVisible(x, y) ? (mapCell ? mapCell(ch, x, y) : ch) : "?";
+    }),
   );
   const visibleDoors = view.doors?.filter((d) => isVisible(d.x, d.y));
   const doors = visibleDoors && mapDoors ? mapDoors(visibleDoors) : visibleDoors;

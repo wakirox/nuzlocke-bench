@@ -32,13 +32,24 @@ const LEGEND = [
   ["↑↓←→+", "↑ ↓ ← → spinner arrow (stepping on it slides you that way, along a fixed path; paths avoid them; + if its direction isn't known)"],
 ];
 
+const BOULDER_SWITCH_ENTRY = ["b", "b boulder on a floor switch"];
+
+function legendEntries({ boulderSwitch = false } = {}) {
+  if (!boulderSwitch) return LEGEND;
+  const at = LEGEND.findIndex(([chars]) => chars === "o");
+  return [...LEGEND.slice(0, at), BOULDER_SWITCH_ENTRY, ...LEGEND.slice(at)];
+}
+
 /** Map symbols, given once in get_map's description instead of under every map. */
-export const MAP_LEGEND = `Map legend: ${LEGEND.map(([, text]) => text).join(", ")}. Columns are x, rows are y.`;
+export function mapLegend(opts = {}) {
+  return `Map legend: ${legendEntries(opts).map(([, text]) => text).join(", ")}. Columns are x, rows are y.`;
+}
+export const MAP_LEGEND = mapLegend();
 
 /** The legend for just the symbols on the map(s) in `text` (get_map legend=true), or null. */
-export function legendFor(text) {
+export function legendFor(text, opts = {}) {
   const squares = new Set(text.split("\n").filter((l) => /^y\s*-?\d+(?:--?\d+)? /.test(l)).flatMap((l) => [...l.replace(/^y\s*-?\d+(?:--?\d+)? +/, "")]));
-  const entries = LEGEND.filter(([chars]) => [...chars].some((ch) => squares.has(ch)));
+  const entries = legendEntries(opts).filter(([chars]) => [...chars].some((ch) => squares.has(ch)));
   return entries.length ? `Legend: ${entries.map(([, t]) => t).join(", ")}.` : null;
 }
 

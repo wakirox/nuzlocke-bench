@@ -7,7 +7,7 @@
 
 import type { Button } from "../emulator/gameboy";
 import type { ChallengeMode } from "../rulesets";
-import type { Dir } from "./overworld";
+import { isBoulder, type Dir } from "./overworld";
 import { RouteBook, describeLink, type Routes } from "./routes";
 import { KEYS, kv } from "../storage";
 import { BRIDGE_WS } from "./endpoint";
@@ -202,6 +202,9 @@ export class AiBridge {
         return this.travel.hunt(clamp(Number(p.max_steps) || 300, 10, 2000));
       case "policies":
         return { policies: this.setPolicies(p) };
+      case "set_options":
+        if (typeof p.boulderSwitch === "boolean") this.core.boulderSwitch = p.boulderSwitch;
+        return { ok: true };
       case "field_move":
         return this.travel.fieldMove(String(p.move ?? "CUT").toUpperCase());
       case "go_to":
@@ -349,7 +352,7 @@ export class AiBridge {
     const at = this.core.host.position();
     if (!step || at.battle || at.inWorld === false || this.core.textBox(this.core.screenText()).open) return false;
     const v = this.core.view(false);
-    return v.grid[v.pr + step[1]]?.[v.pc + step[0]] === "B";
+    return isBoulder(v.grid[v.pr + step[1]]?.[v.pc + step[0]] ?? "");
   }
 
   /**

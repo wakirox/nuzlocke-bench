@@ -14,7 +14,7 @@ const run = (...args: string[]) => spawnSync(process.execPath, ["scripts/bench-r
 
 describe("bench-run's options", () => {
   it("get through every option check to the last one, with and without hints and --effectiveness", () => {
-    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"]]) {
+    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"], ["--boulder-switch", "-o", "hardcap"], ["--boulder-switch", "off"]]) {
       const r = run(...extra, "--port", "1");
       expect(r.stderr).not.toMatch(/ReferenceError|TypeError|SyntaxError/);
       expect(r.stderr).toMatch(/--port takes a whole number/);
@@ -24,6 +24,10 @@ describe("bench-run's options", () => {
 
   it("refuses a bad --grid", () => {
     expect(run("--grid", "nope").stderr).toMatch(/--grid takes compact, wide or narrow/);
+  });
+
+  it("refuses a bad --boulder-switch", () => {
+    expect(run("--boulder-switch", "maybe").stderr).toMatch(/--boulder-switch takes on or off/);
   });
 
   it("refuses an --observer that isn't a file", () => {
