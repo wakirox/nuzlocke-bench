@@ -118,6 +118,7 @@ describe("dashboardRuns", () => {
     expect(off({}, { effectiveness: "on" }).notOfficial).toBe("effectiveness shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
+    expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");
     expect(off({}, { compactWindow: null }).notOfficial).toBe("other context window");
     expect(off({}, { maxNudges: 10 }).notOfficial).toBe("other nudges");
     expect(off({}, { maxTokens: 50e6 }).notOfficial).toBe("other token limit");

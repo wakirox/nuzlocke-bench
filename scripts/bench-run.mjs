@@ -9,7 +9,7 @@
 //                               are on unless turned off with nohardcap / nofirstrival
 //        [--playtest]           test the tools: the model is asked to look for what lets it down (not a benchmark result)
 //        [--no-report]          without report_issue (on by default: the model reports tools that let it down)
-//        [--grid wide]          map grids with two spaces between squares (the default, narrow, has one)
+//        [--grid compact|wide]  map grid format: compact 5-square blocks, wide, or narrow (default)
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
 // Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
 // choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
@@ -85,7 +85,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --watch              show the game window at full speed (the run isn't slowed down)
   --observer <module>  a watch-only observer: an outside module that may look at the run, never play it
                        (mcp-server/observers.mjs); recorded with the run, which stays official
-  --grid wide          map grids with two spaces between squares (the default has one: ~40% fewer map tokens)
+  --grid <compact|wide>  map grid format: compact (5-square blocks), wide (two spaces), or narrow (default)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
   --no-report          leave out report_issue (by default every run has it and is asked to report tools that let it down)
@@ -192,8 +192,8 @@ if (observerOpt !== undefined && (typeof observerOpt !== "string" || !existsSync
 const observer = observerOpt ? resolve(observerOpt) : null;
 const observers = observer ? [basename(observer)] : null;
 const grid = opt("grid", undefined);
-if (grid !== undefined && grid !== "narrow" && grid !== "wide") {
-  console.error("--grid takes wide or narrow (the default).");
+if (grid !== undefined && grid !== "narrow" && grid !== "wide" && grid !== "compact") {
+  console.error("--grid takes compact, wide or narrow (the default).");
   process.exit(1);
 }
 

@@ -38,8 +38,9 @@ const PLAYTEST = /^(1|true|yes)$/i.test(process.env.NUZLOCKE_PLAYTEST ?? "");
 // report_issue is on by default (NUZLOCKE_REPORT_ISSUE=0 turns it off; a playtest always has it).
 const REPORT_ISSUE = PLAYTEST || !/^(0|false|no)$/i.test(process.env.NUZLOCKE_REPORT_ISSUE ?? "");
 // Map grids have one space between squares (narrow, the default since an A/B on 2026-10-15 found
-// no difference in navigation at ~40% fewer map tokens); NUZLOCKE_GRID=wide gives two.
-const NARROW_GRID = process.env.NUZLOCKE_GRID !== "wide";
+// no difference in navigation at ~40% fewer map tokens); NUZLOCKE_GRID=wide gives two, and
+// NUZLOCKE_GRID=compact groups squares into 5-column blocks.
+const GRID_MODE = process.env.NUZLOCKE_GRID === "wide" ? "wide" : process.env.NUZLOCKE_GRID === "compact" ? "compact" : "narrow";
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
 // (an A/B on 2026-11-07 found no difference in play at ~10% fewer tokens; the model asks when it needs one).
 // Results say how effective each move is against the foe only in the hints group: it's the answer to
@@ -195,7 +196,7 @@ const wrapLog = createToolLogger({
     ...(PLAYTEST ? { playtest: true } : {}),
     ...(SERVER_TRANSCRIPT ? { serverTranscript: true } : {}),
     ...(REPORT_ISSUE ? { reportIssue: true } : {}),
-    grid: NARROW_GRID ? "narrow" : "wide",
+    grid: GRID_MODE,
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
   },
@@ -214,7 +215,7 @@ registerTools(server, {
   runLogFile: RUN_LOG_FILE,
   preset: PRESET,
   reportIssue: REPORT_ISSUE,
-  narrowGrid: NARROW_GRID,
+  grid: GRID_MODE,
   hideEffectiveness: HIDE_EFFECTIVENESS,
   rulesetIds: RULESET_IDS,
 });

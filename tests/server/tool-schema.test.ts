@@ -7,10 +7,11 @@ import { describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-async function toolsUnder(preset: string) {
+async function toolsUnder(preset: string, extraEnv: Record<string, string> = {}) {
   const client = new Client({ name: "tool-schema-test", version: "1.0.0" });
-  const env: Record<string, string> = { ...(process.env as Record<string, string>), NUZLOCKE_BENCHMARK: preset, NUZLOCKE_RUN_LOG: "off", NUZLOCKE_BRIDGE_PORT: "0" };
+  const env: Record<string, string> = { ...(process.env as Record<string, string>), NUZLOCKE_BENCHMARK: preset, NUZLOCKE_RUN_LOG: "off", NUZLOCKE_BRIDGE_PORT: "0", ...extraEnv };
   delete env.NUZLOCKE_HEADLESS;
+  if (!("NUZLOCKE_GRID" in extraEnv)) delete env.NUZLOCKE_GRID;
   await client.connect(new StdioClientTransport({ command: process.execPath, args: ["mcp-server/server.mjs"], env, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
@@ -45,5 +46,20 @@ describe("the tools the model is offered", () => {
     // The server's instructions go into the model's system prompt.
     expect(hints.instructions).toBe(plain.instructions);
     await expect(plain.instructions + "\n").toMatchFileSnapshot("./server-instructions.snap.txt");
+  }, 30_000);
+
+  it("swaps only get_map's grid note under NUZLOCKE_GRID=compact, leaving everything else unchanged", async () => {
+    const plain = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap");
+    const compact = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_GRID: "compact" });
+    expect(plain.find((t) => t.name === "get_map")?.description).toContain("tens above ones");
+    const compactDesc = compact.find((t) => t.name === "get_map")?.description ?? "";
+    expect(compactDesc).toContain("5-column blocks");
+    expect(compactDesc).toContain("floor switches");
+    expect(compactDesc).toContain("Cliffs");
+    expect(compactDesc).not.toContain("tens above ones");
+    expect(compact.order).toEqual(plain.order);
+    expect(compact.instructions).toBe(plain.instructions);
+    const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);
+    expect(compact.map(same)).toEqual(plain.map(same));
   }, 30_000);
 });

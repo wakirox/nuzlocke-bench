@@ -48,7 +48,8 @@ const DARK_SYMBOLS: Record<string, [string, string]> = {
 const DARK_HEAD = /^It.s dark[.:]/;
 const DARK_ROW = /^[#.,?D@]( [#.,?D@])*$/;
 
-const ROW = /^y\s*-?\d+ /;
+const ROW = /^y\s*-?\d+(?:--?\d+)? /;
+const ROW_TAG = /^y\s*(-?\d+)(?:-(-?\d+))? +/;
 const HEADER = /^ {5}[ \d-]+$/;
 
 interface Grid { cells: string[][]; ys: number[]; x0: number; start: number; end: number; dark?: boolean; cliffs?: Cliff[] }
@@ -56,11 +57,11 @@ interface Grid { cells: string[][]; ys: number[]; x0: number; start: number; end
 /** A ledge between two squares: horizontal between rows `at` and `at + 1`, or vertical between columns, over from..to. */
 export interface Cliff { axis: "x" | "y"; at: number; from: number; to: number }
 
-/** The result's "Cliff edges" line: "y8|y9 at x5–7; x27|x28 at y22". */
+/** The result's "Cliff edges" (or compact "Cliffs:") line: "y8|y9 at x5–7; x27|x28 at y22" / "y8|9 x5–7; x27|28 y22". */
 export function cliffsOf(lines: string[]): Cliff[] {
-  const line = lines.find((l) => l.startsWith("Cliff edges"));
+  const line = lines.find((l) => /^Cliff(?: edges\b|s:)/.test(l));
   if (!line) return [];
-  return [...line.matchAll(/([xy])(-?\d+)\|[xy]-?\d+ at [xy](-?\d+)(?:–(-?\d+))?/g)].map((m) => ({
+  return [...line.matchAll(/([xy])(-?\d+)\|[xy]?-?\d+ (?:at )?[xy](-?\d+)(?:–(-?\d+))?/g)].map((m) => ({
     axis: m[1] as "x" | "y", at: Number(m[2]), from: Number(m[3]), to: Number(m[4] ?? m[3]),
   }));
 }
@@ -81,15 +82,39 @@ export function findGrid(lines: string[]): Grid | null {
   }
   const first = lines.findIndex((l) => ROW.test(l));
   if (first < 0) return null;
-  let end = first;
-  while (end < lines.length && ROW.test(lines[end])) end++;
+  let rowsEnd = first;
+  while (rowsEnd < lines.length && ROW.test(lines[rowsEnd])) rowsEnd++;
+  let end = rowsEnd;
+  while (end < lines.length && HEADER.test(lines[end]) && lines[end].trim() !== "") end++;
   let start = first;
   while (start > 0 && HEADER.test(lines[start - 1])) start--;
-  const rows = lines.slice(first, end);
+  const rows = lines.slice(first, rowsEnd);
+  const head = lines.slice(start, first);
+  const rowBody = (l: string) => l.replace(ROW_TAG, "");
+  const isCompact = rows.some((l) => /^y\s*-?\d+--?\d+ /.test(l) || /\S{2}/.test(rowBody(l)))
+    || (rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
+  if (isCompact) {
+    const cells: string[][] = [];
+    const ys: number[] = [];
+    for (const l of rows) {
+      const m = ROW_TAG.exec(l);
+      const y0 = Number(m?.[1] ?? 0);
+      const y1 = m?.[2] != null ? Number(m[2]) : y0;
+      const rowCells = l.slice(m?.[0].length ?? 7).trim().split(/\s+/).flatMap((b) => [...b]);
+      for (let y = y0; y <= y1; y++) {
+        cells.push(rowCells);
+        ys.push(y);
+      }
+    }
+    let x0 = 0;
+    const gridCol = ROW_TAG.exec(rows[0])?.[0].length ?? 7;
+    const tick = head.length ? /-?\d+/.exec(head[0]) : null;
+    if (tick) x0 = Number(tick[0]) - rows[0].slice(gridCol, tick.index).replace(/ /g, "").length;
+    return { cells, ys, x0, start, end, cliffs: cliffsOf(lines) };
+  }
   const cells = rows.map((l) => l.slice(5).trim().split(/\s+/));
   const ys = rows.map((l) => Number(l.slice(1, 5)));
   // x of the first column: the wide header is numbers; the narrow one is tens over ones.
-  const head = lines.slice(start, first);
   let x0 = 0;
   if (head.length === 1 && /\d\s{1,2}\d/.test(head[0]) && head[0].trim().split(/\s+/).length === cells[0].length) x0 = Number(head[0].trim().split(/\s+/)[0]);
   else if (head.length) {

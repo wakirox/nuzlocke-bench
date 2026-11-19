@@ -64,7 +64,7 @@ Then give the server `NUZLOCKE_HEADLESS=1`, e.g. in `.mcp.json`:
 | `NUZLOCKE_BROWSER_PATH` | Use an installed Chrome/Chromium instead of Playwright's |
 | `NUZLOCKE_HEADED=1` | Show the browser window, paced to watch the run |
 | `NUZLOCKE_HEADED=fast` | Show the window at full speed (an app window that fits the page to its size; `bench --watch`) |
-| `NUZLOCKE_GRID=wide` | Map grids with two spaces between squares (the default, narrow, has one) |
+| `NUZLOCKE_GRID=compact\|wide` | Map grid format: `compact` (5-square blocks, trimmed rock margins, collapsed plain rows, `Points`/`Cliffs`), `wide` (two spaces), or `narrow` (default, one space) |
 | `NUZLOCKE_EFFECTIVENESS=on\|off` | Whether results say how effective each move is (default: only under a preset with `hints`) |
 | `NUZLOCKE_ROMS_DIR` | More ROM files for saves that keep the ROM by reference (default: `NUZLOCKE_ROM`'s folder) |
 | `NUZLOCKE_REPORT_ISSUE=0` | Leave out `report_issue` (on by default) |

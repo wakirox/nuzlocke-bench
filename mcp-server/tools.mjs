@@ -6,7 +6,7 @@ import { z } from "zod";
 import { BATCH_TOOLS, FINAL_READ_TOOLS, TOOL_CATALOG, stepToolError } from "./tool-catalog.mjs";
 import { normalizeStep, runBatch, stepSummary } from "./batch.mjs";
 import { UNCOUNTED_RESULT, withCallBudget } from "./call-budget.mjs";
-import { MAP_LEGEND, NARROW_GRID_NOTE, hideEffectiveness as stripEffectiveness, json, legendFor, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NARROW_GRID_NOTE, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
 import { applyPreset } from "./benchmark.mjs";
 import { entriesOf, NOTES_MAX, numbered, updateNotes } from "./notes.mjs";
 import { hintState, nextHint } from "./hints.mjs";
@@ -50,11 +50,12 @@ async function stateResult({ only } = {}, { call, budget }) {
 }
 
 /** @param {{ legend?: any, [key: string]: any }} args @param {any} ctx */
-async function mapResult({ legend, ...a } = {}, { call, afterAction }) {
+async function mapResult({ legend, ...a } = {}, { call, afterAction, grid }) {
   const r = await afterAction(await call("get_map", a), { keepMap: true });
   // The legend on request only (in every map it would cost tokens on each call), and only for
   // the symbols this map has.
-  const key = legend && !r.isError ? legendFor((r.content ?? []).map((c) => c.text ?? "").join("\n")) : null;
+  const text = (r.content ?? []).map((c) => c.text ?? "").join("\n");
+  const key = legend && !r.isError ? legendFor(grid === "compact" ? compactGrids(text) : text) : null;
   if (key) r.content = [...r.content, { type: "text", text: key }];
   return r;
 }
@@ -70,7 +71,7 @@ const FINAL_READS = { get_map: mapResult, get_state: stateResult };
 
 /**
  * Tool definitions keyed by tool name; merged with TOOL_CATALOG below so metadata and handlers stay
- * in lockstep. `description` and `schema` may be functions of `{ preset, narrowGrid, hideEffectiveness, rulesetIds }`.
+ * in lockstep. `description` and `schema` may be functions of `{ preset, grid, hideEffectiveness, rulesetIds }`.
  * @type {Record<string, { title: string, description: string | ((env: any) => string), schema: Record<string, any> | ((env: any) => Record<string, any>), run: (args: any, ctx: any) => Promise<any> }>}
  */
 const DEFINITIONS = {
@@ -289,10 +290,10 @@ const DEFINITIONS = {
 
   get_map: {
     title: "Map around you",
-    description: ({ narrowGrid }) =>
+    description: ({ grid }) =>
       "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
       "Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
-      MAP_LEGEND + (narrowGrid ? NARROW_GRID_NOTE : ""),
+      MAP_LEGEND + (grid === "compact" ? COMPACT_GRID_NOTE : grid === "narrow" ? NARROW_GRID_NOTE : ""),
     schema: {
       full: z.boolean().optional().describe("Whole current map instead of the screen"),
       legend: z.boolean().optional().describe("Add what each symbol on this map means to the result"),
@@ -561,10 +562,10 @@ const DEFINITIONS = {
 
 /**
  * Resolves the enabled tool specs for `env`, with concrete descriptions and Zod input schemas.
- * @param {{ preset?: any, reportIssue?: boolean, narrowGrid?: boolean, hideEffectiveness?: boolean, rulesetIds?: string[] }} [env]
+ * @param {{ preset?: any, reportIssue?: boolean, grid?: "wide" | "narrow" | "compact", hideEffectiveness?: boolean, rulesetIds?: string[] }} [env]
  */
-export function buildToolSpecs({ preset = null, reportIssue = true, narrowGrid = true, hideEffectiveness = true, rulesetIds = ["nuzlocke"] } = {}) {
-  const fullEnv = { preset, reportIssue, narrowGrid, hideEffectiveness, rulesetIds };
+export function buildToolSpecs({ preset = null, reportIssue = true, grid = "narrow", hideEffectiveness = true, rulesetIds = ["nuzlocke"] } = {}) {
+  const fullEnv = { preset, reportIssue, grid, hideEffectiveness, rulesetIds };
   return TOOL_CATALOG
     .filter((meta) => (meta.enabled ? meta.enabled({ preset, reportIssue }) : true))
     .map((meta) => {
@@ -600,17 +601,17 @@ export function registerTools(server, {
   runLogFile = null,
   preset = null,
   reportIssue = true,
-  narrowGrid = true,
+  grid = /** @type {"wide" | "narrow" | "compact"} */ ("narrow"),
   hideEffectiveness = true,
   rulesetIds = ["nuzlocke"],
 }) {
-  const specs = buildToolSpecs({ preset, reportIssue, narrowGrid, hideEffectiveness, rulesetIds });
+  const specs = buildToolSpecs({ preset, reportIssue, grid, hideEffectiveness, rulesetIds });
   // Each tool's argument schema, so `do` can check its steps' arguments the same way.
   const schemas = Object.fromEntries(specs.map((s) => [s.name, s.strictSchema]));
   let reports = 0;
 
   const shown = (text) => {
-    const t = narrowGrid ? narrowGrids(text) : text;
+    const t = grid === "compact" ? compactGrids(text) : grid === "narrow" ? narrowGrids(text) : text;
     return hideEffectiveness ? stripEffectiveness(t) : t;
   };
   const narrow = (r) => ({ ...r, content: r.content.map((c) => (c.type === "text" ? { ...c, text: shown(c.text) } : c)) });
@@ -624,6 +625,7 @@ export function registerTools(server, {
     budget,
     runLogFile,
     preset,
+    grid,
     schemas,
     nextReportNumber: () => ++reports,
   };
