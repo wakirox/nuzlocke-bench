@@ -2,7 +2,7 @@
 // own routes, field moves and pacing the grass.
 
 import { hasFog, mapHasGrass, planFrontierEdge, planFrontierTarget, seenSteps } from "./map-lens";
-import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, renderView, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
+import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, renderView, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -522,21 +522,27 @@ export class Travel {
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
+      // Past the map's edge, but never on screen: a player can't tell that from a square not seen yet
+      // (saying "outside this map" would let walk_to measure the map).
+      const seen = this.core.host.seen?.();
+      const unseenOutside = at == null && !!seen && !seen.has(startMap, x, y);
       const by = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
-      const why = at == null ? "it's outside this map"
-        : at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
+      const why = unseenOutside || at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
+        : at == null ? "it's outside this map"
         : at === "#" ? "that square is solid"
         : at === "~" && !full.surfing ? "that square is water"
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
+      // Not for a square not seen yet (nothing to show there), and never past what the run has seen
+      // (seenPart): unseen rows out to the map's edge would give its size away.
       const screen = this.core.screenView();
       const sx1 = screen.originX + (screen.grid[0]?.length ?? 1) - 1, sy1 = screen.originY + screen.grid.length - 1;
       const xs = [x, ...(by ? [by.x] : [])], ys = [y, ...(by ? [by.y] : [])];
-      const offScreen = at != null && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
+      const offScreen = at != null && at !== "?" && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
       const shown = offScreen
-        ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
-          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
+        ? seenPart(cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
+          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1))))
         : screen;
       throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
@@ -746,7 +752,7 @@ export class Travel {
           if (!reports.length || reports[reports.length - 1].startsWith("(no seen way")) reports.push(`no way to the ${dir} edge found from here`);
           break;
         }
-        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view)}`);
+        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(seenPart(view))}`);
       }
       if (route.guessed && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {

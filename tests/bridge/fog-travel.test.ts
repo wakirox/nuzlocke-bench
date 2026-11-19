@@ -53,6 +53,36 @@ describe("walk_to through the fog", () => {
     await expect(travel.walkTo(9, 1, false)).rejects.toThrow(/you haven't seen that square yet/);
   });
 
+  it("says a square past the map's edge it never saw is unseen, not outside the map (that would measure the map)", async () => {
+    // The corridor is 16 wide; the run has seen x -2..7 and 10..19 (screens around 2 and 14).
+    const { travel } = fakeWorld(corridor, [2, 1], seenWithGap());
+    // (30,1): past the edge and never on screen.
+    const unseen = await travel.walkTo(30, 1, false).then(() => "", (e: Error) => e.message);
+    expect(unseen).toMatch(/you haven't seen that square yet/);
+    expect(unseen).not.toMatch(/outside this map/);
+    // (17,1): past the edge too, but on the screen around (14,1): the player saw the map end there.
+    await expect(travel.walkTo(17, 1, false)).rejects.toThrow(/it's outside this map/);
+  });
+
+  it("draws the same error map whether the map ends where the run has seen or goes on (no size given away)", async () => {
+    // A wall at x 12 cuts the corridor; seen: x -2..7 and 10..19. One map ends at 19, the other goes on unseen to 29.
+    const look = () => {
+      const seen = new SeenMaps();
+      seen.sawScreen(MAP, 2, 1);
+      seen.sawScreen(MAP, 14, 1);
+      return seen;
+    };
+    const errorOf = async (width: number, tx: number) => {
+      const row = Array.from({ length: width }, (_, x) => (x === 12 ? "#" : ".")).join("");
+      const { travel } = fakeWorld(["#".repeat(width), row, "#".repeat(width)], [2, 1], look());
+      return travel.walkTo(tx, 1, false).then(() => "", (e: Error) => e.message.split("\n").slice(1).join("\n"));
+    };
+    // A seen square past the wall: the map grown to take it in stops at what's been seen, not one past it.
+    expect(await errorOf(30, 19)).toBe(await errorOf(20, 19));
+    // A square never seen, inside the map or past its edge: the screen either way.
+    expect(await errorOf(30, 25)).toBe(await errorOf(20, 25));
+  });
+
   it("with no fog, a target no walk reaches is refused as before, with no guess", async () => {
     // Every square is seen (the screen around (4,1) covers 0–9), so no guess is made.
     const seen = new SeenMaps();

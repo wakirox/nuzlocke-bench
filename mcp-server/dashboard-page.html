@@ -204,6 +204,7 @@ const vparts = (v) => v.split(".").map(Number);
 const newer = (a, b) => { const x = vparts(a), y = vparts(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; };
 // What changed for the model in each version, in a few words (add one with each new version).
 const VERSION_NOTES = {
+  "0.3.0": "maps don't give away their size",
   "0.2.0": "fog of war: maps show only what the run has seen",
   "0.1.0": "whole maps from the start",
 };

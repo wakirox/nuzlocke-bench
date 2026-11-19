@@ -602,6 +602,23 @@ export function cropView<T extends AnyOverworldView>(v: T, x0: number, y0: numbe
 }
 
 /**
+ * A whole map as the run knows it (BridgeCore.view(true)), cut to the smallest rectangle holding
+ * every square it has seen (everything but "?"): a player doesn't know how big a map is until they
+ * have been to its edges. The exits line stays (which ways lead on, not where the edges are).
+ * Only for what's printed: walks still plan on the whole view.
+ */
+export function seenPart<T extends FoggedView>(v: T): T {
+  if (v.stage !== "known") return v;
+  let [r0, r1, c0, c1] = [Infinity, -1, Infinity, -1];
+  v.grid.forEach((row, r) => row.forEach((ch, c) => {
+    if (ch === "?") return;
+    [r0, r1, c0, c1] = [Math.min(r0, r), Math.max(r1, r), Math.min(c0, c), Math.max(c1, c)];
+  }));
+  if (r1 < 0 || (r0 === 0 && c0 === 0 && r1 === v.grid.length - 1 && c1 === (v.grid[0]?.length ?? 0) - 1)) return v;
+  return { ...cropView(v, v.originX + c0, v.originY + r0, v.originX + c1, v.originY + r1), exits: v.exits };
+}
+
+/**
  * Shortest path to map coordinate (tx, ty). If the target itself isn't
  * walkable (a person, sign, counter…) the path ends next to it and `face`
  * says which way to turn to interact.

@@ -291,7 +291,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(text).not.toContain("LASS");
   });
 
-  it("compactGrids keeps unseen squares as ? (untrimmed) and omits unseen targets from Points", async () => {
+  it("compactGrids shows only the seen part of the map and omits unseen targets from Points", async () => {
     // @ts-expect-error plain ESM module without type declarations
     const { compactGrids } = await import("../../mcp-server/format.mjs");
     // Player at (10,10): x 6–15, y 6–14 are seen; column 0 (x=5) and row 9 (y=15) are unseen.
@@ -311,8 +311,28 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     const compact = compactGrids(new BridgeCore(host.asHost()).mapText(true));
     expect(compact).toContain("Points: I (8,8).");
     expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
-    // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
-    expect(compact).toContain("y 15   ?????");
+    // The whole map ends where the run has seen: unseen row y=15 and column x=5 aren't drawn, so
+    // the map's size isn't given away.
+    expect(compact).not.toMatch(/^y 15/m);
+    expect(compact).not.toContain("?");
+  });
+
+  it("draws the whole map only as far as the run has seen, and says nothing of its size", () => {
+    // A 30×20 map; the run has seen the screen around (10,10) only: x 6–15, y 6–14.
+    const grid = Array.from({ length: 20 }, () => Array<string>(30).fill("."));
+    grid[10][10] = "@";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 0, originY: 0, pc: 10, pr: 10, exits: ["up"] },
+      mapSize: { w: 30, h: 20 },
+      seen: new SeenMaps(),
+    });
+    const lines = new BridgeCore(host.asHost()).mapText(true).split("\n");
+    expect(lines[0]).toBe("Map exits: up.");
+    expect(lines[1].trim().split(/ +/).map(Number)).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    const rows = lines.filter((l) => /^y/.test(l));
+    expect(rows.map((l) => Number(l.slice(1, 4)))).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14]);
+    expect(lines.join("\n")).not.toContain("?");
   });
 
   it("shows b through decorate and SeenMaps fog only when boulderSwitch is on and the switch was seen uncovered", async () => {
