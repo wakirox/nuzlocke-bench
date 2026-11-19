@@ -28,7 +28,10 @@ h2 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
 .note { color: var(--muted); font-size: 13px; margin: 2px 0 14px; max-width: 75ch; }
 .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin: 0 0 24px; }
 .rules { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 75ch; }
-.filters label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+/* Labels in one column, the pickers in the next: they line up, and take the width of the widest. */
+.filters { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 10px; }
+.filters label { display: contents; font-size: 13px; color: var(--ink-2); }
+.filters select { width: 100%; }
 select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 7px 10px; min-height: 40px; max-width: 100%; }
 select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
@@ -204,6 +207,7 @@ const vparts = (v) => v.split(".").map(Number);
 const newer = (a, b) => { const x = vparts(a), y = vparts(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; };
 // What changed for the model in each version, in a few words (add one with each new version).
 const VERSION_NOTES = {
+  "0.4.0": "a ring of ? where a map may go on, an x row of whole numbers over its columns, and poison acknowledged once",
   "0.3.0": "maps don't give away their size",
   "0.2.0": "fog of war: maps show only what the run has seen",
   "0.1.0": "whole maps from the start",
