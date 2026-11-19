@@ -16,6 +16,11 @@ const SCENE_FRAMES = 1800;
 /** The text matched literally inside a RegExp (a move name comes from the model). */
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** A walk leg that got where it was going, perhaps running from a wild battle on the way. */
+const ARRIVED = / — arrived(?: \(ran from [^)]*\))?$/;
+/** A walk's legs, in order: the ones before the last went where they were planned to, so it's said once. */
+const legsSaid = (legs: string[]) => legs.map((l, i) => (i < legs.length - 1 ? l.replace(" — arrived", "") : l)).join("; then ");
+
 /** Field moves that take you off the map. */
 const LEAVES_THE_MAP = new Set(["DIG", "TELEPORT"]);
 /** Field moves that open the town map to pick a destination. */
@@ -317,7 +322,7 @@ export class Travel {
       for (const [c, r] of cands.slice(0, 12)) {
         const route = findPath(vv, c + vv.originX, r + vv.originY, this.core.sight());
         if (!route || route.sightStop) continue;
-        log = await this.walkSegments(toSegments(route.dirs));
+        log = await this.walkSegments(toSegments(route.dirs, vv));
         reached = true;
         break;
       }
@@ -378,8 +383,8 @@ export class Travel {
 
   /**
    * Holds a direction and watches the player's coordinates, stopping after
-   * `tiles` steps, at a wall (no movement for a while), on a map change, or
-   * when a battle starts.
+   * `tiles` squares (a ledge hop is two), at a wall (no movement for a while),
+   * on a map change, or when a battle starts.
    */
   private async walkStraight(dir: Dir, tiles: number): Promise<{ moved: number; stopped: string }> {
     const gb = this.core.requireGb();
@@ -407,7 +412,9 @@ export class Travel {
         if (p.battle) { stopped = "a battle started"; break; }
         if (p.map !== last.map) { stopped = "entered a new map"; break; }
         if (p.x !== last.x || p.y !== last.y) {
-          moved++;
+          // Squares moved, the way toSegments counts a planned way: a ledge hop is two, whether the
+          // game moves the player there in one update or two.
+          moved += Math.abs(p.x - last.x) + Math.abs(p.y - last.y);
           idle = 0;
           last = p;
           const hurt = [...this.poisoned()].find(([uid, now]) => now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
@@ -554,22 +561,30 @@ export class Travel {
       throw new Error(`No path to ${this.core.at(x, y)}: ${why}.\n${renderView(this.core.shownView(shown))}`);
     }
     let report = "already there";
+    // Every leg walked, for the result: a guessed way is several, and the last alone doesn't say how
+    // the player got where they are (a model took that for its coordinates shifting, 2026-11-19).
+    const walked: string[] = [];
+    // The view the route was planned on: its steps are walked in squares (toSegments), counted from it.
+    let planned: AnyOverworldView = full;
+    const replan = () => this.planTo((planned = this.core.view(true)), x, y);
     // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
     // A guessed way is walked only as far as the squares already seen (`route.legDirs`), then re-planned
     // with what that walk showed (the screen reaches 4-5 squares ahead): never blind into an unseen
     // trainer's sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
     for (let attempt = 0, legs = 0; route && route.dirs.length && attempt < 4;) {
-      report = await this.walkSegments(toSegments(route.legDirs));
+      report = await this.walkSegments(toSegments(route.legDirs, planned));
+      walked.push(report);
       here = this.core.host.position();
       if (here.battle || here.map !== startMap) break;
-      if (route.partial && /— arrived$/.test(report) && legs++ < 30) {
-        route = this.planTo(this.core.view(true), x, y);
+      // A leg that ran from a wild battle on the way still arrived where it was going.
+      if (route.partial && ARRIVED.test(report) && legs++ < 30) {
+        route = replan();
         continue;
       }
       if (!report.includes("blocked")) break;
       attempt++;
       await this.core.requireGb().runFrames(30, 8); // let the person move along, then re-plan
-      route = this.planTo(this.core.view(true), x, y);
+      route = replan();
     }
     // A trainer seen only off screen is assumed to look every way; once it is on screen its real
     // facing is known, so walking up to the sight line often clears it. Re-plan from there.
@@ -577,18 +592,19 @@ export class Travel {
       here = this.core.host.position();
       if (here.battle || here.map !== startMap) break;
       // The last leg stopped for something else (a poison flash, a text box): say so, don't walk on.
-      if (!/— arrived(?: \(ran from [^)]*\))?$/.test(report)) break;
-      const next = this.planTo(this.core.view(true), x, y);
+      if (!ARRIVED.test(report)) break;
+      const next = replan();
       if (!next) break;
       route = next;
       if (!route.dirs.length) break;
-      report = await this.walkSegments(toSegments(route.dirs));
+      report = await this.walkSegments(toSegments(route.dirs, planned));
+      walked.push(report);
     }
-    if (!route) report += " (no path any more)";
     if (route?.sightStop) {
       const [sx, sy] = route.sightStop;
+      const sofar = walked.length ? legsSaid(walked).replace(ARRIVED, (m) => m.replace(" — arrived", "")) : "";
       return this.core.result({
-        walk: `${route.dirs.length ? report.replace(/ — arrived$/, "") + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
+        walk: `${route.dirs.length && sofar ? sofar + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
         map: this.core.mapText(),
       });
     }
@@ -626,12 +642,22 @@ export class Travel {
         }
       }
     }
+    // Arrived means the player is there (or beside a person, sign or object, to face it): a guessed
+    // way can end its legs short of the target when no way on shows, and the last leg's own
+    // "arrived" said nothing about that.
+    const end = this.core.host.position();
+    const reached = !!route && !end.battle && end.map === startMap &&
+      (route.face ? Math.abs(end.x - x) + Math.abs(end.y - y) === 1 : end.x === x && end.y === y);
+    let said = walked.length ? legsSaid(walked) : report;
+    if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
+      said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +
+        ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${route ? "" : ": no way on there through squares you've seen"}`;
+    }
     let messages: string[] | undefined;
-    // Arrived, even if the walk ran from a wild battle on the way ("— arrived (ran from MONA)").
-    if (route && (/— arrived(?: \(ran from [^)]*\))?$/.test(report) || report === "already there")) {
-      if (route.face) {
+    if (reached) {
+      if (route?.face) {
         await this.core.tap(route.face, 6, 12); // long enough to register a turn
-        report += `, facing ${route.face}`;
+        said += `, facing ${route.face}`;
       }
       if (interact) {
         await this.core.tap("a", 4, 24);
@@ -639,7 +665,7 @@ export class Travel {
       }
     }
     const guessNote = guessed ? " (no seen way there, so it tried a way through squares you hadn't seen)" : "";
-    return this.core.result({ walk: report + sightNote + guessNote, messages, map: this.core.mapText() });
+    return this.core.result({ walk: said + sightNote + guessNote, messages, map: this.core.mapText() });
   }
 
   /**
@@ -688,9 +714,10 @@ export class Travel {
       const crosses = this.core.sight().avoidSight ? [] : sightCrossings(view, route);
       // Said before the leg: it may cross into the next map.
       const crossed = crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : "";
-      const report = await this.walkSegments(toSegments(route));
-      legs.push(report.replace(/ — arrived$/, "") + crossed);
-      if (!report.endsWith("arrived")) {
+      const report = await this.walkSegments(toSegments(route, view));
+      legs.push(report.replace(" — arrived", "") + crossed);
+      // A leg that ran from a wild battle on the way ("— arrived (ran from X)") went on as planned too.
+      if (!ARRIVED.test(report)) {
         const stop = report.split(" — stopped: ")[1];
         why = stop === "entered a new map" || stop === "a battle started" ? stop : `stopped: ${stop ?? "?"}`;
         // Crossed into the next map: keep going the same way if asked to cross several.
@@ -767,7 +794,7 @@ export class Travel {
       if (route.guessed && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {
         const [sx, sy] = route.sightStop;
-        const walked = route.dirs.length ? (await this.walkSegments(toSegments(route.dirs))).replace(/ — arrived$/, "") + " — " : "";
+        const walked = route.dirs.length ? (await this.walkSegments(toSegments(route.dirs, view))).replace(" — arrived", "") + " — " : "";
         // Up close the trainer's real facing is known: re-plan before giving up (see walkTo).
         const pos = this.core.host.position();
         if (route.dirs.length && !pos.battle && pos.map === startMap && attempt < 8) {
@@ -780,9 +807,10 @@ export class Travel {
       // A guessed way: walk only the part over seen squares (`route.legDirs`), then re-plan with what
       // it showed (see walkTo). That frontier advance doesn't use up the retries for people in the way.
       if (route.partial) {
-        const leg = await this.walkSegments(toSegments(route.legDirs));
+        const leg = await this.walkSegments(toSegments(route.legDirs, view));
         const at = this.core.host.position();
-        if (/— arrived$/.test(leg) && !at.battle && at.map === startMap && legs++ < 30) {
+        // A leg that ran from a wild battle on the way still got where it was going.
+        if (ARRIVED.test(leg) && !at.battle && at.map === startMap && legs++ < 30) {
           attempt--;
           continue;
         }
@@ -793,8 +821,9 @@ export class Travel {
       }
       // Said before the walk: it crosses into the next map.
       const crossed = route.crosses?.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(route.crosses)})` : "";
-      let report = route.dirs.length ? await this.walkSegments(toSegments(route.dirs)) : "at the edge";
-      if (report.endsWith("arrived") || report === "at the edge") {
+      let report = route.dirs.length ? await this.walkSegments(toSegments(route.dirs, view)) : "at the edge";
+      // At the edge, even after running from a wild battle on the way: step across.
+      if (ARRIVED.test(report) || report === "at the edge") {
         report += `; crossing: ${await this.walkSegments([[dir, 3]])}`;
       }
       report += crossed;

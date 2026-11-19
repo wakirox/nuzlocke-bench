@@ -48,6 +48,33 @@ describe("walk_to through the fog", () => {
     expect(r.walk).toMatch(/\(no seen way there, so it tried a way through squares you hadn't seen\)$/);
   });
 
+  it("goes on with a guessed way after a leg that ran from a wild battle, and says every leg", async () => {
+    // With encounters: flee_uncounted a leg ends "— arrived (ran from WEEDLE)": it still got where it was
+    // going. It used to end the walk there, a leg short, and say "arrived" (2026-11-19).
+    const { core, travel } = fakeWorld(corridor, [2, 1], seenWithGap());
+    const walkSegments = (travel as unknown as { walkSegments: (s: unknown) => Promise<string> }).walkSegments.bind(travel);
+    let first = true;
+    vi.spyOn(travel as unknown as { walkSegments: (s: unknown) => Promise<string> }, "walkSegments").mockImplementation(async (s) => {
+      const out = await walkSegments(s);
+      if (!first) return out;
+      first = false;
+      return `${out} (ran from WEEDLE)`;
+    });
+    const r = (await travel.walkTo(13, 1, false)) as { walk: string };
+    expect(core.host.position().x).toBe(13);
+    expect(r.walk).toMatch(/^right \d+\/\d+ \(ran from WEEDLE\); then right \d+\/\d+ — arrived \(no seen way there/);
+  });
+
+  it("says where a guessed way stopped, short of the target, instead of arrived", async () => {
+    // The unseen gap is a wall: the walk reaches what it has seen, sees the wall, and has no way on.
+    const walled = ["################", ".........#......", "################"];
+    const { core, travel } = fakeWorld(walled, [2, 1], seenWithGap());
+    const r = (await travel.walkTo(13, 1, false)) as { walk: string };
+    expect(core.host.position().x).toBe(7);
+    expect(r.walk).toMatch(/^right 5\/5 — stopped at \(7, 1\), short of \(13, 1\): no way on there through squares you've seen/);
+    expect(r.walk).not.toMatch(/arrived/);
+  });
+
   it("refuses a ? target, which the guess never walks to", async () => {
     const { travel } = fakeWorld(corridor, [2, 1], seenWithGap());
     await expect(travel.walkTo(9, 1, false)).rejects.toThrow(/you haven't seen that square yet/);
@@ -239,5 +266,48 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     seen.sawScreen(MAP, 5, 2);
     const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
     await expect(travel.exitMap("down", true)).rejects.toThrow(/No door in sight yet that way/);
+  });
+});
+
+describe("walks that ran from a wild battle, and ledges", () => {
+  type Walker = { walkSegments: (s: [string, number][]) => Promise<string> };
+  /** Adds " (ran from WEEDLE)" to every leg that arrived, as encounters: flee_uncounted does on grass. */
+  const fleeing = (travel: Travel) => {
+    const walker = travel as unknown as Walker;
+    const walkSegments = walker.walkSegments.bind(travel);
+    const legs: [string, number][][] = [];
+    vi.spyOn(walker, "walkSegments").mockImplementation(async (s) => {
+      legs.push(s);
+      const out = await walkSegments(s);
+      return / — arrived$/.test(out) ? `${out} (ran from WEEDLE)` : out;
+    });
+    return legs;
+  };
+
+  it("travel goes on after a leg that ran from a wild battle", async () => {
+    const seen = seenFrom0();
+    for (let x = 2; x <= 30; x += 4) seen.sawScreen(MAP, x, 1);
+    const { travel } = fakeWorld(["#".repeat(30), ".".repeat(30), "#".repeat(30)], [1, 1], seen);
+    fleeing(travel);
+    const r = (await travel.travel("right", 12, 1)) as { walk: string };
+    expect(r.walk).not.toMatch(/stopped: \?/);
+  });
+
+  it("exit_map still steps across the edge after running from a wild battle on the way", async () => {
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 5, 1);
+    const { travel } = fakeWorld(["##########", "..........", "##########"], [1, 1], seen, { exits: ["right"] });
+    const legs = fleeing(travel);
+    await travel.exitMap("right");
+    expect(legs).toContainEqual([["right", 3]]);
+  });
+
+  it("counts a ledge hop as the two squares the player moves (a walk counts squares)", async () => {
+    const { toSegments } = await import("../../src/bridge/overworld");
+    // The player above a ledge (v): down, down (the hop: two squares), down.
+    const v = { grid: [["@"], ["."], ["v"], ["."], ["."]], originX: 0, originY: 0, pc: 0, pr: 0 } as never;
+    expect(toSegments(["down", "down", "down"], v)).toEqual([["down", 4]]);
+    // Without the view: steps, as before.
+    expect(toSegments(["down", "down", "down"])).toEqual([["down", 3]]);
   });
 });
