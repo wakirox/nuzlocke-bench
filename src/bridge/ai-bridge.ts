@@ -375,6 +375,7 @@ export class AiBridge {
   private setOptions(p: Record<string, unknown>): { ok: true } {
     if (typeof p.boulderSwitch === "boolean") this.core.boulderSwitch = p.boulderSwitch;
     if (typeof p.trainerFacing === "boolean") this.core.trainerFacing = p.trainerFacing;
+    if (typeof p.darkMemory === "boolean") this.core.darkMemory = p.darkMemory;
     return { ok: true };
   }
 

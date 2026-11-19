@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
+import { boxedSquares, darkSquares, exitsLine, litSquares, trainerList, renderDarkMemory, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -137,6 +137,8 @@ export class BridgeCore {
   boulderSwitch = false;
   /** Include facing direction for unbeaten on-screen trainers (opt-in via NUZLOCKE_TRAINER_FACING). */
   trainerFacing = false;
+  /** Keep what the dark view showed and show it again on that map (opt-in via NUZLOCKE_DARK_MEMORY). */
+  darkMemory = false;
 
   async tap(button: Button | Button[], hold = 6, gap = 20): Promise<void> {
     const gb = this.requireGb();
@@ -362,8 +364,25 @@ export class BridgeCore {
     if (this.dark()) {
       // A box or menu over the cave hides what's under it: those squares are dark, not lit.
       const raw = this.rawView(false);
-      const sealed = this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw;
-      return renderDarkView(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+      const whole = this.host.rom() ? this.rawView(true) : null;
+      const sealed = whole ? sealFromWholeMap(raw, whole) : raw;
+      const lit = litSquares(this.screenPixels());
+      const covered = boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots);
+      const seen = this.host.seen?.();
+      if (!this.darkMemory || !seen) return renderDarkView(sealed, lit, covered);
+      // Remembered when the dark view is read: at the end of every move (its result reads it, shown or
+      // not) and on get_map, once the screen has settled. Mid-walk the screen is still scrolling, so
+      // its lit squares wouldn't line up with the map's.
+      const now = darkSquares(sealed, lit, covered);
+      const pos = this.host.position();
+      // The view shows @ where the player stands, but they know what's under them: a ladder (they
+      // came by it: stepping onto one takes you away), else floor. Without it, where each move
+      // ended would stay "?" once the player walks on.
+      const under = whole?.doors?.some((d) => d.x === pos.x && d.y === pos.y)
+        ? "D"
+        : sealed.tiles && sealed.lowerFloor?.(sealed.tiles[sealed.pr][sealed.pc]) ? "," : ".";
+      seen.sawDark(pos.map, now.map((row, r) => row.map((ch, c) => (r === sealed.pr && c === sealed.pc ? under : ch))), sealed.originX, sealed.originY);
+      return renderDarkMemory(seen.darkMap(pos.map, now, sealed.originX, sealed.originY, full));
     }
     const v = full ? this.view(true) : this.screenView();
     const W = v.grid[0]?.length ?? 0;

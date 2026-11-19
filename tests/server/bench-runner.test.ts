@@ -146,6 +146,15 @@ describe("objectives", () => {
     expect(table([envOnly])).toContain("dark steps shown");
     expect(objectivesTable([envOnly])).toContain("haiku-5-5 medium dark-steps");
   });
+
+  it("groups and labels runs with darkMemory from the session line even when agent.json lacks it", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { objectivesTable, table } = await import("../../mcp-server/report.mjs");
+    const agent = { model: "claude-haiku-5-5", effort: "medium" };
+    const envOnly = { name: "r1", preset: "p", agent, darkMemory: true, badges: 0, deaths: 0, violations: 0, calls: 10, errors: 0, wallMs: 1000, chars: 100, charsPerCall: 10, topTools: "walk 10", objectives: { badge1: "0:20:00" } };
+    expect(table([envOnly])).toContain("dark memory shown");
+    expect(objectivesTable([envOnly])).toContain("haiku-5-5 medium dark-memory");
+  });
 });
 
 describe("the runner's tokens", () => {

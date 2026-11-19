@@ -18,6 +18,8 @@ export interface SeenData {
   doors: Record<string, Spot[]>;
   /** Map → floor-switch squares the run has seen uncovered (`o`), for showing a boulder later pushed onto one as `b`. */
   switches?: Record<string, Spot[]>;
+  /** Map → "x,y" → what the square showed in the dark (#, ., , or D), for showing it again later (NUZLOCKE_DARK_MEMORY). */
+  dark?: Record<string, Record<string, string>>;
 }
 
 /** Buildings a player knows from outside (their roofs and signs say so): their doors are named at once. */
@@ -36,6 +38,7 @@ export class SeenMaps {
       squares: data?.squares ?? {},
       doors: data?.doors ?? {},
       ...(data?.switches ? { switches: data.switches } : {}),
+      ...(data?.dark ? { dark: data.dark } : {}),
     };
   }
 
@@ -70,6 +73,48 @@ export class SeenMaps {
         }
       }
     }
+  }
+
+  /**
+   * Remembers what the dark view's squares (darkSquares, its top-left square at originX, originY)
+   * show now: every square but the dark ("?") and the player. Kept apart from the lit memory
+   * (sawScreen), so a map lit later (Flash) shows what it always did.
+   */
+  sawDark(map: number, squares: string[][], originX: number, originY: number): void {
+    for (let r = 0; r < squares.length; r++) {
+      for (let c = 0; c < squares[r].length; c++) {
+        const ch = squares[r][c];
+        if (ch === "?" || ch === "@") continue;
+        const known = ((this.data.dark ??= {})[map] ??= {});
+        const key = `${originX + c},${originY + r}`;
+        if (known[key] !== ch) {
+          known[key] = ch;
+          this.changed = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * The dark view `now` (darkSquares, its top-left square at originX, originY) with what the run
+   * saw earlier in the dark on `map` where it shows "?": the screen, or with `full` the smallest
+   * rectangle holding the screen and every square remembered there.
+   */
+  darkMap(map: number, now: string[][], originX: number, originY: number, full: boolean): string[][] {
+    const known = this.data.dark?.[map] ?? {};
+    let [x0, y0, x1, y1] = [originX, originY, originX + (now[0]?.length ?? 0) - 1, originY + now.length - 1];
+    if (full) {
+      for (const key of Object.keys(known)) {
+        const [x, y] = key.split(",").map(Number);
+        [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+      }
+    }
+    return Array.from({ length: y1 - y0 + 1 }, (_, r) =>
+      Array.from({ length: x1 - x0 + 1 }, (_, c) => {
+        const [x, y] = [x0 + c, y0 + r];
+        const shown = now[y - originY]?.[x - originX];
+        return shown && shown !== "?" ? shown : known[`${x},${y}`] ?? "?";
+      }));
   }
 
   /** Whether the run has seen floor switch `(x, y)` on `map` uncovered. */

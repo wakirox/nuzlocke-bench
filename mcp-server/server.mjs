@@ -45,10 +45,13 @@ const GRID_MODE = process.env.NUZLOCKE_GRID === "wide" ? "wide" : process.env.NU
 const BOULDER_SWITCH = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_BOULDER_SWITCH ?? "");
 // Saying which way seen on-screen trainers face on the `Trainers (T)` line, off until an A/B decides.
 const TRAINER_FACING = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_TRAINER_FACING ?? "");
+// Keeping what the dark view showed and showing it again on that map, off until an A/B decides.
+const DARK_MEMORY = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_DARK_MEMORY ?? "");
 /** Opt-in bridge options sent once on connect (empty by default: nothing sent). */
 const BRIDGE_OPTIONS = {
   ...(BOULDER_SWITCH ? { boulderSwitch: true } : {}),
   ...(TRAINER_FACING ? { trainerFacing: true } : {}),
+  ...(DARK_MEMORY ? { darkMemory: true } : {}),
 };
 // Coordinate lists for seen points under the map (and bottom x header on tall maps), off until an A/B decides.
 const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? "");

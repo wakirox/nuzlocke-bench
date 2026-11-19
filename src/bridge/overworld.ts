@@ -181,10 +181,15 @@ export function ledgeTarget(v: AnyOverworldView, x: number, y: number): string |
 const DARK_SEEN = new Set(["#", ".", ",", "D"]);
 
 export function renderDarkView(v: UnfoggedView, lit: boolean[][], covered?: boolean[][]): string {
+  return `It's dark: you see only some squares. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you can't see. You are at @.\n${darkRows(darkSquares(v, lit, covered))}`;
+}
+
+/** The screen's squares as renderDarkView shows them, row by row: "#", ".", ",", "D", "?" or "@". */
+export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean[][]): string[][] {
   // Squares under a text box or menu (boxedSquares) can't be seen, lit or not; nor do they light
   // the wall beside them.
   if (covered) lit = lit.map((row, r) => row.map((on, c) => on && !covered[r]?.[c]));
-  const rows = lit.map((row, r) =>
+  return lit.map((row, r) =>
     row.map((on, c) => {
       if (covered?.[r]?.[c]) return "?";
       if (r === v.pr && c === v.pc) return "@";
@@ -194,8 +199,18 @@ export function renderDarkView(v: UnfoggedView, lit: boolean[][], covered?: bool
       if (on) return DARK_SEEN.has(ch) ? ch : "?";
       const edge = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].some(([rr, cc]) => lit[rr]?.[cc]);
       return ch === "#" && edge ? "#" : "?";
-    }).join(" "));
-  return `It's dark: you see only some squares. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you can't see. You are at @.\n${rows.join("\n")}`;
+    }));
+}
+
+const darkRows = (rows: string[][]): string => rows.map((row) => row.join(" ")).join("\n");
+
+/**
+ * The dark view with what the run saw earlier in the dark (NUZLOCKE_DARK_MEMORY, SeenMaps.darkMap):
+ * the same symbols, a remembered square as it looked then, and "?" only for what hasn't been seen.
+ * No coordinates, as in renderDarkView.
+ */
+export function renderDarkMemory(rows: string[][]): string {
+  return `It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you haven't seen. You are at @.\n${darkRows(rows)}`;
 }
 
 /** A dark screen's 160×144 RGBA pixels as 10×9 squares: is anything lit there? Floors have a stray lit dot or two. */

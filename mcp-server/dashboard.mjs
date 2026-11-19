@@ -56,6 +56,7 @@ function offDefaults(leg) {
   if (r.boulderSwitch || leg.boulderSwitch) return "boulder switch shown";
   if (r.mapPoints || leg.mapPoints) return "map points shown";
   if (r.trainerFacing || leg.trainerFacing) return "trainer facing shown";
+  if (r.darkMemory || leg.darkMemory) return "dark memory shown";
   if (r.darkSteps || leg.darkSteps) return "dark steps shown";
   if (r.reportIssue === false) return "report_issue off";
   if (r.grid && r.grid !== "narrow") return "other grid";

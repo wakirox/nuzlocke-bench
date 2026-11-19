@@ -202,6 +202,16 @@ describe("a new map's first full view", () => {
     expect(String(on.map)).toContain("Trainers (T): (1,0) SCOUT facing left.");
   });
 
+  it("turns dark memory on with set_options (off by default)", async () => {
+    const bridge = new AiBridge(new FakeHost(layout, [{ rows: screenRows() }]).asHost(), () => {});
+    const core = (bridge as unknown as { core: { darkMemory: boolean } }).core;
+    const dispatch = (m: string, p: Record<string, unknown>) =>
+      (bridge as unknown as { dispatch(m: string, p: Record<string, unknown>): Promise<unknown> }).dispatch(m, p);
+    expect(core.darkMemory).toBe(false);
+    await dispatch("set_options", { boulderSwitch: true, trainerFacing: true, darkMemory: true });
+    expect(core.darkMemory).toBe(true);
+  });
+
   it("applies every option in one set_options message (the server sends them together on connect)", async () => {
     const { SeenMaps } = await import("../../src/bridge/seen");
     const seen = new SeenMaps();

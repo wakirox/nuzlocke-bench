@@ -129,6 +129,8 @@ describe("dashboardRuns", () => {
     expect(off({ trainerFacing: true }, {}).notOfficial).toBe("trainer facing shown");
     expect(off({}, { darkSteps: true }).notOfficial).toBe("dark steps shown");
     expect(off({ darkSteps: true }, {}).notOfficial).toBe("dark steps shown");
+    expect(off({}, { darkMemory: true }).notOfficial).toBe("dark memory shown");
+    expect(off({ darkMemory: true }, {}).notOfficial).toBe("dark memory shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
     expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");

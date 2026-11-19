@@ -69,6 +69,7 @@ Then give the server `NUZLOCKE_HEADLESS=1`, e.g. in `.mcp.json`:
 | `NUZLOCKE_MAP_POINTS=1` | List the coordinates of seen items, Cut trees, things to read or use, PCs, shop clerks, nurses, boulders, floor switches and holes under the map and repeat the x header at the bottom of tall maps (accepts `1`, `true`, `yes`, `on`; default: off) |
 | `NUZLOCKE_TRAINER_FACING=1` | Say which way unbeaten seen on-screen trainers face on the `Trainers (T)` line (accepts `1`, `true`, `yes`, `on`; default: off) |
 | `NUZLOCKE_DARK_STEPS=1` | In a dark cave, label the dark view's rows and columns with the steps from the player, as `walk` takes them (`U2` … `0` … `D4`, `L4` … `0` … `R5`): relative to `@`, so still no coordinates (accepts `1`, `true`, `yes`, `on`; default: off) |
+| `NUZLOCKE_DARK_MEMORY=1` | In a dark cave, keep what the dark view showed and show it again on that map (`get_map full=true` shows everything remembered there); still no coordinates, and a map lit by Flash shows what it always did (accepts `1`, `true`, `yes`, `on`; default: off) |
 | `NUZLOCKE_EFFECTIVENESS=on\|off` | Whether results say how effective each move is (default: only under a preset with `hints`) |
 | `NUZLOCKE_ROMS_DIR` | More ROM files for saves that keep the ROM by reference (default: `NUZLOCKE_ROM`'s folder) |
 | `NUZLOCKE_REPORT_ISSUE=0` | Leave out `report_issue` (on by default) |
