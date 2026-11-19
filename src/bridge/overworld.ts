@@ -776,6 +776,20 @@ export function pathFurthest(v: AnyOverworldView, dir: Dir, opts: SightOptions =
  * moves): a ledge hop is one step but two squares, and counted as one it ended the walk a square
  * short of where it was planned to go (a walk_to over a ledge said "arrived" a square early).
  */
+/**
+ * Where `dirs` walked from the player on `v` end, in map coordinates (a ledge hop moves two
+ * squares): the square a route was planned to reach, beside its target or across a counter from it.
+ */
+export function routeEnd(v: AnyOverworldView, dirs: Dir[]): [number, number] {
+  let [c, r] = [v.pc, v.pr];
+  for (const d of dirs) {
+    const [, dx, dy] = STEPS.find(([s]) => s === d)!;
+    const squares = LEDGE_DIR[v.grid[r + dy]?.[c + dx]] === d ? 2 : 1;
+    [c, r] = [c + dx * squares, r + dy * squares];
+  }
+  return [v.originX + c, v.originY + r];
+}
+
 export function toSegments(dirs: Dir[], v?: AnyOverworldView): [Dir, number][] {
   const out: [Dir, number][] = [];
   let c = v?.pc ?? 0;

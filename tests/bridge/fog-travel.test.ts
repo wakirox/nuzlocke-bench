@@ -302,6 +302,15 @@ describe("walks that ran from a wild battle, and ledges", () => {
     expect(legs).toContainEqual([["right", 3]]);
   });
 
+  it("says arrived across a counter from a nurse: the way was planned to end there", async () => {
+    // The nurse at (2,1) behind the counter at (2,2): talked to from (2,3), two squares away.
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 2, 4);
+    const { travel } = fakeWorld(["#####", "##H##", "##=##", "#...#", "#...#"], [2, 4], seen);
+    const r = (await travel.walkTo(2, 1, false)) as { walk: string };
+    expect(r.walk).toMatch(/^up 1\/1 — arrived, facing up/);
+  });
+
   it("counts a ledge hop as the two squares the player moves (a walk counts squares)", async () => {
     const { toSegments } = await import("../../src/bridge/overworld");
     // The player above a ledge (v): down, down (the hop: two squares), down.
