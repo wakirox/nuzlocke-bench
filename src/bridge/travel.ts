@@ -354,6 +354,7 @@ export class Travel {
         for (const [c, r] of cands.slice(0, 50)) {
           const [gx, gy] = [c + vv.originX, r + vv.originY];
           const guess = planFrontierTarget(vv, gx, gy, this.core.sight(), !this.core.dark());
+          if (guess?.sightStop) sightInTheWay = true;
           if (!guess || guess.sightStop) continue;
           log = String(((await this.walkTo(gx, gy, false)) as { walk?: string }).walk ?? "");
           reached = true;
@@ -903,10 +904,6 @@ export class Travel {
   }
 
   /**
-   * Poisoned party members by uid (as the tracker's: OT ID + DVs), straight from RAM: cheap
-   * enough to check after every step.
-   */
-  /**
    * ack_poison: the model knows this party Pokémon (nickname, species or slot 1-6) is poisoned, so
    * walks stop no more for its poison until it's cured or faints.
    */
@@ -932,6 +929,10 @@ export class Travel {
     for (const uid of this.poisonAcked) if (!now.get(uid)?.hp) this.poisonAcked.delete(uid);
   }
 
+  /**
+   * Poisoned party members by uid (as the tracker's: OT ID + DVs), straight from RAM: cheap
+   * enough to check after every step.
+   */
   private poisoned(): Map<string, { slot: number; hp: number; maxHp: number }> {
     const gb = this.core.requireGb();
     return this.core.game.poisonedParty(gb);

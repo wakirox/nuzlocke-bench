@@ -237,8 +237,9 @@ const wrapLog = createToolLogger({
     grid: GRID_MODE,
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
-    // Recorded when shown outside the hints group, where it's the default: reports label those runs.
-    ...(MAP_POINTS && !PRESET?.hints ? { mapPoints: true } : {}),
+    // Recorded when off its group's default (on in the hints group, off elsewhere): reports label
+    // the runs that showed it outside the hints group, and a hints run that turned it off says so.
+    ...(MAP_POINTS !== !!PRESET?.hints ? { mapPoints: MAP_POINTS } : {}),
     ...optionsConfirmed,
     ...(optionsError ? { optionsError } : {}),
   }),

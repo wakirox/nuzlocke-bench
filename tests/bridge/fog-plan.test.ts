@@ -98,6 +98,16 @@ describe("hunt on a fogged map", () => {
     expect(to).toEqual([[3, 0]]);
   });
 
+  it("blames a trainer's sight when the only way, through unseen squares, crosses it", async () => {
+    // The grass at (3,0) is reached only through the unseen (1,0) and the watched (2,0).
+    const travel = onMap([["@", ".", ".", '"', '"']], [["@", "?", ".", '"', '"']]);
+    const core = (travel as unknown as { core: Record<string, unknown> }).core;
+    const view = core.view as () => Record<string, unknown>;
+    core.view = () => ({ ...view(), watched: new Set([2]), watchers: new Map([[2, [[9, 9]]]]) });
+    core.sight = () => ({ avoidSight: true });
+    await expect(travel.hunt(10)).rejects.toThrow(/trainer's sight/);
+  });
+
   it("goes on past the nearest grass it can't reach to grass it can", async () => {
     // Fourteen pairs of grass shut in behind a wall are nearer than the two it can reach along the top.
     const grid = [
