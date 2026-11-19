@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, seenPart, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
+import { DARK_HEADER, boxedSquares, darkSquares, exitsLine, litSquares, trainerList, renderView, sealFromWholeMap, seenPart, type AnyOverworldView, type Door, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -181,11 +181,14 @@ export class BridgeCore {
         if (!settled) return;
       }
     }
-    if (this.warpedFrom) {
-      const from = this.warpedFrom;
+    const from = this.warpedFrom;
+    if (from) {
       this.warpedFrom = null;
       seen.wentThrough(from.map, from.x, from.y, p.map, p.x, p.y);
-    } else if (last && last.x === p.x && last.y === p.y) return;
+    }
+    // The square the run first stands on in a map is (0,0) there for the model (SeenMaps.origins).
+    seen.originAt(p.map, p.x, p.y);
+    if (!from && last && last.x === p.x && last.y === p.y) return;
     if (!this.dark()) {
       seen.sawScreen(p.map, p.x, p.y);
       if (scanSwitches && this.boulderSwitch && this.host.gb()) seen.sawSwitches(p.map, this.rawView(false), p.x, p.y);
@@ -317,8 +320,9 @@ export class BridgeCore {
   /**
    * The screen or the whole map as the run knows it (SeenMaps): squares never on screen are "?",
    * doors not yet been through lead to "?". Paths are planned on this, so a walk can't find a way
-   * the player hasn't seen. In the dark the screen shows only what's lit (renderDarkView) and nothing
-   * is remembered. The whole map's closed lower-floor patches are sealed before the fog.
+   * the player hasn't seen. In the dark it's what the dark view has shown (noteDark, fogDark): walks
+   * plan over that and never guess through the dark. The whole map's closed lower-floor patches are
+   * sealed before the fog.
    */
   view(full: boolean): FoggedView {
     const raw = this.rawView(full);
@@ -327,17 +331,18 @@ export class BridgeCore {
       : (this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw);
     const seen = this.host.seen?.();
     if (!seen) return { ...v, stage: undefined };
-    if (!this.dark()) {
-      // A view is read once a move is over: the game has settled on whatever map it's on.
-      // Pass scanSwitches=false so noteSeen doesn't fetch a second rawView; we already have `raw`.
-      this.noteSeen(true, false);
-      const pos = this.host.position();
-      if (!pos.battle) {
-        seen.sawScreen(pos.map, pos.x, pos.y);
-        if (this.boulderSwitch) seen.sawSwitches(pos.map, raw, pos.x, pos.y);
-      }
+    if (this.dark()) {
+      this.noteDark(seen);
+      return seen.fogDark(v, this.host.position().map, this.game.mapSize(this.requireGb()).h - 1);
     }
+    // A view is read once a move is over: the game has settled on whatever map it's on.
+    // Pass scanSwitches=false so noteSeen doesn't fetch a second rawView; we already have `raw`.
+    this.noteSeen(true, false);
     const pos = this.host.position();
+    if (!pos.battle) {
+      seen.sawScreen(pos.map, pos.x, pos.y);
+      if (this.boulderSwitch) seen.sawSwitches(pos.map, raw, pos.x, pos.y);
+    }
     return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1, { boulderSwitch: this.boulderSwitch });
   }
 
@@ -357,22 +362,119 @@ export class BridgeCore {
     return w * h <= 200;
   }
 
+  /**
+   * In the dark: keeps what the dark view shows now (SeenMaps.sawDark). Read when a view is (a move
+   * is over, the screen has settled): mid-walk the screen is still scrolling, so its lit squares
+   * wouldn't line up with the map's.
+   */
+  private noteDark(seen: SeenMaps): void {
+    const raw = this.rawView(false);
+    const whole = this.host.rom() ? this.rawView(true) : null;
+    const sealed = whole ? sealFromWholeMap(raw, whole) : raw;
+    // A box or menu over the cave hides what's under it: those squares are dark, not lit.
+    const now = darkSquares(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+    const pos = this.host.position();
+    seen.originAt(pos.map, pos.x, pos.y);
+    // The view shows @ where the player stands, but they know what's under them: a ladder (they
+    // came by it: stepping onto one takes you away), else floor. Without it, where each move
+    // ended would stay "?" once the player walks on.
+    const under = whole?.doors?.some((d) => d.x === pos.x && d.y === pos.y)
+      ? "D"
+      : sealed.tiles && sealed.lowerFloor?.(sealed.tiles[sealed.pr][sealed.pc]) ? "," : ".";
+    seen.sawDark(pos.map, now.map((row, r) => row.map((ch, c) => (r === sealed.pr && c === sealed.pc ? under : ch))), sealed.originX, sealed.originY);
+  }
+
+  /**
+   * The (0,0) of `map`'s coordinates as the model sees them: the square the run first stood on
+   * there (SeenMaps.origins), so they say nothing about where the map's edges are. Without the
+   * run's memory (no fog), the map's own coordinates.
+   */
+  origin(map = this.host.position().map): [number, number] {
+    const seen = this.host.seen?.();
+    if (!seen) return [0, 0];
+    const known = seen.origin(map);
+    if (known) return known;
+    const p = this.host.position();
+    // A run resumed from before the origins were kept: here is where it first stands now.
+    return map === p.map && !p.battle && p.inWorld !== false ? seen.originAt(map, p.x, p.y) : [0, 0];
+  }
+
+  /** Map coordinates (x, y) on `map` as the model sees them. */
+  shown(x: number, y: number, map?: number): [number, number] {
+    const [ox, oy] = this.origin(map);
+    return [x - ox, y - oy];
+  }
+
+  /** "(x, y)" (or "(x,y)" with `tight`) in the model's coordinates on the current map. */
+  at(x: number, y: number, tight = false): string {
+    const [sx, sy] = this.shown(x, y);
+    return tight ? `(${sx},${sy})` : `(${sx}, ${sy})`;
+  }
+
+  /** The model's coordinates (x, y) on `map` as the map's own. */
+  fromShown(x: number, y: number, map?: number): [number, number] {
+    const [ox, oy] = this.origin(map);
+    return [x + ox, y + oy];
+  }
+
+  /** Square (x, y) of the map named `name` (as in 📍) as the model sees it: for the route book. */
+  readonly shownOn = (name: string, x: number, y: number): [number, number] => {
+    const o = this.host.seen?.()?.origin(this.mapConstants().indexOf(name));
+    return o ? [x - o[0], y - o[1]] : [x, y];
+  };
+
+  /** The model's coordinates (x, y) on the map named `name` as that map's own (a door it notes). */
+  fromShownOn(name: string, x: number, y: number): [number, number] {
+    const id = this.mapConstants().indexOf(name);
+    if (id === this.host.position().map) return this.fromShown(x, y);
+    const seen = this.host.seen?.();
+    if (!seen) return [x, y];
+    const o = seen.origin(id);
+    if (!o) throw new Error(`You haven't been on ${name} yet, so it has no coordinates: note its doors once you've been there.`);
+    return [x + o[0], y + o[1]];
+  }
+
+  /**
+   * A view of the current map in the model's coordinates, for renderView: its squares, doors and
+   * trainers' sight moved by the map's origin; a door's arrival square in its own map's
+   * coordinates, or left out while the run hasn't been there (it has no origin yet).
+   */
+  shownView<T extends AnyOverworldView>(v: T): T {
+    const [ox, oy] = this.origin();
+    const maps = this.mapConstants();
+    const seen = this.host.seen?.();
+    const arrival = (d: Door): Door => {
+      if (d.tx == null || d.ty == null || !seen) return d;
+      const to = maps.indexOf(d.to);
+      const o = to >= 0 ? seen.origin(to) : undefined;
+      return o ? { ...d, tx: d.tx - o[0], ty: d.ty - o[1] } : { ...d, tx: null, ty: null };
+    };
+    return {
+      ...v,
+      originX: v.originX - ox,
+      originY: v.originY - oy,
+      doors: v.doors?.map((d) => ({ ...arrival(d), x: d.x - ox, y: d.y - oy })),
+      watchers: v.watchers && new Map([...v.watchers].map(([k, who]) => [k, who.map(([x, y]) => [x - ox, y - oy] as [number, number])])),
+    };
+  }
+
   mapText(full = false): string {
     if (!this.host.version() || this.host.position().battle) return "(in battle — no map)";
     if (this.dark()) {
-      // A box or menu over the cave hides what's under it: those squares are dark, not lit.
-      const raw = this.rawView(false);
-      const sealed = this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw;
-      return renderDarkView(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+      // No trainers listed: in the dark they're black sprites.
+      const v = full ? seenPart(this.view(true)) : this.screenView();
+      return `${DARK_HEADER}\n${renderView(this.shownView(v))}`;
     }
     const v = full ? seenPart(this.view(true)) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
+    const [ox, oy] = this.origin();
     // Only trainers on squares the map shows (a "?" square hides who stands there).
     const trainers = this.host.mapTrainers(this.trainerFacing)
       .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H)
-      .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?");
-    return renderView(v) + trainerList(trainers);
+      .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?")
+      .map((t) => ({ ...t, x: t.x - ox, y: t.y - oy }));
+    return renderView(this.shownView(v)) + trainerList(trainers);
   }
 
   /** Compact result: status + screen text (+ any extras). */

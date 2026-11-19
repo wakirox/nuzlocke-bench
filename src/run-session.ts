@@ -230,11 +230,16 @@ export class RunSession {
   // ---- AiHost query projections ----
 
   summary(): unknown {
-    return this.state ? summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb) }) : null;
+    return this.state ? summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb), origin: this.origin() }) : null;
   }
 
   brief(): Brief | null {
-    return this.state ? brief(this.tracker, this.state) : null;
+    return this.state ? brief(this.tracker, this.state, this.origin()) : null;
+  }
+
+  /** (0,0) of the current map's coordinates for the model (SeenMaps.origins; the bridge sets it on arrival), or null before. */
+  private origin(): [number, number] | null {
+    return this.seen.origin(this.adapter.currentMap(this.gb)) ?? null;
   }
 
   takeNewEvents(): string[] {

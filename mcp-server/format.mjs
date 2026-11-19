@@ -191,7 +191,7 @@ export function plainErrorScreen(text) {
 }
 
 /** With narrow grids (the default), said once in get_map's description. */
-export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
+export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones (a third above them, for the sign, when x goes below -9): read each column top to bottom; a - above the digits is a negative x.";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
 export function compactGridNote({ boulderSwitch = false } = {}) {
@@ -327,9 +327,13 @@ export function narrowGrids(text, { points = false } = {}) {
     const parsed = parseWideGrid(lines, i);
     if (!parsed) continue;
     const { xs, rawRows, end: j } = parsed;
-    const tens = xs.map((x) => ` ${x < 0 ? "-" : x >= 10 ? Math.floor(x / 10) % 10 : " "}`).join("");
+    // Coordinates count from where the run arrived (0.3.0), so x can be -10 or less: then the sign
+    // gets its own row above the tens. Without such an x, a - sits in the tens row as before.
+    const signRow = xs.some((x) => x <= -10);
+    const sign = signRow ? xs.map((x) => ` ${x < 0 ? "-" : " "}`).join("") : "";
+    const tens = xs.map((x) => ` ${!signRow && x < 0 ? "-" : Math.abs(x) >= 10 ? Math.floor(Math.abs(x) / 10) % 10 : " "}`).join("");
     const ones = xs.map((x) => ` ${Math.abs(x) % 10}`).join("");
-    const header = [...(tens.trim() ? [`     ${tens}`] : []), `     ${ones}`];
+    const header = [...(sign ? [`     ${sign}`] : []), ...(tens.trim() ? [`     ${tens}`] : []), `     ${ones}`];
     const out = [
       ...header,
       ...rawRows.map((row) => row.prefix + row.cells.map((ch) => ` ${ch}`).join("")),
@@ -356,12 +360,22 @@ export function narrowGrids(text, { points = false } = {}) {
  * squares untouched, repeats the x header at the bottom of tall maps, and adds the shared `Points:` line.
  */
 export function wideGrids(text, { points = false } = {}) {
-  if (!points) return text;
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const parsed = parseWideGrid(lines, i);
     if (!parsed) continue;
     const { xs, rawRows, end } = parsed;
+    // An x of three characters (-10 or less since 0.3.0) would run into the next one in the
+    // bridge's 3-wide columns: widen them all.
+    const w = Math.max(...xs.map((x) => String(x).length)) + 1;
+    if (w > 3) {
+      lines.splice(i, end - i, "     " + xs.map((x) => String(x).padStart(w)).join(""),
+        ...rawRows.map((row) => row.prefix + row.cells.map((ch) => ch.padStart(w)).join("")));
+    }
+    if (!points) {
+      i = end - 1;
+      continue;
+    }
     let after = end;
     if (rawRows.length >= TALL_MAP_ROWS) {
       lines.splice(after, 0, lines[i]);

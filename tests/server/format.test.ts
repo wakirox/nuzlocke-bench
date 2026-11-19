@@ -401,3 +401,35 @@ describe("legendFor", () => {
     expect(wideGrids(dark, { points: true })).toBe(dark);
   });
 });
+
+describe("grids with negative x (0.3.0: coordinates count from where the run arrived)", () => {
+  const map = (x0: number) => renderView({ grid: [[..."#.@."], [..."...."]], originX: x0, originY: -1, pc: 2, pr: 0 });
+
+  it("narrow: a - in the tens row while x stays above -10, as before", () => {
+    const lines = narrowGrids(map(-3)).split("\n");
+    expect(lines.slice(0, 2)).toEqual(["      - - -  ", "      3 2 1 0"]);
+    expect(lines[2]).toBe("y -1  # . @ .");
+  });
+
+  it("narrow: a sign row over the tens and ones once x goes below -9", () => {
+    const lines = narrowGrids(map(-11)).split("\n");
+    expect(lines.slice(0, 3)).toEqual(["      - - - -", "      1 1    ", "      1 0 9 8"]);
+  });
+
+  it("wide: widens the columns so an x of three characters doesn't run into the next", () => {
+    const lines = wideGrids(map(-11)).split("\n");
+    expect(lines[0]).toBe("      -11 -10  -9  -8");
+    expect(lines[1]).toBe("y -1    #   .   @   .");
+    // Columns of two characters at most stay as the bridge drew them.
+    expect(wideGrids(map(-3))).toBe(map(-3));
+  });
+
+  it("compact: rulers and row ranges take negative coordinates", () => {
+    const out = compactGrids(renderView({ grid: [[..."..@...."], [..."......."], [..."......."]], originX: -12, originY: -5, pc: 2, pr: 0 }));
+    const lines = out.split("\n");
+    // -12 and -11 have no room for a label of their own before -10's block (as with any x).
+    expect(lines[0].trim().split(/ +/).map(Number)).toEqual([-10]);
+    expect(lines[1]).toBe("y -5   .. @....");
+    expect(lines[2]).toMatch(/^y\s*-4--3 +\.\. \.\.\.\.\.$/);
+  });
+});

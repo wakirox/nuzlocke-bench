@@ -233,7 +233,7 @@ const DEFINITIONS = {
       from: z.string().optional().describe("Map you leave from (default: the map you're on)"),
       to: z.string(),
       exit: DIR.optional(),
-      door: z.object({ x: z.number().int().min(0), y: z.number().int().min(0) }).optional(),
+      door: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
       push: DIR.optional(),
     },
     run: passJson("note_route"),
@@ -291,8 +291,8 @@ const DEFINITIONS = {
   get_map: {
     title: "Map around you",
     description: ({ grid, boulderSwitch }) =>
-      "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
-      "Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
+      "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
+      "Rows/columns are map coordinates for walk_to, counted from where you first arrived on this map (0,0): left of it and above it they're negative. A map is shown only as far as you've seen it, so its size shows only once you've been to its edges. Dark maps show what you've seen in the dark, with the same coordinates. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
       mapLegend({ boulderSwitch }) + (grid === "compact" ? compactGridNote({ boulderSwitch }) : grid === "narrow" ? NARROW_GRID_NOTE : ""),
     schema: {
       full: z.boolean().optional().describe("Whole current map instead of the screen"),

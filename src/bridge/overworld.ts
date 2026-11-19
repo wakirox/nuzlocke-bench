@@ -175,16 +175,17 @@ export function ledgeTarget(v: AnyOverworldView, x: number, y: number): string |
  * tunnel the floor's pattern shows while some walls are drawn black, so a square says what the map has
  * there, not whether it's lit. A black wall right next to a lit square shows as rock too: a player reads
  * it as the edge of what's lit (a cliff's shadow). Other black squares, the player and everyone else
- * (black sprites) are "?". The player is always at the screen's centre, so @ is known. No coordinates.
+ * (black sprites) are "?". The player is always at the screen's centre, so @ is known.
+ * Returns the screen's squares row by row: "#", ".", ",", "D", "?" or "@" (SeenMaps.sawDark keeps them).
  */
 /** What a lit square can show in the dark; anything else there (a person, an object) is a black sprite. */
 const DARK_SEEN = new Set(["#", ".", ",", "D"]);
 
-export function renderDarkView(v: UnfoggedView, lit: boolean[][], covered?: boolean[][]): string {
+export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean[][]): string[][] {
   // Squares under a text box or menu (boxedSquares) can't be seen, lit or not; nor do they light
   // the wall beside them.
   if (covered) lit = lit.map((row, r) => row.map((on, c) => on && !covered[r]?.[c]));
-  const rows = lit.map((row, r) =>
+  return lit.map((row, r) =>
     row.map((on, c) => {
       if (covered?.[r]?.[c]) return "?";
       if (r === v.pr && c === v.pc) return "@";
@@ -194,9 +195,12 @@ export function renderDarkView(v: UnfoggedView, lit: boolean[][], covered?: bool
       if (on) return DARK_SEEN.has(ch) ? ch : "?";
       const edge = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].some(([rr, cc]) => lit[rr]?.[cc]);
       return ch === "#" && edge ? "#" : "?";
-    }).join(" "));
-  return `It's dark: you see only some squares. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you can't see. You are at @.\n${rows.join("\n")}`;
+    }));
 }
+
+/** Said above a dark map (BridgeCore.mapText): the map below is what the run has seen in the dark. */
+export const DARK_HEADER =
+  "It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you haven't seen. Walks go only over squares shown here. You are at @.";
 
 /** A dark screen's 160×144 RGBA pixels as 10×9 squares: is anything lit there? Floors have a stray lit dot or two. */
 export function litSquares(rgba: Uint8ClampedArray): boolean[][] {

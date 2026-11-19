@@ -6,13 +6,16 @@ import type { GameState, MonState } from "../games/types";
 import { areaKey, type Tracker } from "../tracker/tracker";
 import { RULESETS, goalText } from "../rulesets";
 
-/**
- * No coordinates in the dark, nor in a battle: the game lights battles (the dark flag reads as off
- * during one), so a battle's location would give away where a walk in the dark ended.
- */
-export const hideCoords = (s: { dark?: boolean; battle: number }): boolean => !!s.dark || s.battle !== 0;
+/** No coordinates in a battle: there's no map then. */
+export const hideCoords = (s: { battle: number }): boolean => s.battle !== 0;
 
-export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: { menuCursor: number }) {
+/**
+ * The player's square in the model's coordinates: counted from the square the run first stood on
+ * in this map (`origin`, SeenMaps.origins), so they say nothing about where the map's edges are.
+ */
+const shownXY = (s: { x: number; y: number }, origin: [number, number] = [0, 0]) => ({ x: s.x - origin[0], y: s.y - origin[1] });
+
+export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: { menuCursor: number; origin?: [number, number] | null }) {
   const G = t.game.data;
   // A slot the game is still filling in (the starter right after it's named) has no species
   // or level yet: it isn't a Pokémon yet, so leave it out.
@@ -114,7 +117,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
       outcome: t.snap.outcome,
     },
     started: s.started,
-    location: { name: t.mapName(s), id: s.mapConst, ...(hideCoords(s) ? {} : { x: s.x, y: s.y }) },
+    location: { name: t.mapName(s), id: s.mapConst, ...(hideCoords(s) || extra.origin === null ? {} : shownXY(s, extra.origin)) },
     // With no Pokémon of your own a battle is a scene the game plays (Yellow's opening: the professor catching the partner Pokémon).
     battle: s.battle > 0 && !s.party.some((m) => m.species) ? "a scene (you have no Pokémon yet: advance_text plays it)"
       : s.battle === 1 ? "wild" : s.battle === 2 ? "trainer" : s.battle === -1 ? "lost" : "none",
@@ -172,7 +175,8 @@ export function moveLine(m: { id?: number; name?: string; type?: string; power?:
 }
 
 /** One short line per field, returned after every action. */
-export function brief(t: Tracker, s: GameState) {
+/** `origin`: (0,0) of this map's coordinates for the model; null while it has none yet (no coordinates then). */
+export function brief(t: Tracker, s: GameState, origin?: [number, number] | null) {
   const G = t.game.data;
   // Right as a battle starts the game hasn't sent its Pokémon out yet (its battle slot is still
   // empty): the one going out is the first in the party that can fight, so that one is shown.
@@ -224,8 +228,12 @@ export function brief(t: Tracker, s: GameState) {
   const firstOut = s.party.find((m) => m.species && m.hp > 0)?.uid;
   const dead = s.battle === 0 ? t.snap.dead.filter((d) => inParty.has(d.uid))
     .map((d) => `${d.nickname || t.name(d.species)}${d.uid === firstOut ? " (the game sends it out first)" : ""}`).join(", ") : "";
+  const at = shownXY(s, origin ?? undefined);
   return {
-    location: inWorld ? `${t.mapName(s)} [${s.mapConst}]${hideCoords(s) ? "" : ` x${s.x} y${s.y}${s.facing ? ` facing ${s.facing}` : ""}`}` : "not in the game world yet (title screen or intro)",
+    location: inWorld ? `${t.mapName(s)} [${s.mapConst}]${hideCoords(s) || origin === null ? "" : ` x${at.x} y${at.y}${s.facing ? ` facing ${s.facing}` : ""}`}` : "not in the game world yet (title screen or intro)",
+    // For the run log only (the MCP server doesn't print it): the coordinates no longer say whether
+    // the map was dark, and the dark-tunnel score needs to know (report.mjs darkTunnel).
+    ...(s.dark && s.battle === 0 ? { dark: true } : {}),
     // With no Pokémon of your own a battle is a scene the game plays (Yellow's opening: the professor catching the partner Pokémon).
     battle: s.battle > 0 && !s.party.some((m) => m.species) ? "a scene (you have no Pokémon yet: advance_text plays it)"
       : s.battle === 1 ? "wild" : s.battle === 2 ? "trainer" : s.battle === -1 ? "lost" : "none",

@@ -7,7 +7,7 @@ import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import { gen1Adapter } from "../../src/games/gen1";
 import type { Position } from "../../src/games/types";
-import { FakeHost, screenRows, type FakeHostOptions } from "../harness/fake-bridge";
+import { FakeHost, screenRows, seenFrom0, type FakeHostOptions } from "../harness/fake-bridge";
 
 const MAP = 1;
 const OX = 10;
@@ -26,14 +26,14 @@ const door = (x: number, y: number, to: string, tx: number | null = 1, ty: numbe
 describe("SeenMaps: the screen", () => {
   it("marks the 10×9 screen around the player seen, and nothing just outside it", () => {
     // The screen is 4 squares left, 5 right, 4 up and 4 down of the player.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     for (const [x, y] of [[6, 6], [15, 6], [6, 14], [15, 14]]) expect(s.has(MAP, x, y)).toBe(true);
     for (const [x, y] of [[5, 10], [16, 10], [10, 5], [10, 15]]) expect(s.has(MAP, x, y)).toBe(false);
   });
 
   it("merges overlapping screens into one run on each row", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     s.sawScreen(MAP, 14, 10);
     expect(s.data.squares[MAP][10]).toEqual([[6, 19]]);
@@ -41,7 +41,7 @@ describe("SeenMaps: the screen", () => {
 
   it("reports a change once, and not for a screen already seen", () => {
     // The page saves only when something new was seen, so a repeat must not count.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     expect(s.takeChanged()).toBe(true);
     expect(s.takeChanged()).toBe(false);
@@ -51,7 +51,7 @@ describe("SeenMaps: the screen", () => {
 
   it("answers the same once rebuilt from its saved data", () => {
     // What the autosave stores is SeenMaps.data; a reload must not forget the map.
-    const old = new SeenMaps();
+    const old = seenFrom0();
     old.sawScreen(MAP, 10, 10);
     const again = new SeenMaps(old.data);
     expect(again.has(MAP, 6, 6)).toBe(true);
@@ -62,7 +62,7 @@ describe("SeenMaps: the screen", () => {
 describe("SeenMaps: doors", () => {
   it("knows a door once it has gone through it, and a door next to it", () => {
     // A step away still counts: the poll can catch the player a step before the warp.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.wentThrough(MAP, 10, 10, 2, 1, 1);
     expect(s.knowsDoor(MAP, door(10, 10, "HOUSE"))).toBe(true);
     expect(s.knowsDoor(MAP, door(11, 10, "HOUSE"))).toBe(true);
@@ -70,21 +70,21 @@ describe("SeenMaps: doors", () => {
   });
 
   it("knows the arrival door on the map it leads to", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.wentThrough(MAP, 10, 10, 2, 1, 1);
     expect(s.knowsDoor(2, door(1, 1, "OUTSIDE"))).toBe(true);
   });
 
   it("knows a Pokémon Center, Mart, Gym or department store from outside, before going in", () => {
     // Their roofs and signs say what they are, so their doors are named at once.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     for (const to of ["VIRIDIAN_POKECENTER", "VIRIDIAN_MART", "PEWTER_GYM", "CELADON_MART_1F", "GOLDENROD_DEPT_STORE_1F", "VIOLET_POKECENTER_1F"]) {
       expect(s.knowsDoor(MAP, door(3, 3, to))).toBe(true);
     }
   });
 
   it("doesn't know other doors until it has been through them", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     expect(s.knowsDoor(MAP, door(3, 3, "REDS_HOUSE_1F"))).toBe(false);
     expect(s.knowsDoor(MAP, door(3, 3, "MT_MOON_B1F"))).toBe(false);
   });
@@ -93,21 +93,21 @@ describe("SeenMaps: doors", () => {
 describe("SeenMaps: a building's bottom-row doormat", () => {
   it("knows a bottom-row door that leads outdoors, without going through it", () => {
     // The doormat on a building's bottom row is the way out: the player sees where it leads.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     for (const to of ["ROUTE_1", "PALLET_TOWN", "CERULEAN_CITY", "CINNABAR_ISLAND", "INDIGO_PLATEAU"]) {
       expect(s.knowsDoor(MAP, door(3, 8, to), 8)).toBe(true);
     }
   });
 
   it("doesn't know one a row higher, or one on the bottom row that leads indoors", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     expect(s.knowsDoor(MAP, door(3, 7, "ROUTE_1"), 8)).toBe(false);
     expect(s.knowsDoor(MAP, door(3, 8, "REDS_HOUSE_2F"), 8)).toBe(false);
     expect(s.knowsDoor(MAP, door(3, 8, "MT_MOON_1F"), 8)).toBe(false);
   });
 
   it("knows the outdoor doormats of the routes, parks and forests the game names so", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     for (const to of ["ROUTE_10_NORTH", "SAFARI_ZONE_EAST", "LAKE_OF_RAGE", "VIRIDIAN_FOREST"]) {
       expect(s.knowsDoor(MAP, door(3, 8, to), 8)).toBe(true);
     }
@@ -115,13 +115,13 @@ describe("SeenMaps: a building's bottom-row doormat", () => {
 
   it("doesn't know a route's gate or a safari rest house as outdoors", () => {
     // Gates and houses are indoors: the doormat leads into a building, not out into the open.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     expect(s.knowsDoor(MAP, door(3, 8, "ROUTE_2_GATE"), 8)).toBe(false);
     expect(s.knowsDoor(MAP, door(3, 8, "SAFARI_ZONE_EAST_REST_HOUSE"), 8)).toBe(false);
   });
 
   it("doesn't know it without being told where the bottom row is", () => {
-    expect(new SeenMaps().knowsDoor(MAP, door(3, 8, "ROUTE_1"))).toBe(false);
+    expect(seenFrom0().knowsDoor(MAP, door(3, 8, "ROUTE_1"))).toBe(false);
   });
 });
 
@@ -129,7 +129,7 @@ describe("SeenMaps.fog", () => {
   // The seen screen is around (10, 10): x 6–15, y 6–14. The view is x 4–7, y 10–12, so x 4 and 5 are unseen.
   // Doors: (5,11) is unseen; (7,12) is seen but not known; (7,10) is known (gone through).
   const fogged = (doors: Door[]) => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     s.wentThrough(MAP, 7, 10, 9, 0, 0);
     const v: OverworldView = {
@@ -165,7 +165,7 @@ describe("SeenMaps.fog", () => {
 describe("SeenMaps.fog: the bottom row", () => {
   it("keeps a bottom-row door that leads outdoors when given the bottom row, and shows ? without it", () => {
     // The door is on the map's bottom row (y 10) and seen; the view is one row, so it is that row.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     const v: OverworldView = { grid: [["@", "."]], originX: 6, originY: 10, pc: 0, pr: 0, doors: [door(7, 10, "ROUTE_1")] };
     expect(s.fog(v, MAP, 10).doors).toEqual([door(7, 10, "ROUTE_1")]);
@@ -176,7 +176,7 @@ describe("SeenMaps.fog: the bottom row", () => {
 describe("SeenMaps.fog: a wide door and trainers' sight", () => {
   it("shows both squares of a 2-wide door as known once one of them is", () => {
     // The run came through the door at (7,12) from (7,11); (8,12) is the same door's other square.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     s.wentThrough(MAP, 7, 11, 9, 0, 0);
     const v: OverworldView = { grid: [[".", ".", "."]], originX: 6, originY: 12, pc: 0, pr: 0, doors: [door(7, 12, "SECRET", 3, 4), door(8, 12, "SECRET", 3, 4)] };
@@ -185,7 +185,7 @@ describe("SeenMaps.fog: a wide door and trainers' sight", () => {
 
   it("keeps a seen trainer's sight, and drops sight onto unseen squares and from unseen trainers", () => {
     // Seen: the screen around (10,10), x 6–15, y 6–14. The view is x 4–7, y 10–12: keys are row*4 + column.
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, 10, 10);
     const v: OverworldView = {
       grid: [[".", ".", ".", "."], [".", ".", ".", "."], [".", ".", ".", "."]],
@@ -210,7 +210,7 @@ describe("walks on a fogged view", () => {
   // A row of twelve squares from the player at the left; the screen around (OX+1) is seen (columns 0–6)
   // and so is the one around (OX+13) (columns 9–11): columns 7 and 8 are unseen.
   const row = () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, OX + 1, OY);
     s.sawScreen(MAP, OX + 13, OY);
     return s.fog(view(["@..........."]), MAP);
@@ -221,7 +221,7 @@ describe("walks on a fogged view", () => {
   });
 
   it("finds no path to an unseen square", () => {
-    const s = new SeenMaps();
+    const s = seenFrom0();
     s.sawScreen(MAP, OX + 1, OY);
     expect(findPath(s.fog(view(["@........."]), MAP), OX + 9, OY)).toBeNull();
   });
@@ -254,7 +254,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
   }
 
   it("marks the current screen seen and shows the rest of the view as ?", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const v = coreFor(seen).view(false);
     expect(seen.has(MAP, 6, 6)).toBe(true);
     expect(v.grid[0][0]).toBe("?");
@@ -262,7 +262,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
   });
 
   it("fogs the whole map the same way", () => {
-    const v = coreFor(new SeenMaps()).view(true);
+    const v = coreFor(seenFrom0()).view(true);
     expect(v.grid[0][0]).toBe("?");
     expect(v.grid[4][5]).toBe("@");
   });
@@ -276,14 +276,14 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
   });
 
   it("rawView never fogs, and doesn't mark the screen seen", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     expect(coreFor(seen).rawView(false).grid.flat()).not.toContain("?");
     expect(seen.has(MAP, 6, 6)).toBe(false);
   });
 
   it("leaves trainers on unseen squares out of the Trainers line", () => {
     // (8,8) is on the seen screen; (5,7) is in the unseen first column.
-    const text = coreFor(new SeenMaps(), [
+    const text = coreFor(seenFrom0(), [
       { x: 8, y: 8, name: "BUG CATCHER", beaten: false },
       { x: 5, y: 7, name: "LASS", beaten: false },
     ]).mapText(true);
@@ -306,7 +306,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     const host = new FakeHost(layout, [{ rows: screenRows() }], {
       position: { inWorld: true, map: MAP, x: 10, y: 10 },
       view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
-      seen: new SeenMaps(),
+      seen: seenFrom0(),
     });
     const compact = compactGrids(new BridgeCore(host.asHost()).mapText(true));
     expect(compact).toContain("Points: I (8,8).");
@@ -325,7 +325,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
       position: { inWorld: true, map: MAP, x: 10, y: 10 },
       view: { grid, originX: 0, originY: 0, pc: 10, pr: 10, exits: ["up"] },
       mapSize: { w: 30, h: 20 },
-      seen: new SeenMaps(),
+      seen: seenFrom0(),
     });
     const lines = new BridgeCore(host.asHost()).mapText(true).split("\n");
     expect(lines[0]).toBe("Map exits: up.");
@@ -396,7 +396,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     {
       const cave = makeCave();
       cave.putBoulder(1, 0, 0); // boulder starts off the switch
-      const seen = new SeenMaps();
+      const seen = seenFrom0();
       const core = bridgeForCave(cave, MAP, seen, true);
       expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
       expect(seen.hasSwitch(MAP, 1, 0)).toBe(true);
@@ -412,7 +412,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     {
       const cave = makeCave();
       cave.putBoulder(1, 1, 0); // already covering (1,0) before the player ever sees the room
-      const seen = new SeenMaps();
+      const seen = seenFrom0();
       const core = bridgeForCave(cave, MAP, seen, true);
       expect(core.rawView(true).grid[0][1]).toBe("b"); // decorate saw boulder on switch...
       expect(seen.hasSwitch(MAP, 1, 0)).toBe(false); // ...but (1,0) was never seen uncovered
@@ -423,7 +423,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     // 3. Boulder drops onto a switch from the floor above (map 2 -> map 1); switch on map 1 never seen -> stays B.
     {
       const upperMap = MAP + 1;
-      const seen = new SeenMaps();
+      const seen = seenFrom0();
       // Even if the run saw a switch at (1,0) on the floor above, switches are tracked per map.
       const upperCave = makeCave();
       bridgeForCave(upperCave, upperMap, seen, true).view(true);
@@ -440,7 +440,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     {
       const cave = makeCave();
       cave.putBoulder(1, 0, 0);
-      const seen = new SeenMaps();
+      const seen = seenFrom0();
       const core = bridgeForCave(cave, MAP, seen, false);
       expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
       expect(seen.data.switches).toBeUndefined();
@@ -453,7 +453,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     {
       const cave = makeCave();
       let fullReads = 0, screenReads = 0;
-      const seen = new SeenMaps();
+      const seen = seenFrom0();
       const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: MAP, x: 0, y: 1 }, seen });
       const rawHost = host.asHost();
       const adapter = {
@@ -507,7 +507,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     const host = new FakeHost(layout, [{ rows: screenRows() }], {
       position: { inWorld: true, map: MAP, x: 10, y: 10 },
       view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
-      seen: new SeenMaps(),
+      seen: seenFrom0(),
     });
     const rawMap = new BridgeCore(host.asHost()).mapText(true);
     // Default (points off): never produces a Points line.
@@ -528,7 +528,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     const host = new FakeHost(layout, [{ rows: screenRows() }], {
       position: { inWorld: true, map: MAP, x: 10, y: 10 },
       view: { grid, originX: 6, originY: 6, pc: 4, pr: 4 },
-      seen: new SeenMaps(),
+      seen: seenFrom0(),
     });
     const core = new BridgeCore(host.asHost());
     core.dark = () => true;
@@ -539,7 +539,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
   });
 
   it("requests facing only when trainerFacing is enabled, and omits unseen, beaten, and off-screen facing", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     // An earlier screen around (16,10) was seen, so (16,10) is seen on the full map while now off screen.
     seen.sawScreen(MAP, 16, 10);
     // Build trainers through trainerFacing from real sprite vectors (off-screen SAILOR has a non-zero
@@ -579,7 +579,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
   }
 
   it("marks the screen seen at each new position", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     core.noteSeen();
     host.moveTo({ x: 9 });
@@ -591,7 +591,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
 
   it("records a warp's door on the next look on the new map, once the arrival has settled", () => {
     // The first look after a warp may read the arrival before it's settled, so the door waits for the next.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     core.noteSeen();
     host.moveTo({ map: 2, x: 3, y: 3 });
@@ -603,7 +603,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
   });
 
   it("marks nothing in a battle", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen, { battle: true });
     core.noteSeen();
     host.moveTo({ x: 9 });
@@ -612,7 +612,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
   });
 
   it("marks nothing when the player isn't in the world (a menu or title screen)", () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     host.moveTo({ inWorld: false });
     core.noteSeen();
@@ -620,7 +620,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
   });
 
   it("is called by tap, so a press that moves the player marks where it went", async () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     host.moveTo({ x: 20, y: 5 });
     expect(seen.has(MAP, 20, 5)).toBe(false);
@@ -630,7 +630,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
 
   it("forgets where the player stood after a battle, so the next map change records no door", () => {
     // A whiteout's trip to a Pokémon Center isn't a door walked through.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     core.noteSeen();
     host.moveTo({ battle: true });
@@ -643,7 +643,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
 
   it("records no door for a map change made by a field move or an item", () => {
     // Dig, Teleport, Fly and an Escape Rope change maps without a door.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     core.noteSeen();
     core.mapChangeIsNoDoor = true;
@@ -656,7 +656,7 @@ describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
 
   it("records the door at once on a settled look right after the map changed", () => {
     // The caller knows the game has settled on the new map, so no second look is needed.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     const { host, core } = movable(seen);
     core.noteSeen();
     host.moveTo({ map: 2, x: 3, y: 3 });

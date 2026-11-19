@@ -13,6 +13,11 @@ function setup() {
     alignToVBlank: async () => {},
     view: () => ({ grid: [["@", ".", "O"]], originX: 0, originY: 0, pc: pos.x, pr: 0, exits: [] }),
     sight: () => ({ avoidSight: false }),
+    dark: () => false,
+    // The map's own coordinates as the model's (an origin at its corner).
+    shown: (x: number, y: number) => [x, y],
+    shownView: <T>(v: T) => v,
+    at: (x: number, y: number) => `(${x}, ${y})`,
     awaitWarp: vi.fn(async () => { pos.map = 2; }),
     mapName: () => (pos.map === 2 ? "FLOOR_BELOW" : "FLOOR"),
     mapText: () => "map",

@@ -18,6 +18,13 @@ export interface SeenData {
   doors: Record<string, Spot[]>;
   /** Map → floor-switch squares the run has seen uncovered (`o`), for showing a boulder later pushed onto one as `b`. */
   switches?: Record<string, Spot[]>;
+  /** Map → "x,y" → what the square showed in the dark (#, ., , or D): a dark map shows what the run saw there. */
+  dark?: Record<string, Record<string, string>>;
+  /**
+   * Map → the square the run first stood on there: (0,0) of the coordinates the model sees on that
+   * map, so they say nothing about where the map's edges are.
+   */
+  origins?: Record<string, Spot>;
 }
 
 /** Buildings a player knows from outside (their roofs and signs say so): their doors are named at once. */
@@ -36,7 +43,24 @@ export class SeenMaps {
       squares: data?.squares ?? {},
       doors: data?.doors ?? {},
       ...(data?.switches ? { switches: data.switches } : {}),
+      ...(data?.dark ? { dark: data.dark } : {}),
+      ...(data?.origins ? { origins: data.origins } : {}),
     };
+  }
+
+  /** The (0,0) of `map`'s coordinates as the model sees them, once the run has stood there. */
+  origin(map: number): Spot | undefined {
+    return this.data.origins?.[map];
+  }
+
+  /** The (0,0) of `map`'s coordinates: set to (x, y), where the player stands, the first time. */
+  originAt(map: number, x: number, y: number): Spot {
+    const origins = (this.data.origins ??= {});
+    if (!origins[map]) {
+      origins[map] = [x, y];
+      this.changed = true;
+    }
+    return origins[map];
   }
 
   /** Marks the screen around (x, y) on `map` seen. */
@@ -66,6 +90,26 @@ export class SeenMaps {
         const spots = (byMap[map] ??= []);
         if (!spots.some(([a, b]) => a === x && b === y)) {
           spots.push([x, y]);
+          this.changed = true;
+        }
+      }
+    }
+  }
+
+  /**
+   * Remembers what the dark view's squares (darkSquares, its top-left square at originX, originY)
+   * show now: every square but the dark ("?") and the player. Kept apart from the lit memory
+   * (sawScreen), so a map lit later (Flash) shows what it always did.
+   */
+  sawDark(map: number, squares: string[][], originX: number, originY: number): void {
+    for (let r = 0; r < squares.length; r++) {
+      for (let c = 0; c < squares[r].length; c++) {
+        const ch = squares[r][c];
+        if (ch === "?" || ch === "@") continue;
+        const known = ((this.data.dark ??= {})[map] ??= {});
+        const key = `${originX + c},${originY + r}`;
+        if (known[key] !== ch) {
+          known[key] = ch;
           this.changed = true;
         }
       }
@@ -127,6 +171,26 @@ export class SeenMaps {
       mapDoors: (inSight) => {
         const known = inSight.filter((k) => this.knowsDoor(map, k, bottomRow));
         return inSight.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
+      },
+    });
+  }
+
+  /**
+   * A dark map as the run knows it: only the squares the dark view showed (sawDark), each as it
+   * showed then (a person standing on one since is a black sprite, not shown), and the player.
+   * Walks plan over this in the dark, never guessing through the rest.
+   */
+  fogDark(view: AnyOverworldView, map: number, bottomRow?: number): KnownOverworldView {
+    const known = this.data.dark?.[map] ?? {};
+    const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+    return maskView(view, {
+      isVisible: (x, y) => `${x},${y}` in known || (x === view.originX + view.pc && y === view.originY + view.pr),
+      // A lower floor is "." on the grid, as on a lit map: renderView draws it "," from its tile.
+      mapCell: (ch, x, y) => (ch === "@" ? ch : known[`${x},${y}`] === "," ? "." : known[`${x},${y}`]),
+      mapDoors: (inSight) => {
+        const doors = inSight.filter((d) => known[`${d.x},${d.y}`] === "D");
+        const knownDoors = doors.filter((k) => this.knowsDoor(map, k, bottomRow));
+        return doors.map((d) => (knownDoors.includes(d) || knownDoors.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
       },
     });
   }

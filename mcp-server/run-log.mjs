@@ -29,6 +29,8 @@ export function logEntry({ n, name, args, started, ended, result, status }) {
     args: args ?? {},
     error: result?.isError ? text.slice(0, 500) : result ? undefined : "no result (threw)",
     where: line("📍"),
+    // In a dark map (the bridge's status says so; the 📍 line has coordinates in the dark too).
+    dark: status?.dark || undefined,
     outcome: line("🏁 RUN ENDED —") ?? stateOutcome(text),
     chars: text.length,
     images: content.filter((c) => c.type === "image").length || undefined,
