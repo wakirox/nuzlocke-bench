@@ -81,6 +81,27 @@ describe("hunt on a fogged map", () => {
     await expect(travel.hunt(10)).rejects.toThrow(/No tall grass seen yet/);
   });
 
+  it("says walls or ledges are in the way, not a trainer's sight, when the grass can't be walked to", async () => {
+    // Grass behind a wall, no trainer anywhere (it used to blame a trainer's sight, 2026-11-19).
+    const grid = [["@", "#", '"', '"']];
+    await expect(onMap(grid, grid).hunt(10)).rejects.toThrow(/can be walked to from here: walls or one-way ledges are in the way/);
+  });
+
+  it("goes on past the nearest grass it can't reach to grass it can", async () => {
+    // Fourteen pairs of grass shut in behind a wall are nearer than the two it can reach along the top.
+    const grid = [
+      ["@", ...Array<string>(20).fill("."), '"', '"'],
+      Array<string>(23).fill("#"),
+      ["#", ...Array<string>(14).fill('"'), ...Array<string>(8).fill("#")],
+    ];
+    const travel = onMap(grid, grid);
+    const t = travel as unknown as Record<string, unknown>;
+    const walked: unknown[] = [];
+    t.walkSegments = vi.fn(async (s: unknown) => { walked.push(s); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(walked).toEqual([[["right", 21]]]);
+  });
+
   it("paces floor on a map with no grass at all", async () => {
     // No grass anywhere, so the floor is what to pace: the walk right and back, then the encounter.
     const travel = onMap([["@", ".", "."]], [["@", ".", "."]]);

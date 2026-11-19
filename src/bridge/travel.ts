@@ -318,15 +318,25 @@ export class Travel {
       const cands: [number, number][] = [];
       for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (pairAt(c, r)) cands.push([c, r]);
       cands.sort((a, b) => Math.abs(a[0] - vv.pc) + Math.abs(a[1] - vv.pr) - (Math.abs(b[0] - vv.pc) + Math.abs(b[1] - vv.pr)));
+      // Nearest first, and on until one is reachable: the nearest can all be behind a one-way ledge
+      // with reachable grass further off (only the 12 nearest were tried, 2026-11-19).
       let reached = false;
-      for (const [c, r] of cands.slice(0, 12)) {
+      let sightInTheWay = false;
+      for (const [c, r] of cands.slice(0, 200)) {
         const route = findPath(vv, c + vv.originX, r + vv.originY, this.core.sight());
+        if (route?.sightStop) sightInTheWay = true;
         if (!route || route.sightStop) continue;
         log = await this.walkSegments(toSegments(route.dirs, vv));
         reached = true;
         break;
       }
-      if (!reached) throw new Error(this.core.sight().avoidSight ? "No grass (or cave floor) reachable without crossing a trainer's sight (trainers: avoid)." : "No grass (or cave floor) reachable.");
+      // Why not, as it is: a trainer's sight only when one was in the way (it was said for walls
+      // and ledges too, with no trainer on the map).
+      if (!reached) {
+        throw new Error(sightInTheWay
+          ? "No grass (or cave floor) reachable without crossing a trainer's sight (trainers: avoid)."
+          : "No grass (or cave floor) you've seen can be walked to from here: walls or one-way ledges are in the way.");
+      }
       if (this.core.host.position().battle) {
         // Ran from one that doesn't count on the way (flee_uncounted): keep going to the grass.
         const out = await this.huntBattle(log, 0, fled);
