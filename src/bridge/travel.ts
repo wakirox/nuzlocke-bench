@@ -2,7 +2,7 @@
 // own routes, field moves and pacing the grass.
 
 import { hasFog, mapHasGrass, planFrontierEdge, planFrontierTarget, seenSteps } from "./map-lens";
-import { cropView, findPath, ledgeTarget, pairBlocked, pathFurthest, renderView, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
+import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, renderView, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -522,9 +522,13 @@ export class Travel {
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
+      // Past the map's edge, but never on screen: a player can't tell that from a square not seen yet
+      // (saying "outside this map" would let walk_to measure the map).
+      const seen = this.core.host.seen?.();
+      const unseenOutside = at == null && !!seen && !seen.has(startMap, x, y);
       const by = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
-      const why = at == null ? "it's outside this map"
-        : at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
+      const why = unseenOutside || at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
+        : at == null ? "it's outside this map"
         : at === "#" ? "that square is solid"
         : at === "~" && !full.surfing ? "that square is water"
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
@@ -746,7 +750,7 @@ export class Travel {
           if (!reports.length || reports[reports.length - 1].startsWith("(no seen way")) reports.push(`no way to the ${dir} edge found from here`);
           break;
         }
-        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view)}`);
+        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(seenPart(view))}`);
       }
       if (route.guessed && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {

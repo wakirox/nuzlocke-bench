@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
+import { boxedSquares, exitsLine, litSquares, trainerList, renderDarkView, renderView, sealFromWholeMap, seenPart, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -365,7 +365,7 @@ export class BridgeCore {
       const sealed = this.host.rom() ? sealFromWholeMap(raw, this.rawView(true)) : raw;
       return renderDarkView(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
     }
-    const v = full ? this.view(true) : this.screenView();
+    const v = full ? seenPart(this.view(true)) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;
     // Only trainers on squares the map shows (a "?" square hides who stands there).

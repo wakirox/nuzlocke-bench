@@ -53,6 +53,17 @@ describe("walk_to through the fog", () => {
     await expect(travel.walkTo(9, 1, false)).rejects.toThrow(/you haven't seen that square yet/);
   });
 
+  it("says a square past the map's edge it never saw is unseen, not outside the map (that would measure the map)", async () => {
+    // The corridor is 16 wide; the run has seen x -2..7 and 10..19 (screens around 2 and 14).
+    const { travel } = fakeWorld(corridor, [2, 1], seenWithGap());
+    // (30,1): past the edge and never on screen.
+    const unseen = await travel.walkTo(30, 1, false).then(() => "", (e: Error) => e.message);
+    expect(unseen).toMatch(/you haven't seen that square yet/);
+    expect(unseen).not.toMatch(/outside this map/);
+    // (17,1): past the edge too, but on the screen around (14,1): the player saw the map end there.
+    await expect(travel.walkTo(17, 1, false)).rejects.toThrow(/it's outside this map/);
+  });
+
   it("with no fog, a target no walk reaches is refused as before, with no guess", async () => {
     // Every square is seen (the screen around (4,1) covers 0–9), so no guess is made.
     const seen = new SeenMaps();
