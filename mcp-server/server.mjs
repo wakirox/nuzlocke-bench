@@ -43,6 +43,10 @@ const REPORT_ISSUE = PLAYTEST || !/^(0|false|no)$/i.test(process.env.NUZLOCKE_RE
 const GRID_MODE = process.env.NUZLOCKE_GRID === "wide" ? "wide" : process.env.NUZLOCKE_GRID === "compact" ? "compact" : "narrow";
 // Saying which way seen on-screen trainers face on the `Trainers (T)` line, off until an A/B decides.
 const TRAINER_FACING = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_TRAINER_FACING ?? "");
+/** Opt-in bridge options sent once on connect (empty by default: nothing sent). */
+const BRIDGE_OPTIONS = {
+  ...(TRAINER_FACING ? { trainerFacing: true } : {}),
+};
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
 // (an A/B on 2026-11-07 found no difference in play at ~10% fewer tokens; the model asks when it needs one).
 // Results say how effective each move is against the foe only in the hints group: it's the answer to
@@ -106,6 +110,10 @@ const formatter = createFormatter({ mapsOnRequest: true });
 // so a test can start from any of them. A continued run keeps the ones it brought.
 const milestonesSaved = new Set(readdirSync(SAVES_DIR).map((f) => /^run\.milestone\.(\w+)\.json$/.exec(f)?.[1]).filter(Boolean));
 
+let optionsConfirmed = {};
+let optionsError = null;
+let pendingOptions = Promise.resolve();
+
 const http = createServer(createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer }));
 const link = createBridgeLink({
   log,
@@ -118,12 +126,28 @@ const link = createBridgeLink({
   },
   onConnect: () => {
     formatter.reset(); // a fresh page: show the next screen in full
-    if (TRAINER_FACING) void link.send("set_options", { trainerFacing: true }).catch((e) => log("set_options failed:", e.message));
+    optionsConfirmed = {};
+    optionsError = null;
+    if (Object.keys(BRIDGE_OPTIONS).length) {
+      pendingOptions = link.send("set_options", BRIDGE_OPTIONS).then(
+        () => { optionsConfirmed = BRIDGE_OPTIONS; },
+        (e) => {
+          optionsError = `The connected page didn't accept bridge options (${Object.keys(BRIDGE_OPTIONS).join(", ")}): ${e.message}. Rebuild/reload the page.`;
+          log("set_options failed:", e.message);
+        },
+      );
+    } else {
+      pendingOptions = Promise.resolve();
+    }
     autoStart.maybeAutoStart();
   },
 });
 link.attach(http);
-const { call } = link;
+const call = async (method, params) => {
+  await pendingOptions;
+  if (optionsError) throw new Error(optionsError);
+  return link.call(method, params);
+};
 const autoStart = createAutoStart({ headless: HEADLESS, preset: PRESET, rulesetIds: RULESET_IDS, fileOf, call, log });
 const launcher = createHeadlessLauncher({ port: PORT, headed: HEADED, log, observer });
 http.listen(PORT, "127.0.0.1", () => {
@@ -192,7 +216,7 @@ const wrapLog = createToolLogger({
   mapsEntered: link.takeMapsEntered,
   onEntry: saveMilestones,
   transcript: SERVER_TRANSCRIPT,
-  session: {
+  session: () => ({
     benchmark: PRESET,
     harness: harnessVersion(PROJECT_ROOT, DIST),
     headless: HEADLESS,
@@ -202,8 +226,9 @@ const wrapLog = createToolLogger({
     grid: GRID_MODE,
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
-    ...(TRAINER_FACING ? { trainerFacing: true } : {}),
-  },
+    ...optionsConfirmed,
+    ...(optionsError ? { optionsError } : {}),
+  }),
 });
 
 const BUDGET = PRESET?.max_calls ? callBudget({ max: PRESET.max_calls, dir: SAVES_DIR }) : null;

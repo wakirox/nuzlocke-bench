@@ -9,7 +9,7 @@ describe("trainerList", () => {
       .toBe("\nTrainers (T): (49,10) KEEPER; (48,10) WALKER [beaten].");
   });
 
-  it("includes facing for unbeaten on-screen trainers and omits it for beaten or off-screen ones", () => {
+  it("prints facing whenever a trainer carries it, and trainerFacing omits off-screen sprites", () => {
     expect(trainerFacing({ dx: 0, dy: -1, onScreen: true })).toBe("up");
     expect(trainerFacing({ dx: 0, dy: 1, onScreen: true })).toBe("down");
     expect(trainerFacing({ dx: -1, dy: 0, onScreen: true })).toBe("left");
@@ -17,7 +17,7 @@ describe("trainerList", () => {
     expect(trainerFacing({ dx: 0, dy: 1, onScreen: false })).toBeUndefined();
     expect(trainerList([
       { x: 14, y: 2, name: "HIKER", beaten: false, facing: "down" },
-      { x: 18, y: 4, name: "WALKER", beaten: true, facing: "left" },
+      { x: 18, y: 4, name: "WALKER", beaten: true },
       { x: 30, y: 6, name: "SAILOR", beaten: false },
     ])).toBe("\nTrainers (T): (14,2) HIKER facing down; (18,4) WALKER [beaten]; (30,6) SAILOR.");
   });

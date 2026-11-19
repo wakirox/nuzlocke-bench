@@ -269,7 +269,7 @@ export interface MapTrainer { x: number; y: number; name: string; beaten: boolea
  */
 export function trainerList(trainers: MapTrainer[]): string {
   if (!trainers.length) return "";
-  return `\nTrainers (T): ${trainers.map((t) => `(${t.x},${t.y}) ${t.name}${t.facing && !t.beaten ? ` facing ${t.facing}` : ""}${t.beaten ? " [beaten]" : ""}`).join("; ")}.`;
+  return `\nTrainers (T): ${trainers.map((t) => `(${t.x},${t.y}) ${t.name}${t.facing ? ` facing ${t.facing}` : ""}${t.beaten ? " [beaten]" : ""}`).join("; ")}.`;
 }
 
 /**

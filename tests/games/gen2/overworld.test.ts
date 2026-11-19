@@ -204,38 +204,38 @@ describe("Crystal people on screen", () => {
     expect(hideUnloadedOnScreen([loaded, { ...clerk, x: 40, y: 0 }], 5, 5).map((o) => o.hidden)).toEqual([false, false]);
   });
 
-  it("trainerFacing uses the same loaded-struct onScreen condition as sight lines", () => {
+  it("trainerFacing checks the real 10×9 screen window (not just whether a struct is loaded)", () => {
     const ram = new Uint8Array(0x10000);
     ram[A.xCoord] = 10;
     ram[A.yCoord] = 10;
-    ram[OW.objectEventCount] = 2;
-    // Object 1: loaded struct #1 at (16, 10) (just past the 10x9 screen edge, still loaded) facing right (0x0c).
-    const m1 = OW.mapObjects + 16;
-    ram[m1] = 1; // structId
-    ram[m1 + 1] = 1; // sprite
-    ram[m1 + 2] = 14; ram[m1 + 3] = 20;
-    ram[m1 + 6] = 0xff; ram[m1 + 7] = 0xff; // always on
-    ram[m1 + 8] = 2; // OBJECTTYPE.TRAINER
-    ram[m1 + 9] = 3; // sightRange
-    ram[m1 + 12] = 0xff; ram[m1 + 13] = 0xff; // no hide flag
-    const s1 = OW.objectStructs + 1 * 40;
-    ram[s1] = 1; // sprite loaded
-    ram[s1 + 0x08] = 0x0c; // facing right
-    ram[s1 + 0x10] = 20; // x + 4 = 20 -> x = 16
-    ram[s1 + 0x11] = 14; // y + 4 = 14 -> y = 10
-    // Object 2: unloaded (structId = 0xff) far off screen at (30, 10).
-    const m2 = OW.mapObjects + 32;
-    ram[m2] = 0xff;
-    ram[m2 + 1] = 1;
-    ram[m2 + 2] = 14; ram[m2 + 3] = 34;
-    ram[m2 + 6] = 0xff; ram[m2 + 7] = 0xff;
-    ram[m2 + 8] = 2;
-    ram[m2 + 9] = 3;
-    ram[m2 + 12] = 0xff; ram[m2 + 13] = 0xff;
+    ram[OW.objectEventCount] = 3;
+    const putTrainer = (idx: number, structId: number, x: number, y: number, facingByte?: number) => {
+      const m = OW.mapObjects + idx * 16;
+      ram[m] = structId;
+      ram[m + 1] = 1; // sprite
+      ram[m + 2] = y + 4;
+      ram[m + 3] = x + 4;
+      ram[m + 6] = 0xff; ram[m + 7] = 0xff; // always on
+      ram[m + 8] = 2; // OBJECTTYPE.TRAINER
+      ram[m + 9] = 3; // sightRange
+      ram[m + 12] = 0xff; ram[m + 13] = 0xff; // no hide flag
+      if (structId !== 0xff) {
+        const s = OW.objectStructs + structId * 40;
+        ram[s] = 1; // sprite loaded
+        ram[s + 0x08] = facingByte ?? 0;
+        ram[s + 0x10] = x + 4;
+        ram[s + 0x11] = y + 4;
+      }
+    };
+    // Player at (10, 10): 10×9 screen covers x 6..15 (-4..+5) and y 6..14 (-4..+4).
+    putTrainer(1, 1, 15, 10, 0x0c); // rightmost screen column (+5), loaded, facing right
+    putTrainer(2, 2, 16, 10, 0x0c); // just past right screen edge (+6), still loaded in wObjectStructs
+    putTrainer(3, 0xff, 30, 10); // unloaded far off screen
     const mem = { read8: (a: number) => ram[a], read16be: () => 0, readBytes: () => new Uint8Array() };
     const sprites = trainerSprites(mem, 10, 10);
     expect(sprites.map((s) => ({ x: s.x, onScreen: s.onScreen, facing: trainerFacing(s) }))).toEqual([
-      { x: 16, onScreen: true, facing: "right" },
+      { x: 15, onScreen: true, facing: "right" },
+      { x: 16, onScreen: false, facing: undefined },
       { x: 30, onScreen: false, facing: undefined },
     ]);
   });

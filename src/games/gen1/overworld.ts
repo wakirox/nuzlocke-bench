@@ -148,7 +148,8 @@ export function trainerSprites(mem: MemoryReader, version: GameVersion, playerX:
     if (pic === A.ballSprite || extra < 200) continue;
     const y = mem.read8(A.spriteData2 + i * 16 + 4) - 4;
     const x = mem.read8(A.spriteData2 + i * 16 + 5) - 4;
-    const onScreen = Math.abs(x - playerX) <= PLAYER_COL && Math.abs(y - playerY) <= PLAYER_ROW;
+    const onScreen = x >= playerX - PLAYER_COL && x < playerX - PLAYER_COL + VIEW_W
+      && y >= playerY - PLAYER_ROW && y < playerY - PLAYER_ROW + VIEW_H;
     if (onScreen && mem.read8(A.spriteData1 + i * 16 + 2) === 0xff) continue;
     const [dx, dy] = FACING[mem.read8(A.spriteData1 + i * 16 + 9) & 0x0c] ?? [0, 1];
     out.push({ index: i, x, y, dx, dy, onScreen, sight: !NO_SIGHT_CLASSES.has(extra - 200) });
@@ -407,7 +408,8 @@ function decorate(
     const y = mem.read8(A.spriteData2 + i * 16 + 4) - 4;
     const x = mem.read8(A.spriteData2 + i * 16 + 5) - 4;
     // On screen but not drawn = gone too, whatever the flags say.
-    const onScreen = Math.abs(x - playerX) <= PLAYER_COL && Math.abs(y - playerY) <= PLAYER_ROW;
+    const onScreen = x >= playerX - PLAYER_COL && x < playerX - PLAYER_COL + VIEW_W
+      && y >= playerY - PLAYER_ROW && y < playerY - PLAYER_ROW + VIEW_H;
     if (onScreen && mem.read8(A.spriteData1 + i * 16 + 2) === 0xff) continue;
     const extra = mem.read8(A.mapSpriteExtra + (i - 1) * 2);
     const ch = spriteSymbol(version, pic, extra);

@@ -374,9 +374,9 @@ export function table(rows) {
   const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
   // Who played comes from scripts/bench-run.mjs (runs/<id>.agent.json); runs played otherwise show —.
   // A run continued from another's saves, or (older runs) told to narrate, isn't a clean benchmark result: say so.
-  const who = (a) => (a?.model ? `${a.model}${a.effort ? ` (${a.effort})` : ""}${a.via === "api" ? " · via API" : a.via === "agy" ? " · via agy" : ""}${a.grid && a.grid !== "narrow" ? ` · ${a.grid} grid` : ""}${a.maps === "always" ? " · maps after every move" : ""}${a.effectiveness === "on" && !String(a.preset ?? "").includes("+hints") ? " · effectiveness shown" : ""}${a.trainerFacing ? " · trainer facing shown" : ""}${a.resumedFrom ? ` · continued from ${a.resumedFrom}` : ""}${a.narrated ? " · narrated" : ""}${a.playtest ? " · playtest (not a result)" : ""}` : "—");
+  const who = (a, r) => (a?.model ? `${a.model}${a.effort ? ` (${a.effort})` : ""}${a.via === "api" ? " · via API" : a.via === "agy" ? " · via agy" : ""}${a.grid && a.grid !== "narrow" ? ` · ${a.grid} grid` : ""}${a.maps === "always" ? " · maps after every move" : ""}${a.effectiveness === "on" && !String(a.preset ?? "").includes("+hints") ? " · effectiveness shown" : ""}${a.trainerFacing || r?.trainerFacing ? " · trainer facing shown" : ""}${a.resumedFrom ? ` · continued from ${a.resumedFrom}` : ""}${a.narrated ? " · narrated" : ""}${a.playtest ? " · playtest (not a result)" : ""}` : "—");
   const body = rows.map((r) =>
-    `| ${r.name} | ${who(r.agent)} | ${r.preset ?? "—"} | ${r.harness ?? "—"} | ${outcomeText(r)} | ${r.badges} | ${r.deaths} | ${r.violations} | ${r.playTime ?? "—"} | ${r.calls} | ${r.errors} | ${r.agent?.nudges ?? "—"} | ${r.agent?.tokens ? `${(r.agent.tokens.total / 1e6).toFixed(1)}M (${r.agent.tokens.turns})` : "—"} | ${hms(r.wallMs)} | ${r.chars} (${r.charsPerCall}) | ${r.topTools} |`);
+    `| ${r.name} | ${who(r.agent, r)} | ${r.preset ?? "—"} | ${r.harness ?? "—"} | ${outcomeText(r)} | ${r.badges} | ${r.deaths} | ${r.violations} | ${r.playTime ?? "—"} | ${r.calls} | ${r.errors} | ${r.agent?.nudges ?? "—"} | ${r.agent?.tokens ? `${(r.agent.tokens.total / 1e6).toFixed(1)}M (${r.agent.tokens.turns})` : "—"} | ${hms(r.wallMs)} | ${r.chars} (${r.charsPerCall}) | ${r.topTools} |`);
   return [head, sep, ...body].join("\n");
 }
 
@@ -628,8 +628,8 @@ export function darkTunnelTable(rows) {
 }
 
 /** "haiku-5-5 medium" (+ " api", " maps-always" when turned back on, " playtest"): runs are compared within these groups. */
-const groupOf = (agent) => agent?.model
-  ? `${String(agent.model).replace(/^claude-/, "").replace(/\[1m\]$/, "")}${agent.effort ? ` ${agent.effort}` : ""}${agent.via === "api" ? " api" : agent.via === "agy" ? " agy" : ""}${agent.grid && agent.grid !== "narrow" ? ` grid-${agent.grid}` : ""}${agent.maps === "always" ? " maps-always" : ""}${agent.effectiveness === "on" && !String(agent.preset ?? "").includes("+hints") ? " effectiveness" : ""}${agent.trainerFacing ? " trainer-facing" : ""}${agent.playtest ? " playtest" : ""}`
+const groupOf = (agent, row) => agent?.model
+  ? `${String(agent.model).replace(/^claude-/, "").replace(/\[1m\]$/, "")}${agent.effort ? ` ${agent.effort}` : ""}${agent.via === "api" ? " api" : agent.via === "agy" ? " agy" : ""}${agent.grid && agent.grid !== "narrow" ? ` grid-${agent.grid}` : ""}${agent.maps === "always" ? " maps-always" : ""}${agent.effectiveness === "on" && !String(agent.preset ?? "").includes("+hints") ? " effectiveness" : ""}${agent.trainerFacing || row?.trainerFacing ? " trainer-facing" : ""}${agent.playtest ? " playtest" : ""}`
   : "unknown";
 
 /**
@@ -646,7 +646,7 @@ export function objectivesTable(rows) {
   const runs = new Map();
   for (const r of rows) {
     const root = rootOf(r);
-    const run = runs.get(root.name) ?? { group: `${groupOf(root.agent)}${root.preset ? ` · ${root.preset}` : ""}`, reached: {} };
+    const run = runs.get(root.name) ?? { group: `${groupOf(root.agent, root)}${root.preset ? ` · ${root.preset}` : ""}`, reached: {} };
     for (const [k, v] of Object.entries(r.objectives ?? {})) if (run.reached[k] === undefined) run.reached[k] = v;
     runs.set(root.name, run);
   }

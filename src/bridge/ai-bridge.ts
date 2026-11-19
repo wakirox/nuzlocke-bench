@@ -203,8 +203,7 @@ export class AiBridge {
       case "policies":
         return { policies: this.setPolicies(p) };
       case "set_options":
-        if (typeof p.trainerFacing === "boolean") this.core.trainerFacing = p.trainerFacing;
-        return { ok: true };
+        return this.setOptions(p);
       case "field_move":
         return this.travel.fieldMove(String(p.move ?? "CUT").toUpperCase());
       case "go_to":
@@ -368,6 +367,12 @@ export class AiBridge {
     gb.setButton(dir, false);
     // The slide and its dust: a step pressed before they end is dropped too.
     await gb.runFrames(64);
+  }
+
+  /** Applies opt-in bridge options sent once on connect by the MCP server. */
+  private setOptions(p: Record<string, unknown>): { ok: true } {
+    if (typeof p.trainerFacing === "boolean") this.core.trainerFacing = p.trainerFacing;
+    return { ok: true };
   }
 
   private setPolicies(p: Record<string, unknown>): Policies {

@@ -119,6 +119,15 @@ describe("objectives", () => {
     expect(table).toMatch(/\| Cottage past the bridge \| 1\/2 \(50%\) \|/); // "c" continues "a": one run
     expect(table).toMatch(/haiku-5-5 medium · p\*\* stopped before: (Through the first cave 1, Cottage step done.* 1|Cottage step done.* 1, Through the first cave 1)/);
   });
+
+  it("groups and labels runs with trainerFacing from the session line even when agent.json lacks it", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { objectivesTable, table } = await import("../../mcp-server/report.mjs");
+    const agent = { model: "claude-haiku-5-5", effort: "medium" };
+    const envOnly = { name: "r1", preset: "p", agent, trainerFacing: true, badges: 0, deaths: 0, violations: 0, calls: 10, errors: 0, wallMs: 1000, chars: 100, charsPerCall: 10, topTools: "walk 10", objectives: { badge1: "0:20:00" } };
+    expect(table([envOnly])).toContain("trainer facing shown");
+    expect(objectivesTable([envOnly])).toContain("haiku-5-5 medium trainer-facing");
+  });
 });
 
 describe("the runner's tokens", () => {

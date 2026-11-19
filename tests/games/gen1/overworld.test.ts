@@ -2,6 +2,7 @@
 // screen, a person the game has taken away must not count as standing there.
 
 import { describe, expect, it } from "vitest";
+import { trainerFacing } from "../../../src/bridge/overworld";
 import { closedGateSquares, readFullMap, readView, spriteHidden, spriteRole, trainerSprites } from "../../../src/games/gen1/overworld";
 import { addressesFor } from "../../../src/games/gen1/ram";
 import type { MemoryReader } from "../../../src/games/types";
@@ -177,5 +178,32 @@ describe("the edge of a map with no connection (Gen 1)", () => {
   it("shows the squares past a connected edge as the neighbouring map's scenery", () => {
     const { mem, rom } = map(2);  // west connected
     expect(readView(mem, "red", 1, 1, [], rom).grid[3][2]).toBe(".");
+  });
+});
+
+describe("trainerSprites screen window (Gen 1)", () => {
+  it("counts the rightmost column (+5) as on screen and stops at +6 / -5", () => {
+    const A = addressesFor("red");
+    const { m, mem } = ram();
+    const putTrainer = (slot: number, x: number, y: number, facingByte: number) => {
+      m[A.spriteData1 + slot * 16] = 1; // pic
+      m[A.spriteData1 + slot * 16 + 2] = 0; // drawn
+      m[A.spriteData1 + slot * 16 + 9] = facingByte;
+      m[A.spriteData2 + slot * 16 + 4] = y + 4;
+      m[A.spriteData2 + slot * 16 + 5] = x + 4;
+      m[A.mapSpriteExtra + (slot - 1) * 2] = 201; // trainer class
+    };
+    // Player at (10, 10): 10×9 screen covers x 6..15 (-4..+5) and y 6..14 (-4..+4).
+    putTrainer(1, 15, 10, 0x0c); // rightmost visible column (+5), facing right
+    putTrainer(2, 16, 10, 0x08); // just past right edge (+6), facing left
+    putTrainer(3, 6, 10, 0x04); // leftmost visible column (-4), facing up
+    putTrainer(4, 5, 10, 0x00); // just past left edge (-5), facing down
+    const sprites = trainerSprites(mem, "red", 10, 10);
+    expect(sprites.map((s) => ({ x: s.x, onScreen: s.onScreen, facing: trainerFacing(s) }))).toEqual([
+      { x: 15, onScreen: true, facing: "right" },
+      { x: 16, onScreen: false, facing: undefined },
+      { x: 6, onScreen: true, facing: "up" },
+      { x: 5, onScreen: false, facing: undefined },
+    ]);
   });
 });

@@ -315,7 +315,7 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(compact).toContain("y 15   ?????");
   });
 
-  it("shows facing only when trainerFacing is enabled, and only for unbeaten seen on-screen sprites", () => {
+  it("requests facing only when trainerFacing is enabled, and omits unseen, beaten, and off-screen facing", () => {
     const seen = new SeenMaps();
     // An earlier screen around (16,10) was seen, so (16,10) is seen on the full map while now off screen.
     seen.sawScreen(MAP, 16, 10);
@@ -331,12 +331,15 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
       const facing = !s.beaten ? trainerFacing(s) : undefined;
       return { x: s.x, y: s.y, name: s.name, beaten: s.beaten, ...(facing ? { facing } : {}) };
     });
-    const core = coreFor(seen, trainers);
-    // Default (trainerFacing off): no facing emitted at all.
-    expect(core.mapText(true)).toContain("Trainers (T): (8,8) HIKER; (9,8) GUARD [beaten]; (16,10) SAILOR.");
-    // Enabled: only unbeaten seen on-screen HIKER gets facing; beaten GUARD and off-screen SAILOR omit it; unseen LASS stays hidden.
+    const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: MAP, x: 10, y: 10 }, view: wide(), seen, trainers });
+    const core = new BridgeCore(host.asHost());
+    // Default (trainerFacing off): asks host with includeFacing=false.
+    core.mapText(true);
+    expect(host.mapTrainersCalls).toEqual([false]);
+    // Enabled: asks host with includeFacing=true; unbeaten seen on-screen HIKER gets facing; beaten GUARD and off-screen SAILOR omit it; unseen LASS stays hidden.
     core.trainerFacing = true;
     const text = core.mapText(true);
+    expect(host.mapTrainersCalls).toEqual([false, true]);
     expect(text).toContain("Trainers (T): (8,8) HIKER facing down; (9,8) GUARD [beaten]; (16,10) SAILOR.");
     expect(text).not.toContain("facing left");
     expect(text).not.toContain("facing up");

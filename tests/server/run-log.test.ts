@@ -139,4 +139,16 @@ describe("run log", () => {
     await server.tools.get("walk")!({});
     expect(existsSync(join(dir, "transcript.jsonl"))).toBe(false);
   });
+
+  it("evaluates a session callback lazily on the first tool call so confirmed options are recorded", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "runlog-"));
+    const file = join(dir, "run.jsonl");
+    let confirmed: Record<string, unknown> = {};
+    const server = loggedTools({ file, session: () => ({ preset: "full", ...confirmed }) });
+    server.add("walk", { inputSchema: {} }, async () => text("ok"));
+    confirmed = { trainerFacing: true };
+    await server.tools.get("walk")!({});
+    const [sessionLine] = readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(sessionLine).toMatchObject({ type: "session", preset: "full", trainerFacing: true });
+  });
 });
