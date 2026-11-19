@@ -67,6 +67,7 @@ describe("hunt on a fogged map", () => {
       view: () => ({ grid: seen, originX: 0, originY: 0, pc: 0, pr: 0, beyond: () => "." }),
       rawView: () => ({ grid: raw, originX: 0, originY: 0, pc: 0, pr: 0 }),
       sight: () => ({ avoidSight: false }),
+      dark: () => false,
       textBox: () => ({ open: false }),
       screenText: () => [],
       mapText: () => "map",
@@ -85,6 +86,16 @@ describe("hunt on a fogged map", () => {
     // Grass behind a wall, no trainer anywhere (it used to blame a trainer's sight, 2026-11-19).
     const grid = [["@", "#", '"', '"']];
     await expect(onMap(grid, grid).hunt(10)).rejects.toThrow(/can be walked to from here: walls or one-way ledges are in the way/);
+  });
+
+  it("walks to seen grass through unseen squares when no seen way gets there, as walk_to does", async () => {
+    // The grass at (3,0) and (4,0) is seen; the only way there is through the unseen (1,0) and (2,0).
+    const travel = onMap([["@", ".", ".", '"', '"']], [["@", "?", "?", '"', '"']]);
+    const t = travel as unknown as Record<string, unknown>;
+    const to: [number, number][] = [];
+    t.walkTo = vi.fn(async (x: number, y: number) => { to.push([x, y]); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(to).toEqual([[3, 0]]);
   });
 
   it("goes on past the nearest grass it can't reach to grass it can", async () => {

@@ -341,6 +341,18 @@ export class Travel {
         reached = true;
         break;
       }
+      // No seen way to any of it: try one through unseen squares, as walk_to does (never in the
+      // dark). hunt refused grass that walk_to then reached that way (2026-11-19).
+      if (!reached) {
+        for (const [c, r] of cands.slice(0, 50)) {
+          const [gx, gy] = [c + vv.originX, r + vv.originY];
+          const guess = planFrontierTarget(vv, gx, gy, this.core.sight(), !this.core.dark());
+          if (!guess || guess.sightStop) continue;
+          log = String(((await this.walkTo(gx, gy, false)) as { walk?: string }).walk ?? "");
+          reached = true;
+          break;
+        }
+      }
       // Why not, as it is: a trainer's sight only when one was in the way (it was said for walls
       // and ledges too, with no trainer on the map).
       if (!reached) {
