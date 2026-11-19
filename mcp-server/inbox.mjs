@@ -12,12 +12,18 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
  */
 export function createInbox(file) {
   return () => {
-    if (!existsSync(file)) return null;
-    const text = readFileSync(file, "utf8").trim();
-    if (!text) return null;
-    writeFileSync(file, "");
-    appendFileSync(`${file}.delivered`, `${new Date().toISOString()} ${text.replace(/\n/g, " ")}\n`);
-    return text;
+    // Read after the tool's own action ran: a file trouble here (deleted or replaced mid-read, a
+    // failed write) mustn't fail that call, so the message just waits for a later one.
+    try {
+      if (!existsSync(file)) return null;
+      const text = readFileSync(file, "utf8").trim();
+      if (!text) return null;
+      writeFileSync(file, "");
+      appendFileSync(`${file}.delivered`, `${new Date().toISOString()} ${text.replace(/\r?\n/g, " ")}\n`);
+      return text;
+    } catch {
+      return null;
+    }
   };
 }
 

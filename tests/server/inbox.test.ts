@@ -30,4 +30,11 @@ describe("the playtest inbox", () => {
     expect(existsSync(join(tmpdir(), "no-such-inbox.txt"))).toBe(false);
     expect(createInbox(join(tmpdir(), "no-such-inbox.txt"))()).toBeNull();
   });
+
+  it("never fails the tool call over the inbox file: a message it can't read waits", async () => {
+    // A directory where the file should be: reading it throws.
+    const dir = mkdtempSync(join(tmpdir(), "inbox-"));
+    const handler = withInbox(createInbox(dir), async () => result("Walk: up 1/1 — arrived"));
+    expect((await handler({})).content).toEqual([{ type: "text", text: "Walk: up 1/1 — arrived" }]);
+  });
 });
