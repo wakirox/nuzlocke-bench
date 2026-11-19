@@ -743,8 +743,11 @@ export class Travel {
     return this.core.result({ walk: `${legs.length} legs → ${why}`, map: this.core.mapText() });
   }
 
-  /** Walks to the map's edge in `dir` and steps across into the connected map. */
-  async exitMap(dir: Dir, explored = false): Promise<unknown> {
+  /**
+   * Walks to the map's edge in `dir` and steps across into the connected map. `explored`: a second
+   * look after heading that way; `from`: where the player asked from (which doors are that way).
+   */
+  async exitMap(dir: Dir, explored = false, from?: { x: number; y: number }): Promise<unknown> {
     if (!["up", "down", "left", "right"].includes(dir)) throw new Error("direction must be up, down, left or right");
     await this.core.alignToVBlank();
     if (this.core.host.position().battle) throw new Error("Can't walk during a battle.");
@@ -753,18 +756,24 @@ export class Travel {
     if (full.exits && !full.exits.length) {
       // No edges, only doors. When they all lead to the same place there's nothing to choose:
       // leave through the nearest one. Otherwise which door is the player's call.
-      const doors = full.doors ?? [];
-      // No door in sight yet (fog of war, e.g. a run resumed inside): head the way asked through
-      // what's been seen, looking as you go, as a player would; then, if that brought a way out into
-      // sight, take it (once: no second look-around).
+      // While part of the map is unseen, only the doors the way asked count: the one seen may be the
+      // one the player came in by, behind them (exit_map up in a forest took the south door back
+      // out, 2026-11-19). With the whole map seen, every door (a building's one way out).
+      const here0 = from ?? this.core.host.position();
+      const ahead = (d: { x: number; y: number }) =>
+        dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x;
+      const doors = hasFog(full) ? (full.doors ?? []).filter(ahead) : full.doors ?? [];
+      // No door in sight yet that way (fog of war, e.g. a run resumed inside): head the way asked
+      // through what's been seen, looking as you go, as a player would; then, if that brought a way
+      // out into sight, take it (once: no second look-around).
       if (!doors.length && hasFog(full)) {
         if (explored) throw new Error(`No door in sight yet that way: look around (walk, travel) and try exit_map again.`);
         const out = (await this.travel(dir, 12, 1)) as Record<string, unknown>;
-        const head = `no door in sight yet, so heading ${dir}: ${String(out.walk ?? "")}`;
+        const head = `no door in sight yet ${dir} of you, so heading ${dir}: ${String(out.walk ?? "")}`;
         const now = this.core.host.position();
         if (now.battle || now.map !== startMapOf || !this.core.view(true).doors?.length) return { ...out, walk: head };
         try {
-          const through = (await this.exitMap(dir, true)) as Record<string, unknown>;
+          const through = (await this.exitMap(dir, true, here0)) as Record<string, unknown>;
           return { ...through, walk: `${head}; then ${String(through.walk ?? "")}` };
         } catch {
           return { ...out, walk: head };
