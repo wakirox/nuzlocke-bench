@@ -123,6 +123,8 @@ describe("dashboardRuns", () => {
     const envOnly = { name: "r1", preset: "p", badges: 0, deaths: 0, violations: 0, calls: 10, errors: 0, wallMs: 0, chars: 0, charsPerCall: 0, topTools: "", boulderSwitch: true, agent: { model: "claude-haiku-5-5" }, objectives: {} };
     expect(table([envOnly])).toContain("boulder switch shown");
     expect(objectivesTable([envOnly])).toContain("haiku-5-5 boulder-switch");
+    expect(off({}, { mapPoints: true }).notOfficial).toBe("map points shown");
+    expect(off({ mapPoints: true }, {}).notOfficial).toBe("map points shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
     expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");
@@ -307,6 +309,18 @@ describe("renderDashboard", () => {
     expect(html).not.toContain("/*DATA*/");
     expect(html.match(/<\/script>/g)).toHaveLength(1);
     expect(html).toContain('"label":"Badge 1"');
+  });
+
+  const dataOf = (html: string) => JSON.parse(/const DATA = (.*);<\/script>/.exec(html)![1]);
+
+  it("embeds the bench version as current in the data", () => {
+    const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z", "0.2.0");
+    expect(dataOf(html).current).toBe("0.2.0");
+  });
+
+  it("embeds current as null when no version is given", () => {
+    const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z");
+    expect(dataOf(html).current).toBeNull();
   });
 });
 

@@ -46,7 +46,8 @@ const rows = files
 if (dashboardFile) {
   const template = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../mcp-server/dashboard-page.html"), "utf8");
   const runs = dashboardRuns(rows, { names: !noNames });
-  writeFileSync(dashboardFile, renderDashboard(template, runs, new Date().toISOString()));
+  const current = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8")).version;
+  writeFileSync(dashboardFile, renderDashboard(template, runs, new Date().toISOString(), current));
   console.log(`${dashboardFile}: ${runs.length} runs`);
   process.exit(0);
 }

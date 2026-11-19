@@ -14,7 +14,7 @@ const run = (...args: string[]) => spawnSync(process.execPath, ["scripts/bench-r
 
 describe("bench-run's options", () => {
   it("get through every option check to the last one, with and without hints and --effectiveness", () => {
-    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"], ["--boulder-switch", "-o", "hardcap"], ["--boulder-switch", "off"]]) {
+    for (const extra of [[], ["-o", "hints"], ["--effectiveness", "on"], ["--effectiveness", "off", "--api", "openai"], ["--grid", "compact"], ["--boulder-switch", "-o", "hardcap"], ["--boulder-switch", "off"], ["--map-points", "-o", "hardcap"], ["--map-points", "off"], ["--boulder-switch", "--map-points"]]) {
       const r = run(...extra, "--port", "1");
       expect(r.stderr).not.toMatch(/ReferenceError|TypeError|SyntaxError/);
       expect(r.stderr).toMatch(/--port takes a whole number/);
@@ -28,6 +28,10 @@ describe("bench-run's options", () => {
 
   it("refuses a bad --boulder-switch", () => {
     expect(run("--boulder-switch", "maybe").stderr).toMatch(/--boulder-switch takes on or off/);
+  });
+
+  it("refuses a bad --map-points", () => {
+    expect(run("--map-points", "maybe").stderr).toMatch(/--map-points takes on or off/);
   });
 
   it("refuses an --observer that isn't a file", () => {

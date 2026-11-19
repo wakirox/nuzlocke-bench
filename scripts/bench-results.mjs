@@ -38,7 +38,8 @@ if (dashboardFile) {
   const runs = resultsRuns(files);
   const template = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../mcp-server/dashboard-page.html"), "utf8");
   const updated = files.map((f) => f.data.updated).sort().at(-1);
-  writeFileSync(dashboardFile, renderDashboard(template, runs, updated));
+  const current = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8")).version;
+  writeFileSync(dashboardFile, renderDashboard(template, runs, updated, current));
   console.log(`${dashboardFile}: ${runs.length} runs from ${files.length} results file(s)`);
   process.exit(0);
 }

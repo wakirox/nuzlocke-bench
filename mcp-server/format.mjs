@@ -205,12 +205,37 @@ export function compactGridNote({ boulderSwitch = false } = {}) {
 }
 export const COMPACT_GRID_NOTE = compactGridNote();
 
-const COMPACT_POINTS = ["I", "C", "S", "P", "$", "H", "B", "o", "O"];
-const COMPACT_POINTS_BOULDER_SWITCH = ["I", "C", "S", "P", "$", "H", "B", "b", "o", "O"];
-const INTERACTIVE = /[@TN$HFIDGSPCBoO]/;
-const INTERACTIVE_BOULDER_SWITCH = /[@TN$HFIDGSPCBboO]/;
+// `b` (a boulder on a seen floor switch) reaches the grid only with NUZLOCKE_BOULDER_SWITCH=1
+// (the bridge turns it back into `B` otherwise), so listing it here changes nothing by default.
+const MAP_POINT_KINDS = ["I", "C", "S", "P", "$", "H", "B", "b", "o", "O"];
+const TALL_MAP_ROWS = 16;
+const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
+
+/** Parses one wide map grid starting at `lines[i]`, or returns null if `lines[i]` isn't a wide x header. */
+function parseWideGrid(lines, i) {
+  if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) return null;
+  const head = lines[i].slice(5);
+  const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
+  let j = i + 1;
+  const rawRows = [];
+  for (; j < lines.length && /^y[ \d-]{3} /.test(lines[j]); j++) {
+    const cells = Array.from({ length: xs.length }, (_, k) => lines[j][5 + 3 * k + 2]);
+    rawRows.push({ y: Number(lines[j].slice(1, 4)), prefix: lines[j].slice(0, 5), cells });
+  }
+  return { xs, rawRows, end: j };
+}
+
+/** Shared `Points:` line for the interactive symbols visible on a parsed (already-fogged) grid. */
+function pointsLine(rawRows, x0) {
+  const bySym = new Map(MAP_POINT_KINDS.map((s) => [s, []]));
+  for (const row of rawRows) {
+    for (let c = 0; c < row.cells.length; c++) bySym.get(row.cells[c])?.push(`(${x0 + c},${row.y})`);
+  }
+  const parts = MAP_POINT_KINDS.flatMap((s) => (bySym.get(s).length ? [`${s} ${bySym.get(s).join(", ")}`] : []));
+  return parts.length ? `Points: ${parts.join("; ")}.` : null;
+}
 
 /**
  * The compact grid (NUZLOCKE_GRID=compact): 5-square blocks with a space before every x divisible
@@ -218,27 +243,14 @@ const mod5 = (x) => ((x % 5) + 5) % 5;
  * edge snapped to a multiple of 5), identical consecutive non-interactive rows collapsed (y14-17),
  * a Points line for seen targets, and a shorter Cliffs line.
  */
-export function compactGrids(text, { boulderSwitch = false } = {}) {
-  const pointSyms = boulderSwitch ? COMPACT_POINTS_BOULDER_SWITCH : COMPACT_POINTS;
-  const interactive = boulderSwitch ? INTERACTIVE_BOULDER_SWITCH : INTERACTIVE;
+export function compactGrids(text) {
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
-    const head = lines[i].slice(5);
-    const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
+    const parsed = parseWideGrid(lines, i);
+    if (!parsed) continue;
+    const { xs, rawRows, end: j } = parsed;
     const x0 = xs[0];
-    let j = i + 1;
-    const rawRows = [];
-    for (; j < lines.length && /^y[ \d-]{3} /.test(lines[j]); j++) {
-      const cells = Array.from({ length: xs.length }, (_, k) => lines[j][5 + 3 * k + 2]);
-      rawRows.push({ y: Number(lines[j].slice(1, 4)), cells });
-    }
-    const bySym = new Map(pointSyms.map((s) => [s, []]));
-    for (const row of rawRows) {
-      for (let c = 0; c < xs.length; c++) bySym.get(row.cells[c])?.push(`(${x0 + c},${row.y})`);
-    }
-    const pointParts = pointSyms.flatMap((s) => (bySym.get(s).length ? [`${s} ${bySym.get(s).join(", ")}`] : []));
-    const pointsLine = pointParts.length ? `Points: ${pointParts.join("; ")}.` : null;
+    const points = pointsLine(rawRows, x0);
 
     let rMin = rawRows.findIndex((r) => r.cells.some((ch) => ch !== "#"));
     let rMax = rawRows.length - 1;
@@ -269,7 +281,7 @@ export function compactGrids(text, { boulderSwitch = false } = {}) {
     for (let r = rMin; r <= rMax; r++) {
       const blocks = rawRows[r].cells.slice(cStart, cMax + 1).map((ch, k) => (k > 0 && mod5(trimmedXs[k]) === 0 ? ` ${ch}` : ch)).join("");
       const prev = collapsed[collapsed.length - 1];
-      if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !interactive.test(blocks)) prev.yEnd = rawRows[r].y;
+      if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !INTERACTIVE.test(blocks)) prev.yEnd = rawRows[r].y;
       else collapsed.push({ y0: rawRows[r].y, yEnd: rawRows[r].y, blocks });
     }
     // Size the row-tag column from the widest row label so y >= 100 ranges (e.g. y96-101, y102-143)
@@ -285,7 +297,7 @@ export function compactGrids(text, { boulderSwitch = false } = {}) {
 
     const rowTag = (y0, y1) => (y0 === y1 ? `y${String(y0).padStart(3)}`.padEnd(tagW, " ") : `y${`${y0}-${y1}`.padStart(rangeW)} `);
     const gridLines = collapsed.map((g) => rowTag(g.y0, g.yEnd) + g.blocks);
-    const out = [ruler, ...gridLines, ...(gridLines.length >= 16 ? [ruler] : [])];
+    const out = [ruler, ...gridLines, ...(gridLines.length >= TALL_MAP_ROWS ? [ruler] : [])];
     lines.splice(i, j - i, ...out);
     let after = i + out.length;
     if (lines[after]?.startsWith(CLIFF_PREFIX)) {
@@ -294,8 +306,8 @@ export function compactGrids(text, { boulderSwitch = false } = {}) {
       after++;
     }
     if (lines[after]?.startsWith("Doors (D): ")) after++;
-    if (pointsLine) {
-      lines.splice(after, 0, pointsLine);
+    if (points) {
+      lines.splice(after, 0, points);
       after++;
     }
     i = after - 1;
@@ -306,24 +318,63 @@ export function compactGrids(text, { boulderSwitch = false } = {}) {
 /**
  * The narrow grid: one space between squares instead of two. A square stays its own token (no
  * spaces at all would merge runs like "....." into one), at ~40% fewer tokens per map. The x
- * header becomes two rows, tens above ones, so it fits the narrower columns.
+ * header becomes two rows, tens above ones, so it fits the narrower columns. With `points: true`
+ * (NUZLOCKE_MAP_POINTS=1), tall maps repeat the x header at the bottom and add the shared `Points:` line.
  */
-export function narrowGrids(text) {
+export function narrowGrids(text, { points = false } = {}) {
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) continue;
-    const head = lines[i].slice(5);
-    const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
+    const parsed = parseWideGrid(lines, i);
+    if (!parsed) continue;
+    const { xs, rawRows, end: j } = parsed;
     const tens = xs.map((x) => ` ${x < 0 ? "-" : x >= 10 ? Math.floor(x / 10) % 10 : " "}`).join("");
     const ones = xs.map((x) => ` ${Math.abs(x) % 10}`).join("");
-    const out = [...(tens.trim() ? [`     ${tens}`] : []), `     ${ones}`];
-    let j = i + 1;
-    for (; j < lines.length && /^y[ \d-]{3} /.test(lines[j]); j++) {
-      const cells = lines[j].slice(5);
-      out.push(lines[j].slice(0, 5) + Array.from({ length: cells.length / 3 }, (_, k) => ` ${cells[3 * k + 2]}`).join(""));
-    }
+    const header = [...(tens.trim() ? [`     ${tens}`] : []), `     ${ones}`];
+    const out = [
+      ...header,
+      ...rawRows.map((row) => row.prefix + row.cells.map((ch) => ` ${ch}`).join("")),
+      ...(points && rawRows.length >= TALL_MAP_ROWS ? header : []),
+    ];
     lines.splice(i, j - i, ...out);
-    i += out.length - 1;
+    let after = i + out.length;
+    if (points) {
+      if (lines[after]?.startsWith(CLIFF_PREFIX)) after++;
+      if (lines[after]?.startsWith("Doors (D): ")) after++;
+      const line = pointsLine(rawRows, xs[0]);
+      if (line) {
+        lines.splice(after, 0, line);
+        after++;
+      }
+    }
+    i = after - 1;
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Wide grid with `points: true` (NUZLOCKE_GRID=wide + NUZLOCKE_MAP_POINTS=1): leaves the wide
+ * squares untouched, repeats the x header at the bottom of tall maps, and adds the shared `Points:` line.
+ */
+export function wideGrids(text, { points = false } = {}) {
+  if (!points) return text;
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const parsed = parseWideGrid(lines, i);
+    if (!parsed) continue;
+    const { xs, rawRows, end } = parsed;
+    let after = end;
+    if (rawRows.length >= TALL_MAP_ROWS) {
+      lines.splice(after, 0, lines[i]);
+      after++;
+    }
+    if (lines[after]?.startsWith(CLIFF_PREFIX)) after++;
+    if (lines[after]?.startsWith("Doors (D): ")) after++;
+    const line = pointsLine(rawRows, xs[0]);
+    if (line) {
+      lines.splice(after, 0, line);
+      after++;
+    }
+    i = after - 1;
   }
   return lines.join("\n");
 }

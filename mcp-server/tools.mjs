@@ -6,7 +6,7 @@ import { z } from "zod";
 import { BATCH_TOOLS, FINAL_READ_TOOLS, TOOL_CATALOG, stepToolError } from "./tool-catalog.mjs";
 import { normalizeStep, runBatch, stepSummary } from "./batch.mjs";
 import { UNCOUNTED_RESULT, withCallBudget } from "./call-budget.mjs";
-import { NARROW_GRID_NOTE, compactGridNote, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText } from "./format.mjs";
+import { NARROW_GRID_NOTE, compactGridNote, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText, wideGrids } from "./format.mjs";
 import { applyPreset } from "./benchmark.mjs";
 import { entriesOf, NOTES_MAX, numbered, updateNotes } from "./notes.mjs";
 import { hintState, nextHint } from "./hints.mjs";
@@ -55,7 +55,7 @@ async function mapResult({ legend, ...a } = {}, { call, afterAction, grid, bould
   // The legend on request only (in every map it would cost tokens on each call), and only for
   // the symbols this map has.
   const text = (r.content ?? []).map((c) => c.text ?? "").join("\n");
-  const key = legend && !r.isError ? legendFor(grid === "compact" ? compactGrids(text, { boulderSwitch }) : text, { boulderSwitch }) : null;
+  const key = legend && !r.isError ? legendFor(grid === "compact" ? compactGrids(text) : text, { boulderSwitch }) : null;
   if (key) r.content = [...r.content, { type: "text", text: key }];
   return r;
 }
@@ -602,6 +602,7 @@ export function registerTools(server, {
   preset = null,
   reportIssue = true,
   grid = /** @type {"wide" | "narrow" | "compact"} */ ("narrow"),
+  mapPoints = false,
   hideEffectiveness = true,
   boulderSwitch = false,
   rulesetIds = ["nuzlocke"],
@@ -612,7 +613,11 @@ export function registerTools(server, {
   let reports = 0;
 
   const shown = (text) => {
-    const t = grid === "compact" ? compactGrids(text, { boulderSwitch }) : grid === "narrow" ? narrowGrids(text) : text;
+    const t = grid === "compact"
+      ? compactGrids(text)
+      : grid === "narrow"
+        ? narrowGrids(text, { points: mapPoints })
+        : wideGrids(text, { points: mapPoints });
     return hideEffectiveness ? stripEffectiveness(t) : t;
   };
   const narrow = (r) => ({ ...r, content: r.content.map((c) => (c.type === "text" ? { ...c, text: shown(c.text) } : c)) });
