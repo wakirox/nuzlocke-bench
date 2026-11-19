@@ -103,8 +103,8 @@ export function gen1Adapter(version: GameVersion): GameAdapter {
     screen: SCREEN,
 
     isDark: (mem) => mem.read8(A.mapPalOffset) !== 0,
-    readView: (mem, x, y, beaten, rom) => readView(mem, version, x, y, beaten, rom),
-    readFullMap: (mem, rom, x, y, beaten) => readFullMap(mem, rom, version, x, y, beaten),
+    readView: (mem, x, y, beaten, rom, boulderSwitch) => readView(mem, version, x, y, beaten, rom, boulderSwitch),
+    readFullMap: (mem, rom, x, y, beaten, boulderSwitch) => readFullMap(mem, rom, version, x, y, beaten, boulderSwitch),
     trainerSprites: (mem, x, y) => trainerSprites(mem, version, x, y),
     // wMapSpriteExtraData: a trainer's class (+200) and its number in the class, per sprite.
     spriteTrainer: (mem, sprite) => ({

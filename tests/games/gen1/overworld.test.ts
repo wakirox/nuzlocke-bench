@@ -181,6 +181,62 @@ describe("the edge of a map with no connection (Gen 1)", () => {
   });
 });
 
+describe("a boulder sitting on a floor switch (Gen 1)", () => {
+  for (const version of ["red", "yellow"] as GameVersion[]) {
+    const A = addressesFor(version);
+
+    it(`marks a boulder on a floor switch as b, leaving plain boulders as B and empty switches as o (${version})`, () => {
+      const { m, mem } = ram();
+      m[A.curMapTileset] = 0x11; // cave tileset
+      m[A.curMapWidth] = 2; m[A.curMapHeight] = 1; // 4×2 squares: x 0..3, y 0..1
+      m[A.collisionPtr] = 0x00; m[A.collisionPtr + 1] = 0x01;
+      m[A.grassTile] = 0x7f;
+      m[A.tilesetBank] = 2; m[A.tilesetBlocksPtr] = 0x00; m[A.tilesetBlocksPtr + 1] = 0x40;
+      const stride = 2 + 6;
+      m[0xc6e8 + 3 * stride + 3] = 1; // block 1 at (0..1, 0..1)
+      m[0xc6e8 + 3 * stride + 4] = 1; // block 1 at (2..3, 0..1)
+      const rom = new Uint8Array(0x100000);
+      rom.set([0x20, 0x2d, 0xff], 0x100); // passable: plain floor (0x20) and switch bl tile (0x2d)
+      m.set([0x20, 0x2d, 0xff], 0x100);
+      const block1 = 0x8010;
+      rom.fill(0x20, block1, block1 + 16);
+      // Top-right square of each 2×2 block ((1,0) and (3,0)) is a floor switch: tl=0x2b, tr=0x2c, bl=0x2d.
+      rom[block1 + 2] = 0x2b; rom[block1 + 3] = 0x2c; rom[block1 + 6] = 0x2d;
+
+      const putBoulder = (slot: number, x: number, y: number) => {
+        m[A.spriteData1 + slot * 16] = A.boulderSprite;
+        m[A.spriteData2 + slot * 16 + 4] = y + 4;
+        m[A.spriteData2 + slot * 16 + 5] = x + 4;
+      };
+      putBoulder(1, 1, 0); // sitting on the switch at (1, 0) -> "b"
+      putBoulder(2, 2, 0); // sitting on plain floor at (2, 0) -> "B"
+      putBoulder(3, 3, 0); // on the switch at (3, 0), but hidden -> stays "o"
+      m.set([3, 0x05, 0xff], A.toggleableList);
+      m[A.toggleableFlags] = 1 << 5;
+
+      // Option off (default): decorate keeps boulders on switches as B.
+      expect(readFullMap(mem, rom, version, 0, 1).grid[0]).toEqual([".", "B", "B", "o"]);
+      // Option on: decorate marks a boulder on a switch as b, leaving plain boulders as B and empty switches as o.
+      const full = readFullMap(mem, rom, version, 0, 1, [], true);
+      expect(full.grid[0]).toEqual([".", "b", "B", "o"]);
+      expect(full.grid[1]).toEqual(["@", ".", ".", "."]);
+
+      // Screen view without the ROM (read from on-screen tiles at wTileMap) shows the same symbols.
+      const putTileSquare = (col: number, row: number, tl: number, tr: number, bl: number) => {
+        m[A.tileMap + (2 * row) * 20 + 2 * col] = tl;
+        m[A.tileMap + (2 * row) * 20 + 2 * col + 1] = tr;
+        m[A.tileMap + (2 * row + 1) * 20 + 2 * col] = bl;
+      };
+      m.fill(0x20, A.tileMap, A.tileMap + 20 * 18);
+      putTileSquare(5, 3, 0x2b, 0x2c, 0x2d); // (1, 0) relative to player at (0, 1) -> col 5, row 3
+      putTileSquare(7, 3, 0x2b, 0x2c, 0x2d); // (3, 0) -> col 7, row 3
+      expect(readView(mem, version, 0, 1, [], null).grid[3].slice(4, 8)).toEqual([".", "B", "B", "o"]);
+      const screen = readView(mem, version, 0, 1, [], null, true);
+      expect(screen.grid[3].slice(4, 8)).toEqual([".", "b", "B", "o"]);
+    });
+  }
+});
+
 describe("trainerSprites screen window (Gen 1)", () => {
   it("counts the rightmost column (+5) as on screen and stops at +6 / -5", () => {
     const A = addressesFor("red");

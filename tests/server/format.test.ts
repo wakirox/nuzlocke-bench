@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGrids, createFormatter, hideEffectiveness, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences } from "../../mcp-server/format.mjs";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGridNote, compactGrids, createFormatter, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences, wideGrids } from "../../mcp-server/format.mjs";
 import { renderView } from "../../src/bridge/overworld";
 
 const SCREEN = ["┌──────────────────┐", "│Wild BASEMON      │", "│appeared!         │", "└──────────────────┘"];
@@ -328,5 +328,76 @@ describe("legendFor", () => {
       expect(row[x5Col]).not.toBe(" ");
     }
     expect(legendFor(out)).toContain('" tall grass');
+  });
+
+  it("explains b in the legend and handles b in compactGrids only when boulderSwitch is on", () => {
+    expect(MAP_LEGEND).not.toContain("b boulder on a floor switch");
+    expect(mapLegend({ boulderSwitch: true })).toContain("B boulder, b boulder on a floor switch, o floor switch");
+    expect(COMPACT_GRID_NOTE).not.toContain("B b o O");
+    expect(compactGridNote({ boulderSwitch: true })).toContain("I C S P $ H B b o O");
+
+    const map = ["       0  1  2  3", "y  5   #  b  B  o"].join("\n");
+    expect(legendFor(map)).toBe("Legend: B boulder, o floor switch, # blocked.");
+    expect(legendFor(map, { boulderSwitch: true })).toBe("Legend: B boulder, b boulder on a floor switch, o floor switch, # blocked.");
+
+    // Compact + boulderSwitch: `b` is listed in Points and identical rows with `b` never collapse.
+    const cave = renderView({
+      grid: [
+        [..."..@.."],
+        [..."..b.."],
+        [..."..b.."],
+        [..."..B.o"],
+      ],
+      originX: 0, originY: 0, pc: 2, pr: 0,
+    });
+    // `b` reaches the grid only with the option on (the bridge turns it back into `B` otherwise).
+    const out = compactGrids(cave);
+    expect(out).toBe([
+      "       0",
+      "y  0   ..@..",
+      "y  1   ..b..",
+      "y  2   ..b..",
+      "y  3   ..B.o",
+      "Points: B (2,3); b (2,1), (2,2); o (4,3).",
+    ].join("\n"));
+    // NUZLOCKE_MAP_POINTS on the narrow and wide grids lists `b` too.
+    expect(narrowGrids(cave, { points: true })).toContain("Points: B (2,3); b (2,1), (2,2); o (4,3).");
+    expect(wideGrids(cave, { points: true })).toContain("Points: B (2,3); b (2,1), (2,2); o (4,3).");
+  });
+
+  it("narrowGrids and wideGrids with points: true share the 9-kind Points line and repeat the x header on tall maps", () => {
+    const wide = renderView({
+      grid: [
+        [..."@ICSP$HBoO"],
+        [...".........."],
+      ],
+      originX: 0, originY: 0, pc: 0, pr: 0,
+      doors: [{ x: 9, y: 1, to: "EXIT", tx: 1, ty: 1 }],
+    });
+    const expectedPoints = "Points: I (1,0); C (2,0); S (3,0); P (4,0); $ (5,0); H (6,0); B (7,0); o (8,0); O (9,0).";
+    expect(narrowGrids(wide)).not.toContain("Points:");
+    expect(wideGrids(wide)).toBe(wide);
+    expect(narrowGrids(wide, { points: true })).toContain(`Doors (D): (9,1) → EXIT (1,1).\n${expectedPoints}`);
+    expect(wideGrids(wide, { points: true })).toContain(`Doors (D): (9,1) → EXIT (1,1).\n${expectedPoints}`);
+    expect(compactGrids(wide)).toContain(expectedPoints);
+
+    // Tall map (>= 16 rows, x >= 10 so narrow header is two rows) repeats x header at the bottom.
+    const tall = renderView({
+      grid: Array.from({ length: 16 }, (_, r) => (r === 0 ? [..."@..........."] : r === 15 ? [..."...........I"] : [..."............"])),
+      originX: 0, originY: 0, pc: 0, pr: 0,
+    });
+    const narrowTall = narrowGrids(tall, { points: true }).split("\n");
+    expect(narrowTall.slice(0, 2)).toEqual(narrowTall.slice(18, 20));
+    expect(narrowTall[20]).toBe("Points: I (11,15).");
+    expect(narrowGrids(tall).split("\n")).toHaveLength(18); // default: no bottom header, no Points
+
+    const wideTall = wideGrids(tall, { points: true }).split("\n");
+    expect(wideTall[0]).toBe(wideTall[17]);
+    expect(wideTall[18]).toBe("Points: I (11,15).");
+
+    // Dark-cave output has no coordinate grid and gets no Points line.
+    const dark = "It's dark.\n? ? ?\n? @ ?\n? ? ?";
+    expect(narrowGrids(dark, { points: true })).toBe(dark);
+    expect(wideGrids(dark, { points: true })).toBe(dark);
   });
 });

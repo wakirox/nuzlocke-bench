@@ -20,7 +20,8 @@ Only these runs make the leaderboard (`OFFICIAL` in `mcp-server/benchmark.mjs`, 
 - **Nothing that helps or steers the model:** no playtest (`--playtest`), and no narration (older runs were marked "narrated").
 
 - **The runner's defaults, on a clean harness:** Claude Code (not `--api`), the model's standard
-  context (not `[1m]`), effectiveness off, report_issue on, the narrow grid, a 200k compaction window,
+  context (not `[1m]`), effectiveness off, report_issue on, the narrow grid, a 200k compaction window
+  (agy runs: agy's own, about 256k, which can't be set),
   3 nudges and the 500M-token limit; the harness a commit with the page built from it. Settings a run
   from before they were recorded didn't record are taken as the defaults they were.
 

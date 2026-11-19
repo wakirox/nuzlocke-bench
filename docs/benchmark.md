@@ -158,7 +158,10 @@ can't be checked for that, and the server being open doesn't change it. The rule
   calls instead: every call the model made is in the transcript (agy's events, in Claude Code's shape, with agy's own
   beside them in `agy-events.jsonl`), and a call to anything but the game's tools stops the run and marks it "other
   tools". `agent.json` records `via: "agy"`, agy's version and the denied actions; the dashboard shows these runs as
-  "via agy", apart from Claude Code's. agy keeps its own context, so `--compact-window` doesn't apply.
+  "via agy", apart from Claude Code's. agy keeps its own context, so `--compact-window` doesn't apply: agy
+  compacts on its own at about 256k tokens, whatever the model's window, and has no setting to change that. So
+  agy runs play with a slightly larger window than Claude Code's 200k (a Gemini run's context reached 267k with
+  no compaction before it ended).
 - **A watch-only observer doesn't change that** (`--observer <module>`, see `mcp-server/observers.mjs`): it gets the
   headless page to look at and paths of its own on the game's port, nothing that plays (no bridge, tools or input),
   so the model sees exactly what it would without it. The run records its name (`observers` in `agent.json`).

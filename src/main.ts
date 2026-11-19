@@ -327,6 +327,17 @@ function setHtml(id: string, html: string) {
 let partyPick: string | null = null;
 let lastFocus = "";
 
+/**
+ * For a live viewer of this page (a copy of its panels, with no handlers of its own): the party
+ * panel as each tile would show it, by uid, so the copy's tiles can switch between them. Read-only:
+ * it renders, and changes nothing on this page or in the run.
+ */
+(window as unknown as { liveParty: () => Record<string, string> }).liveParty = () => {
+  if (!session?.state) return {};
+  const { tracker, state } = session;
+  return Object.fromEntries(state.party.filter((m) => m.species).map((m) => [m.uid, renderParty(tracker, state, m.uid)]));
+};
+
 function renderAll() {
   if (!session?.state) return;
   const { tracker, state } = session;

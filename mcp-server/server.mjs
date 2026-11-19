@@ -41,12 +41,17 @@ const REPORT_ISSUE = PLAYTEST || !/^(0|false|no)$/i.test(process.env.NUZLOCKE_RE
 // no difference in navigation at ~40% fewer map tokens); NUZLOCKE_GRID=wide gives two, and
 // NUZLOCKE_GRID=compact groups squares into 5-column blocks.
 const GRID_MODE = process.env.NUZLOCKE_GRID === "wide" ? "wide" : process.env.NUZLOCKE_GRID === "compact" ? "compact" : "narrow";
+// Showing a boulder sitting on a floor switch with its own symbol (`b`), off until an A/B decides.
+const BOULDER_SWITCH = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_BOULDER_SWITCH ?? "");
 // Saying which way seen on-screen trainers face on the `Trainers (T)` line, off until an A/B decides.
 const TRAINER_FACING = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_TRAINER_FACING ?? "");
 /** Opt-in bridge options sent once on connect (empty by default: nothing sent). */
 const BRIDGE_OPTIONS = {
+  ...(BOULDER_SWITCH ? { boulderSwitch: true } : {}),
   ...(TRAINER_FACING ? { trainerFacing: true } : {}),
 };
+// Coordinate lists for seen points under the map (and bottom x header on tall maps), off until an A/B decides.
+const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? "");
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
 // (an A/B on 2026-11-07 found no difference in play at ~10% fewer tokens; the model asks when it needs one).
 // Results say how effective each move is against the foe only in the hints group: it's the answer to
@@ -226,6 +231,7 @@ const wrapLog = createToolLogger({
     grid: GRID_MODE,
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
+    ...(MAP_POINTS ? { mapPoints: true } : {}),
     ...optionsConfirmed,
     ...(optionsError ? { optionsError } : {}),
   }),
@@ -245,7 +251,9 @@ registerTools(server, {
   preset: PRESET,
   reportIssue: REPORT_ISSUE,
   grid: GRID_MODE,
+  mapPoints: MAP_POINTS,
   hideEffectiveness: HIDE_EFFECTIVENESS,
+  boulderSwitch: BOULDER_SWITCH,
   rulesetIds: RULESET_IDS,
 });
 

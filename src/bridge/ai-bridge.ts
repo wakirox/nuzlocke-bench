@@ -7,7 +7,7 @@
 
 import type { Button } from "../emulator/gameboy";
 import type { ChallengeMode } from "../rulesets";
-import type { Dir } from "./overworld";
+import { isBoulder, type Dir } from "./overworld";
 import { RouteBook, describeLink, type Routes } from "./routes";
 import { KEYS, kv } from "../storage";
 import { BRIDGE_WS } from "./endpoint";
@@ -351,7 +351,7 @@ export class AiBridge {
     const at = this.core.host.position();
     if (!step || at.battle || at.inWorld === false || this.core.textBox(this.core.screenText()).open) return false;
     const v = this.core.view(false);
-    return v.grid[v.pr + step[1]]?.[v.pc + step[0]] === "B";
+    return isBoulder(v.grid[v.pr + step[1]]?.[v.pc + step[0]] ?? "");
   }
 
   /**
@@ -367,10 +367,13 @@ export class AiBridge {
     gb.setButton(dir, false);
     // The slide and its dust: a step pressed before they end is dropped too.
     await gb.runFrames(64);
+    // Moving a boulder off a floor switch uncovers it even when the player didn't step.
+    this.core.noteSwitches();
   }
 
   /** Applies opt-in bridge options sent once on connect by the MCP server. */
   private setOptions(p: Record<string, unknown>): { ok: true } {
+    if (typeof p.boulderSwitch === "boolean") this.core.boulderSwitch = p.boulderSwitch;
     if (typeof p.trainerFacing === "boolean") this.core.trainerFacing = p.trainerFacing;
     return { ok: true };
   }

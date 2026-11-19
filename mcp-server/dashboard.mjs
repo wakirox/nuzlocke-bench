@@ -53,6 +53,8 @@ function offDefaults(leg) {
   if (r.via === "api") return "run through the API";
   if (/\[1m\]$/.test(String(r.model ?? ""))) return "1M-token context";
   if (r.effectiveness === "on") return "effectiveness shown";
+  if (r.boulderSwitch || leg.boulderSwitch) return "boulder switch shown";
+  if (r.mapPoints || leg.mapPoints) return "map points shown";
   if (r.trainerFacing || leg.trainerFacing) return "trainer facing shown";
   if (r.reportIssue === false) return "report_issue off";
   if (r.grid && r.grid !== "narrow") return "other grid";
@@ -267,8 +269,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
 }
 
 /** The page: its template with the data in it. */
-export function renderDashboard(template, runs, generatedAt) {
-  const data = { generatedAt, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), runs };
+export function renderDashboard(template, runs, generatedAt, current = null) {
+  // `current`: the bench version now (package.json), so the page can say when it has no runs yet.
+  const data = { generatedAt, current, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), runs };
   // "<" can't close the script tag it sits in.
   return template.replace("/*DATA*/null", () => JSON.stringify(data).replace(/</g, "\\u003c"));
 }

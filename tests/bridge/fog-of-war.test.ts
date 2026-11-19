@@ -315,6 +315,209 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(compact).toContain("y 15   ?????");
   });
 
+  it("shows b through decorate and SeenMaps fog only when boulderSwitch is on and the switch was seen uncovered", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { legendFor } = await import("../../mcp-server/format.mjs");
+    const { addressesFor } = await import("../../src/games/gen1/ram");
+    const { readFullMap } = await import("../../src/games/gen1/overworld");
+    const A = addressesFor("red");
+
+    // Real Gen 1 cave map (4×2 squares: x 0..3, y 0..1) with floor switches at (1,0) and (3,0),
+    // read through real decorate (readFullMap) and masked through BridgeCore + SeenMaps.
+    const makeCave = () => {
+      const m = new Uint8Array(0x10000);
+      m[A.curMapTileset] = 0x11;
+      m[A.curMapWidth] = 2; m[A.curMapHeight] = 1;
+      m[A.collisionPtr] = 0x00; m[A.collisionPtr + 1] = 0x01;
+      m[A.grassTile] = 0x7f;
+      m[A.tilesetBank] = 2; m[A.tilesetBlocksPtr] = 0x00; m[A.tilesetBlocksPtr + 1] = 0x40;
+      const stride = 2 + 6;
+      m[0xc6e8 + 3 * stride + 3] = 1;
+      m[0xc6e8 + 3 * stride + 4] = 1;
+      const rom = new Uint8Array(0x100000);
+      rom.set([0x20, 0x2d, 0xff], 0x100);
+      m.set([0x20, 0x2d, 0xff], 0x100);
+      const block1 = 0x8010;
+      rom.fill(0x20, block1, block1 + 16);
+      rom[block1 + 2] = 0x2b; rom[block1 + 3] = 0x2c; rom[block1 + 6] = 0x2d; // switch at (1,0) and (3,0)
+      const mem = {
+        read8: (a: number) => m[a],
+        read16be: (a: number) => (m[a] << 8) | m[a + 1],
+        readBytes: (a: number, n: number) => m.slice(a, a + n),
+      };
+      const putBoulder = (slot: number, x: number, y: number) => {
+        m[A.spriteData1 + slot * 16] = A.boulderSprite;
+        m[A.spriteData2 + slot * 16 + 4] = y + 4;
+        m[A.spriteData2 + slot * 16 + 5] = x + 4;
+      };
+      return { m, mem, rom, putBoulder };
+    };
+
+    const bridgeForCave = (cave: ReturnType<typeof makeCave>, mapId: number, seen: SeenMaps, boulderSwitch: boolean) => {
+      const host = new FakeHost(layout, [{ rows: screenRows() }], {
+        position: { inWorld: true, map: mapId, x: 0, y: 1 },
+        seen,
+      });
+      const rawHost = host.asHost();
+      const adapter = {
+        ...host.adapter,
+        mapSize: () => ({ w: 4, h: 2 }),
+        readFullMap: (_gb: unknown, _rom: Uint8Array, px: number, py: number, beaten: number[], bs?: boolean) =>
+          readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs),
+        readView: (_gb: unknown, px: number, py: number, beaten: number[], _rom: Uint8Array | null, bs?: boolean) =>
+          readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs),
+      };
+      const core = new BridgeCore({ ...rawHost, game: () => adapter, rom: () => cave.rom });
+      core.boulderSwitch = boulderSwitch;
+      return core;
+    };
+
+    // 1. Switch at (1,0) seen uncovered, then boulder pushed onto it -> b (and survives SeenMaps save/load).
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 0, 0); // boulder starts off the switch
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, true);
+      expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(true);
+      // Push boulder onto (1,0), then restore SeenMaps from a cloned save (as run saves & milestones do).
+      cave.putBoulder(1, 1, 0);
+      const restored = new SeenMaps(structuredClone(seen.data));
+      const coreAfter = bridgeForCave(cave, MAP, restored, true);
+      expect(coreAfter.view(true).grid[0]).toEqual([".", "b", ".", "o"]);
+      expect(legendFor(coreAfter.mapText(true), { boulderSwitch: true })).toContain("b boulder on a floor switch");
+    }
+
+    // 2. Boulder already sitting on a switch the run never saw uncovered -> stays B.
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 1, 0); // already covering (1,0) before the player ever sees the room
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, true);
+      expect(core.rawView(true).grid[0][1]).toBe("b"); // decorate saw boulder on switch...
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(false); // ...but (1,0) was never seen uncovered
+      expect(core.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+      expect(legendFor(core.mapText(true), { boulderSwitch: true })).not.toContain("b boulder on a floor switch");
+    }
+
+    // 3. Boulder drops onto a switch from the floor above (map 2 -> map 1); switch on map 1 never seen -> stays B.
+    {
+      const upperMap = MAP + 1;
+      const seen = new SeenMaps();
+      // Even if the run saw a switch at (1,0) on the floor above, switches are tracked per map.
+      const upperCave = makeCave();
+      bridgeForCave(upperCave, upperMap, seen, true).view(true);
+      expect(seen.hasSwitch(upperMap, 1, 0)).toBe(true);
+      expect(seen.hasSwitch(MAP, 1, 0)).toBe(false);
+      // Drop down to lower floor where the boulder already rests on (1,0): stays B.
+      const lowerCave = makeCave();
+      lowerCave.putBoulder(1, 1, 0);
+      const lowerCore = bridgeForCave(lowerCave, MAP, seen, true);
+      expect(lowerCore.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+    }
+
+    // 4. Option off -> always B (even after seeing the switch uncovered), and no switches stored in SeenData.
+    {
+      const cave = makeCave();
+      cave.putBoulder(1, 0, 0);
+      const seen = new SeenMaps();
+      const core = bridgeForCave(cave, MAP, seen, false);
+      expect(core.view(true).grid[0]).toEqual(["B", "o", ".", "o"]);
+      expect(seen.data.switches).toBeUndefined();
+      cave.putBoulder(1, 1, 0);
+      expect(core.rawView(true).grid[0][1]).toBe("B");
+      expect(core.view(true).grid[0]).toEqual([".", "B", ".", "o"]);
+    }
+
+    // 5. Stationary noteSeen (button presses in menus/text boxes) never reads rawView, and view() scans switches only once.
+    {
+      const cave = makeCave();
+      let fullReads = 0, screenReads = 0;
+      const seen = new SeenMaps();
+      const host = new FakeHost(layout, [{ rows: screenRows() }], { position: { inWorld: true, map: MAP, x: 0, y: 1 }, seen });
+      const rawHost = host.asHost();
+      const adapter = {
+        ...host.adapter,
+        mapSize: () => ({ w: 4, h: 2 }),
+        readFullMap: (_gb: unknown, _rom: Uint8Array, px: number, py: number, beaten: number[], bs?: boolean) => {
+          fullReads++;
+          return readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs);
+        },
+        readView: (_gb: unknown, px: number, py: number, beaten: number[], _rom: Uint8Array | null, bs?: boolean) => {
+          screenReads++;
+          return readFullMap(cave.mem, cave.rom, "red", px, py, beaten, bs);
+        },
+      };
+      const core = new BridgeCore({ ...rawHost, game: () => adapter, rom: () => cave.rom });
+      core.boulderSwitch = true;
+      core.noteSeen(); // first look at (0,1) records switches once
+      expect(screenReads).toBe(1);
+      // Repeated stationary presses (text boxes, menus, advance_text) do not re-read the screen.
+      for (let i = 0; i < 5; i++) core.noteSeen();
+      expect(screenReads).toBe(1);
+      // view(true) reads the full map once and does not re-read the screen inside noteSeen.
+      core.view(true);
+      expect(fullReads).toBe(1);
+      expect(screenReads).toBe(1);
+    }
+  });
+
+  it("lists only seen points (all 9 kinds) under narrowGrids({ points: true }), hiding unseen ones", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { narrowGrids } = await import("../../mcp-server/format.mjs");
+    // Player at (10,10): seen screen is x 6–15, y 6–14; column 0 (x=5) and row 9 (y=15) are unseen.
+    const grid = Array.from({ length: 10 }, () => Array<string>(12).fill("."));
+    grid[4][5] = "@";
+    // Seen squares: I at (8,8), $ at (9,8), H at (10,8), O at (11,8), S at (12,9).
+    grid[2][3] = "I";
+    grid[2][4] = "$";
+    grid[2][5] = "H";
+    grid[2][6] = "O";
+    grid[3][7] = "S";
+    // Unseen squares: I at (5,6), C at (5,8), P at (7,15), B at (8,15), o at (9,15), S at (10,15), $ at (11,15), H at (12,15), O at (13,15).
+    grid[0][0] = "I";
+    grid[2][0] = "C";
+    grid[9][2] = "P";
+    grid[9][3] = "B";
+    grid[9][4] = "o";
+    grid[9][5] = "S";
+    grid[9][6] = "$";
+    grid[9][7] = "H";
+    grid[9][8] = "O";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const rawMap = new BridgeCore(host.asHost()).mapText(true);
+    // Default (points off): never produces a Points line.
+    expect(narrowGrids(rawMap)).not.toContain("Points:");
+    // Enabled: lists only seen targets, hiding unseen ones.
+    const text = narrowGrids(rawMap, { points: true });
+    expect(text).toContain("Points: I (8,8); S (12,9); $ (9,8); H (10,8); O (11,8).");
+    expect(text).not.toMatch(/\(5,6\)|\(5,8\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)|\(11,15\)|\(12,15\)|\(13,15\)/);
+  });
+
+  it("emits no Points line in a dark cave even when narrowGrids({ points: true }) is enabled", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { narrowGrids } = await import("../../mcp-server/format.mjs");
+    const grid = Array.from({ length: 9 }, () => Array<string>(10).fill("."));
+    grid[4][4] = "@";
+    grid[4][5] = "I";
+    grid[3][4] = "S";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 6, originY: 6, pc: 4, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const core = new BridgeCore(host.asHost());
+    core.dark = () => true;
+    core.screenPixels = () => new Uint8ClampedArray(160 * 144 * 4);
+    const text = narrowGrids(core.mapText(true), { points: true });
+    expect(text).toMatch(/^It.s dark/);
+    expect(text).not.toContain("Points:");
+  });
+
   it("requests facing only when trainerFacing is enabled, and omits unseen, beaten, and off-screen facing", () => {
     const seen = new SeenMaps();
     // An earlier screen around (16,10) was seen, so (16,10) is seen on the full map while now off screen.
