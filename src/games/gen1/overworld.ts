@@ -179,6 +179,13 @@ export const spinnerArrow = (tileset: number, tl: number, tr: number) => SPINNER
 export const lowerCaveFloor = (tileset: number) => (tile: number): boolean => tileset === 0x11 && tile === 0x05;
 
 /**
+ * A cave's stairs between its two floor heights: tile $15, which the cliff pairs leave open both
+ * ways. Checked on the saves of two caves (every one of its squares sits between the two floors);
+ * the cave tileset is every cave's in Gen 1.
+ */
+export const caveStairs = (tileset: number) => (tile: number): boolean => tileset === 0x11 && tile === 0x15;
+
+/**
  * Squares drawn on a cave floor that a player sees but the collision data calls plain floor: a
  * boulder switch (the last cave) and a hole in the floor (the last cave, the ice-cave islands).
  * Found by their tiles: in the whole game these two appear only on the squares the maps' scripts
@@ -458,7 +465,7 @@ export function readView(
   const originX = playerX - PLAYER_COL;
   const originY = playerY - PLAYER_ROW;
   decorate(mem, version, grid, originX, originY, playerX, playerY, rom, boulderSwitch);
-  const view: OverworldView = { grid, originX, originY, pc: PLAYER_COL, pr: PLAYER_ROW, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), surfing: rules.surfing };
+  const view: OverworldView = { grid, originX, originY, pc: PLAYER_COL, pr: PLAYER_ROW, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), stairs: caveStairs(mem.read8(A.curMapTileset)), surfing: rules.surfing };
   markWatched(view, trainerSprites(mem, version, playerX, playerY), beaten, SIGHT);
   return view;
 }
@@ -563,7 +570,7 @@ function readArea(
   };
   const doors = mapDoors(mem, rom, version).filter((d) => grid[d.y - y0]?.[d.x - x0] !== "#" && d.y >= y0 && d.y < y0 + H && d.x >= x0 && d.x < x0 + W);
   const view: OverworldView = {
-    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), beyond, doors,
+    grid, originX: x0, originY: y0, pc: playerX - x0, pr: playerY - y0, tiles, stepBlocked: tilePairBlocked(mem.read8(A.curMapTileset)), swimBlocked: tilePairBlockedSurfing(mem.read8(A.curMapTileset)), lowerFloor: lowerCaveFloor(mem.read8(A.curMapTileset)), stairs: caveStairs(mem.read8(A.curMapTileset)), beyond, doors,
     surfing: rules.surfing,
   };
   markWatched(view, trainerSprites(mem, version, playerX, playerY), beaten, SIGHT);

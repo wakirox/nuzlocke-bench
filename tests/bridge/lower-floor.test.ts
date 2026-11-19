@@ -1,7 +1,7 @@
 // Closed patches of a cave's lower floor: drawn as rock on a whole map, kept everywhere else.
 
 import { describe, expect, it } from "vitest";
-import { darkSquares, renderView, sealFromWholeMap, sealedLowerFloor, type OverworldView } from "../../src/bridge/overworld";
+import { darkSquares, findPath, renderView, sealFromWholeMap, sealedLowerFloor, type OverworldView } from "../../src/bridge/overworld";
 
 // Tile 5 is the lower floor (as lowerCaveFloor says), tile 9 the upper floor; a step between 5 and 9 is a cliff.
 const cliff = (a: number, b: number) => (a === 5 && b === 9) || (a === 9 && b === 5);
@@ -17,6 +17,23 @@ function view(rows: string[], tiles: number[][], whole = true): OverworldView {
   } as OverworldView;
 }
 const rows = (text: string) => text.split("\n").filter((l) => /^y/.test(l)).map((l) => l.slice(5).trim());
+
+describe("a cave's stairs", () => {
+  // Lower floor (5) on the left, the upper floor (9) on the right, the stairs (21) between them in the middle row.
+  const grid = ["..#..", "...@.", "..#.."];
+  const tiles = [[5, 5, 1, 9, 9], [5, 5, 21, 9, 9], [5, 5, 1, 9, 9]];
+  const withStairs = (v: OverworldView) => ({ ...v, stairs: (t: number) => t === 21 });
+
+  it("are drawn apart from the floor, on the lit map and in the dark", () => {
+    expect(rows(renderView(withStairs(view(grid, tiles, false))))).toEqual([",  ,  #  .  .", ",  ,  ≡  @  .", ",  ,  #  .  ."]);
+    const lit = [[true, true, true, true, true], [true, true, true, false, true], [true, true, true, true, true]];
+    expect(darkSquares(withStairs(view(grid, tiles, false)), lit)[1]).toEqual([",", ",", "≡", "@", "."]);
+  });
+
+  it("are walkable as before: a walk goes up them", () => {
+    expect(findPath(withStairs(view(grid, tiles)), 0, 1, { avoidSight: false })?.dirs).toEqual(["left", "left", "left"]);
+  });
+});
 
 describe("a lower-floor patch beside cave water", () => {
   // Lower floor (tile 5) at x1, closed by rock but for the water (tile 14) at x2.

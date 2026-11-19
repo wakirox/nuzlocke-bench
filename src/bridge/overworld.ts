@@ -37,6 +37,8 @@ export interface OverworldView<S extends ViewStage | undefined = undefined> {
   swimBlocked?: (a: number, b: number, dx: number, dy: number) => boolean;
   /** Whether a floor tile is the lower level of a cave, drawn apart from the upper as a player sees them. */
   lowerFloor?: (tile: number) => boolean;
+  /** Whether a floor tile is a cave's stairs: the only squares where its two floor heights meet without a cliff. */
+  stairs?: (tile: number) => boolean;
   /** Class of any map square, including the neighbouring map's strip just past the edge. */
   beyond?: (x: number, y: number) => string;
   /** Where each door/warp in the view leads. */
@@ -71,6 +73,20 @@ function swimPairBlocked(v: AnyOverworldView, c: number, r: number, nc: number, 
 
 /** Whether a map square holds a boulder (plain, or sitting on a floor switch). */
 export const isBoulder = (ch: string): boolean => ch === "B" || ch === "b";
+
+/** A cave's stairs on the map: walkable, drawn apart from the floor (caveFloor). */
+export const STAIRS = "≡";
+
+/**
+ * A walkable square of floor as a player sees it in a cave with two floor heights: "," on the lower
+ * floor, STAIRS on the stairs between them (the only squares where the two meet without a cliff:
+ * a player sees the steps, and the map showed them as floor until 2026-11-20), "." otherwise.
+ */
+export function caveFloor(v: AnyOverworldView, r: number, c: number): string {
+  const tile = v.tiles?.[r]?.[c];
+  if (tile === undefined) return ".";
+  return v.lowerFloor?.(tile) ? "," : v.stairs?.(tile) ? STAIRS : ".";
+}
 
 /**
  * What a trainer's gaze stops at: walls and anything solid standing in the way (a gate, a counter,
@@ -179,7 +195,7 @@ export function ledgeTarget(v: AnyOverworldView, x: number, y: number): string |
  * Returns the screen's squares row by row: "#", ".", ",", "D", "?" or "@" (SeenMaps.sawDark keeps them).
  */
 /** What a lit square can show in the dark; anything else there (a person, an object) is a black sprite. */
-const DARK_SEEN = new Set(["#", ".", ",", "D"]);
+const DARK_SEEN = new Set(["#", ".", ",", STAIRS, "D"]);
 
 export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean[][]): string[][] {
   // Squares under a text box or menu (boxedSquares) can't be seen, lit or not; nor do they light
@@ -190,8 +206,8 @@ export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean
       if (covered?.[r]?.[c]) return "?";
       if (r === v.pr && c === v.pc) return "@";
       const raw = v.grid[r]?.[c] ?? "?";
-      // A cave's lower floor, as on the lit map (renderView): the cliff between the levels can't be stepped across.
-      const ch = raw === "." && v.tiles && v.lowerFloor?.(v.tiles[r][c]) ? "," : raw;
+      // A cave's lower floor and stairs, as on the lit map (renderView): the cliff between the levels can't be stepped across.
+      const ch = raw === "." ? caveFloor(v, r, c) : raw;
       if (on) return DARK_SEEN.has(ch) ? ch : "?";
       const edge = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].some(([rr, cc]) => lit[rr]?.[cc]);
       return ch === "#" && edge ? "#" : "?";
@@ -200,7 +216,7 @@ export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean
 
 /** Said above a dark map (BridgeCore.mapText): the map below is what the run has seen in the dark. */
 export const DARK_HEADER =
-  "It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you haven't seen. Walks go only over squares shown here. You are at @.";
+  "It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), ≡ stairs (the way between them), D ladder; ? is dark: rock or floor you haven't seen. Walks go only over squares shown here. You are at @.";
 
 /** A dark screen's 160×144 RGBA pixels as 10×9 squares: is anything lit there? Floors have a stray lit dot or two. */
 export function litSquares(rgba: Uint8ClampedArray): boolean[][] {
@@ -364,7 +380,7 @@ export function renderView(view: FoggedView): string {
   const shown = (ch: string, r: number, c: number) => ((ch === "." || ch === '"' || (ch === "~" && !!v.surfing)) && v.watched?.has(r * W + c) ? "!" : ch);
   const levelled = (ch: string, r: number, c: number) => {
     const out = shown(ch, r, c);
-    return out === "." && v.tiles && v.lowerFloor?.(v.tiles[r][c]) ? "," : out;
+    return out === "." ? caveFloor(v, r, c) : out;
   };
   const rows = v.grid.map((line, r) => `y${String(v.originY + r).padStart(yw)} ` + line.map((ch, c) => levelled(ch, r, c).padStart(xw)).join(""));
   const runs = doorRuns(v);

@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { DARK_HEADER, boxedSquares, darkSquares, exitsLine, litSquares, trainerList, renderView, sealFromWholeMap, seenPart, type AnyOverworldView, type Door, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
+import { DARK_HEADER, boxedSquares, caveFloor, darkSquares, exitsLine, litSquares, trainerList, renderView, sealFromWholeMap, seenPart, type AnyOverworldView, type Door, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -409,7 +409,7 @@ export class BridgeCore {
     // ended would stay "?" once the player walks on.
     const under = whole?.doors?.some((d) => d.x === pos.x && d.y === pos.y)
       ? "D"
-      : sealed.tiles && sealed.lowerFloor?.(sealed.tiles[sealed.pr][sealed.pc]) ? "," : ".";
+      : caveFloor(sealed, sealed.pr, sealed.pc);
     seen.sawDark(pos.map, now.map((row, r) => row.map((ch, c) => (r === sealed.pr && c === sealed.pc ? under : ch))), sealed.originX, sealed.originY);
   }
 
