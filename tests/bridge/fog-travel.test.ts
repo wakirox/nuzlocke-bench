@@ -49,7 +49,7 @@ describe("walk_to through the fog", () => {
   });
 
   it("goes on with a guessed way after a leg that ran from a wild battle, and says every leg", async () => {
-    // With encounters: flee_uncounted a leg ends "— arrived (ran from WEEDLE)": it still got where it was
+    // With encounters: flee_uncounted a leg ends "— arrived (ran from MONA)": it still got where it was
     // going. It used to end the walk there, a leg short, and say "arrived" (2026-11-19).
     const { core, travel } = fakeWorld(corridor, [2, 1], seenWithGap());
     const walkSegments = (travel as unknown as { walkSegments: (s: unknown) => Promise<string> }).walkSegments.bind(travel);
@@ -58,11 +58,11 @@ describe("walk_to through the fog", () => {
       const out = await walkSegments(s);
       if (!first) return out;
       first = false;
-      return `${out} (ran from WEEDLE)`;
+      return `${out} (ran from MONA)`;
     });
     const r = (await travel.walkTo(13, 1, false)) as { walk: string };
     expect(core.host.position().x).toBe(13);
-    expect(r.walk).toMatch(/^right \d+\/\d+ \(ran from WEEDLE\); then right \d+\/\d+ — arrived \(no seen way there/);
+    expect(r.walk).toMatch(/^right \d+\/\d+ \(ran from MONA\); then right \d+\/\d+ — arrived \(no seen way there/);
   });
 
   it("says where a guessed way stopped, short of the target, instead of arrived", async () => {
@@ -271,7 +271,7 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
 
 describe("walks that ran from a wild battle, and ledges", () => {
   type Walker = { walkSegments: (s: [string, number][]) => Promise<string> };
-  /** Adds " (ran from WEEDLE)" to every leg that arrived, as encounters: flee_uncounted does on grass. */
+  /** Adds " (ran from MONA)" to every leg that arrived, as encounters: flee_uncounted does on grass. */
   const fleeing = (travel: Travel) => {
     const walker = travel as unknown as Walker;
     const walkSegments = walker.walkSegments.bind(travel);
@@ -279,7 +279,7 @@ describe("walks that ran from a wild battle, and ledges", () => {
     vi.spyOn(walker, "walkSegments").mockImplementation(async (s) => {
       legs.push(s);
       const out = await walkSegments(s);
-      return / — arrived$/.test(out) ? `${out} (ran from WEEDLE)` : out;
+      return / — arrived$/.test(out) ? `${out} (ran from MONA)` : out;
     });
     return legs;
   };

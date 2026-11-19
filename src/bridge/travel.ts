@@ -604,17 +604,19 @@ export class Travel {
       const [sx, sy] = route.sightStop;
       const sofar = walked.length ? legsSaid(walked).replace(ARRIVED, (m) => m.replace(" — arrived", "")) : "";
       return this.core.result({
-        walk: `${route.dirs.length && sofar ? sofar + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
+        walk: `${sofar ? sofar + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
         map: this.core.mapText(),
       });
     }
+    // Every leg walked, for the results below that end the walk elsewhere (a hole, a doormat).
+    const legsSoFar = walked.length ? legsSaid(walked) : report;
     // A hole asked for: the fall (a spin or a drop, buttons ignored) changes the map well after the
     // step lands. Wait it out and report the floor below, with nothing pressed during it.
     const onHole = this.core.host.position();
     if (route && toHole && !onHole.battle && onHole.map === startMap && onHole.x === x && onHole.y === y) {
       await this.core.awaitWarp();
       const fell = this.core.host.position().map !== startMap;
-      return this.core.result({ walk: `${report}${fell ? `, then fell through the hole to ${this.core.mapName()}` : " (the hole didn't take you down)"}`, map: this.core.mapText() });
+      return this.core.result({ walk: `${legsSoFar}${fell ? `, then fell through the hole to ${this.core.mapName()}` : " (the hole didn't take you down)"}`, map: this.core.mapText() });
     }
     // A doormat at the map's edge takes you out only when you press toward the edge: do that. With
     // interact too: on a door square there's nothing to talk to, so going through is what's meant.
@@ -625,7 +627,7 @@ export class Travel {
       if (out) {
         await this.core.tap(out, 16, 50);
         await this.core.requireGb().runFrames(120, 30);
-        if (this.core.host.position().map !== startMap) return this.core.result({ walk: `${report}, then ${out} through the door, now on ${this.core.mapName()}`, map: this.core.mapText() });
+        if (this.core.host.position().map !== startMap) return this.core.result({ walk: `${legsSoFar}, then ${out} through the door, now on ${this.core.mapName()}`, map: this.core.mapText() });
       }
       const still = this.core.host.position();
       if (onDoor && report === "already there" && !still.battle && still.map === startMap && still.x === x && still.y === y) {
@@ -648,7 +650,7 @@ export class Travel {
     const end = this.core.host.position();
     const [ex, ey] = route ? routeEnd(planned, route.dirs) : [x, y];
     const reached = !!route && !end.battle && end.map === startMap && end.x === ex && end.y === ey;
-    let said = walked.length ? legsSaid(walked) : report;
+    let said = legsSoFar;
     if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
       said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +
         ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${route ? "" : ": no way on there through squares you've seen"}`;
@@ -791,7 +793,8 @@ export class Travel {
       const route = planFrontierEdge(view, dir, this.core.sight(), !this.core.dark());
       if (!route) {
         if (!first) {
-          if (!reports.length) report(`no way to the ${dir} edge found from here`);
+          // Said with the legs a guessed way walked before it ran out, if any (they'd be lost otherwise).
+          if (!reports.length || pending.length) report(`no way to the ${dir} edge found from here`);
           break;
         }
         throw new Error(`Can't reach the ${dir} edge from here.\n${this.core.drawn(seenPart(view))}`);

@@ -771,12 +771,6 @@ export function pathFurthest(v: AnyOverworldView, dir: Dir, opts: SightOptions =
 }
 
 /**
- * Collapses ["up","up","left"] into [["up",2],["left",1]]. Given the view the steps were planned on
- * (from its player), counts squares, as a walk does (walkStraight counts each square the player
- * moves): a ledge hop is one step but two squares, and counted as one it ended the walk a square
- * short of where it was planned to go (a walk_to over a ledge said "arrived" a square early).
- */
-/**
  * Where `dirs` walked from the player on `v` end, in map coordinates (a ledge hop moves two
  * squares): the square a route was planned to reach, beside its target or across a counter from it.
  */
@@ -790,6 +784,12 @@ export function routeEnd(v: AnyOverworldView, dirs: Dir[]): [number, number] {
   return [v.originX + c, v.originY + r];
 }
 
+/**
+ * Collapses ["up","up","left"] into [["up",2],["left",1]]. Given the view the steps were planned on
+ * (from its player), counts squares, as a walk does (walkStraight counts each square the player
+ * moves): a ledge hop is one step but two squares, and counted as one it ended the walk a square
+ * short of where it was planned to go (a walk_to over a ledge said "arrived" a square early).
+ */
 export function toSegments(dirs: Dir[], v?: AnyOverworldView): [Dir, number][] {
   const out: [Dir, number][] = [];
   let c = v?.pc ?? 0;
