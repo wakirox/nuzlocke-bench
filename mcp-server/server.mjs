@@ -21,6 +21,7 @@ import { createRequestHandler, saveFileOf } from "./http-routes.mjs";
 import { loadObserver } from "./observers.mjs";
 import { notesStore } from "./notes.mjs";
 import { createToolLogger } from "./run-log.mjs";
+import { createInbox } from "./inbox.mjs";
 import { callBudget } from "./call-budget.mjs";
 import { harnessVersion } from "./provenance.mjs";
 import { createFormatter } from "./format.mjs";
@@ -37,6 +38,9 @@ const HEADED = HEADLESS && !!process.env.NUZLOCKE_HEADED;
 const PLAYTEST = /^(1|true|yes)$/i.test(process.env.NUZLOCKE_PLAYTEST ?? "");
 // report_issue is on by default (NUZLOCKE_REPORT_ISSUE=0 turns it off; a playtest always has it).
 const REPORT_ISSUE = PLAYTEST || !/^(0|false|no)$/i.test(process.env.NUZLOCKE_REPORT_ISSUE ?? "");
+// A playtest's inbox (NUZLOCKE_PLAYTEST_INBOX, a file): the maintainer's messages to the model
+// playing, handed over in its next tool result (inbox.mjs). Never in a benchmark run.
+const PLAYTEST_INBOX = PLAYTEST && process.env.NUZLOCKE_PLAYTEST_INBOX ? createInbox(process.env.NUZLOCKE_PLAYTEST_INBOX) : null;
 // Map grids have one space between squares (narrow, the default since an A/B on 2026-10-15 found
 // no difference in navigation at ~40% fewer map tokens); NUZLOCKE_GRID=wide gives two, and
 // NUZLOCKE_GRID=compact groups squares into 5-column blocks.
@@ -254,6 +258,7 @@ registerTools(server, {
   mapPoints: MAP_POINTS,
   hideEffectiveness: HIDE_EFFECTIVENESS,
   boulderSwitch: BOULDER_SWITCH,
+  playtestInbox: PLAYTEST_INBOX,
   rulesetIds: RULESET_IDS,
 });
 

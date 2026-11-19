@@ -3,6 +3,7 @@
 // run is over (to ask for help, or to report it's stuck) it only gets a neutral nudge to keep
 // playing — never a hint. How many nudges it needed is part of the result.
 
+import { dirname, join } from "node:path";
 import { stateOutcome } from "./run-log.mjs";
 
 /** The whole prompt: what to do, nothing about how. */
@@ -80,7 +81,11 @@ export function nextStep({ ended, result, nudges, maxNudges, maxTokens = Infinit
   return { nudge: true };
 }
 
-/** The game server's MCP config: headless, under the preset, with its own port, saves and run log. */
+/**
+ * The game server's MCP config: headless, under the preset, with its own port, saves and run log.
+ * A playtest also gets an inbox, `inbox.txt` beside the run log: a line written there reaches the
+ * model in its next tool result (mcp-server/inbox.mjs).
+ */
 export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, headed, playtest, grid, effectiveness, boulderSwitch = false, mapPoints = false, trainerFacing = false, report = true, observer = null }) {
   return {
     mcpServers: {
@@ -90,7 +95,7 @@ export function mcpConfig({ node, server, rom, preset, port, savesDir, runLog, h
         env: {
           NUZLOCKE_HEADLESS: "1",
           ...(headed ? { NUZLOCKE_HEADED: headed === "fast" ? "fast" : "1" } : {}),
-          ...(playtest ? { NUZLOCKE_PLAYTEST: "1" } : {}),
+          ...(playtest ? { NUZLOCKE_PLAYTEST: "1", NUZLOCKE_PLAYTEST_INBOX: join(dirname(runLog), "inbox.txt") } : {}),
           ...(report || playtest ? {} : { NUZLOCKE_REPORT_ISSUE: "0" }),
           ...(grid ? { NUZLOCKE_GRID: grid } : {}),
           ...(effectiveness ? { NUZLOCKE_EFFECTIVENESS: effectiveness } : {}),
