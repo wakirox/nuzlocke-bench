@@ -32,13 +32,24 @@ const LEGEND = [
   ["↑↓←→+", "↑ ↓ ← → spinner arrow (stepping on it slides you that way, along a fixed path; paths avoid them; + if its direction isn't known)"],
 ];
 
+const BOULDER_SWITCH_ENTRY = ["b", "b boulder on a floor switch"];
+
+function legendEntries({ boulderSwitch = false } = {}) {
+  if (!boulderSwitch) return LEGEND;
+  const at = LEGEND.findIndex(([chars]) => chars === "o");
+  return [...LEGEND.slice(0, at), BOULDER_SWITCH_ENTRY, ...LEGEND.slice(at)];
+}
+
 /** Map symbols, given once in get_map's description instead of under every map. */
-export const MAP_LEGEND = `Map legend: ${LEGEND.map(([, text]) => text).join(", ")}. Columns are x, rows are y.`;
+export function mapLegend(opts = {}) {
+  return `Map legend: ${legendEntries(opts).map(([, text]) => text).join(", ")}. Columns are x, rows are y.`;
+}
+export const MAP_LEGEND = mapLegend();
 
 /** The legend for just the symbols on the map(s) in `text` (get_map legend=true), or null. */
-export function legendFor(text) {
+export function legendFor(text, opts = {}) {
   const squares = new Set(text.split("\n").filter((l) => /^y\s*-?\d+(?:--?\d+)? /.test(l)).flatMap((l) => [...l.replace(/^y\s*-?\d+(?:--?\d+)? +/, "")]));
-  const entries = LEGEND.filter(([chars]) => [...chars].some((ch) => squares.has(ch)));
+  const entries = legendEntries(opts).filter(([chars]) => [...chars].some((ch) => squares.has(ch)));
   return entries.length ? `Legend: ${entries.map(([, t]) => t).join(", ")}.` : null;
 }
 
@@ -183,15 +194,22 @@ export function plainErrorScreen(text) {
 export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
-export const COMPACT_GRID_NOTE =
-  " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
-  "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
-  "Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (I C S P $ H B o O), " +
-  "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22).";
+export function compactGridNote({ boulderSwitch = false } = {}) {
+  const syms = boulderSwitch ? "I C S P $ H B b o O" : "I C S P $ H B o O";
+  return (
+    " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
+    "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
+    `Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (${syms}), ` +
+    "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22)."
+  );
+}
+export const COMPACT_GRID_NOTE = compactGridNote();
 
-const MAP_POINT_KINDS = ["I", "C", "S", "P", "$", "H", "B", "o", "O"];
+// `b` (a boulder on a seen floor switch) reaches the grid only with NUZLOCKE_BOULDER_SWITCH=1
+// (the bridge turns it back into `B` otherwise), so listing it here changes nothing by default.
+const MAP_POINT_KINDS = ["I", "C", "S", "P", "$", "H", "B", "b", "o", "O"];
 const TALL_MAP_ROWS = 16;
-const INTERACTIVE = /[@TN$HFIDGSPCBoO]/;
+const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
 
@@ -209,7 +227,7 @@ function parseWideGrid(lines, i) {
   return { xs, rawRows, end: j };
 }
 
-/** Shared `Points:` line for the 9 interactive symbols visible on a parsed (already-fogged) grid. */
+/** Shared `Points:` line for the interactive symbols visible on a parsed (already-fogged) grid. */
 function pointsLine(rawRows, x0) {
   const bySym = new Map(MAP_POINT_KINDS.map((s) => [s, []]));
   for (const row of rawRows) {

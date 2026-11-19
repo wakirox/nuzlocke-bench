@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { capturesOf, dashboardRuns, joinHardAreas, fightsOf, outcomeKind, renderDashboard, throwsOf } from "../../mcp-server/dashboard.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { OFFICIAL } from "../../mcp-server/benchmark.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { objectivesTable, table } from "../../mcp-server/report.mjs";
 
 const agent = { model: "claude-sonnet-5-5", effort: "low", tokens: { total: 5_000_000 } };
 const row = (name: string, extra: Record<string, unknown> = {}) => ({
@@ -116,6 +118,11 @@ describe("dashboardRuns", () => {
     expect(off({}, { via: "api" }).notOfficial).toBe("run through the API");
     expect(off({}, { model: "claude-sonnet-5-5[1m]" }).notOfficial).toBe("1M-token context");
     expect(off({}, { effectiveness: "on" }).notOfficial).toBe("effectiveness shown");
+    expect(off({}, { boulderSwitch: true }).notOfficial).toBe("boulder switch shown");
+    expect(off({ boulderSwitch: true }, {}).notOfficial).toBe("boulder switch shown");
+    const envOnly = { name: "r1", preset: "p", badges: 0, deaths: 0, violations: 0, calls: 10, errors: 0, wallMs: 0, chars: 0, charsPerCall: 0, topTools: "", boulderSwitch: true, agent: { model: "claude-haiku-5-5" }, objectives: {} };
+    expect(table([envOnly])).toContain("boulder switch shown");
+    expect(objectivesTable([envOnly])).toContain("haiku-5-5 boulder-switch");
     expect(off({}, { mapPoints: true }).notOfficial).toBe("map points shown");
     expect(off({ mapPoints: true }, {}).notOfficial).toBe("map points shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");

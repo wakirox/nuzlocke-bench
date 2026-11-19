@@ -53,6 +53,7 @@ function offDefaults(leg) {
   if (r.via === "api") return "run through the API";
   if (/\[1m\]$/.test(String(r.model ?? ""))) return "1M-token context";
   if (r.effectiveness === "on") return "effectiveness shown";
+  if (r.boulderSwitch || leg.boulderSwitch) return "boulder switch shown";
   if (r.mapPoints || leg.mapPoints) return "map points shown";
   if (r.reportIssue === false) return "report_issue off";
   if (r.grid && r.grid !== "narrow") return "other grid";

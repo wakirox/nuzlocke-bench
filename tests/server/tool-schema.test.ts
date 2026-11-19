@@ -12,6 +12,7 @@ async function toolsUnder(preset: string, extraEnv: Record<string, string> = {})
   const env: Record<string, string> = { ...(process.env as Record<string, string>), NUZLOCKE_BENCHMARK: preset, NUZLOCKE_RUN_LOG: "off", NUZLOCKE_BRIDGE_PORT: "0", ...extraEnv };
   delete env.NUZLOCKE_HEADLESS;
   if (!("NUZLOCKE_GRID" in extraEnv)) delete env.NUZLOCKE_GRID;
+  if (!("NUZLOCKE_BOULDER_SWITCH" in extraEnv)) delete env.NUZLOCKE_BOULDER_SWITCH;
   await client.connect(new StdioClientTransport({ command: process.execPath, args: ["mcp-server/server.mjs"], env, stderr: "ignore" }));
   try {
     const { tools } = await client.listTools();
@@ -61,5 +62,22 @@ describe("the tools the model is offered", () => {
     expect(compact.instructions).toBe(plain.instructions);
     const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);
     expect(compact.map(same)).toEqual(plain.map(same));
+  }, 30_000);
+
+  it("adds b to get_map's legend only when NUZLOCKE_BOULDER_SWITCH is on, leaving everything else unchanged", async () => {
+    const plain = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap");
+    const withSwitch = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_BOULDER_SWITCH: "1" });
+    expect(plain.find((t) => t.name === "get_map")?.description).not.toContain("b boulder on a floor switch");
+    expect(withSwitch.find((t) => t.name === "get_map")?.description).toContain("B boulder, b boulder on a floor switch, o floor switch");
+    expect(withSwitch.order).toEqual(plain.order);
+    expect(withSwitch.instructions).toBe(plain.instructions);
+    const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);
+    expect(withSwitch.map(same)).toEqual(plain.map(same));
+
+    // Compact + boulderSwitch together: get_map's description includes b in both Map legend and the compact Points note.
+    const both = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_GRID: "compact", NUZLOCKE_BOULDER_SWITCH: "1" });
+    const bothDesc = both.find((t) => t.name === "get_map")?.description ?? "";
+    expect(bothDesc).toContain("b boulder on a floor switch");
+    expect(bothDesc).toContain("I C S P $ H B b o O");
   }, 30_000);
 });

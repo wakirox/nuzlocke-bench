@@ -16,6 +16,8 @@ export interface SeenData {
   squares: Record<string, Record<string, [number, number][]>>;
   /** Map → squares the player stood on just before warping away, or just after arriving. */
   doors: Record<string, Spot[]>;
+  /** Map → floor-switch squares the run has seen uncovered (`o`), for showing a boulder later pushed onto one as `b`. */
+  switches?: Record<string, Spot[]>;
 }
 
 /** Buildings a player knows from outside (their roofs and signs say so): their doors are named at once. */
@@ -30,7 +32,11 @@ export class SeenMaps {
   private changed = false;
 
   constructor(data?: SeenData | null) {
-    this.data = { squares: data?.squares ?? {}, doors: data?.doors ?? {} };
+    this.data = {
+      squares: data?.squares ?? {},
+      doors: data?.doors ?? {},
+      ...(data?.switches ? { switches: data.switches } : {}),
+    };
   }
 
   /** Marks the screen around (x, y) on `map` seen. */
@@ -39,6 +45,36 @@ export class SeenMaps {
     for (let r = y - SCREEN.up; r <= y + SCREEN.down; r++) {
       if (addRun((rows[r] ??= []), x - SCREEN.left, x + SCREEN.right)) this.changed = true;
     }
+  }
+
+  /**
+   * Remembers uncovered floor switches (`o`) currently inside the player's 10×9 screen:
+   * a boulder later pushed onto one can be drawn as `b`, whereas a boulder on a switch the run
+   * never saw uncovered stays `B`.
+   */
+  sawSwitches(map: number, view: AnyOverworldView, px: number, py: number): void {
+    const x0 = px - SCREEN.left, x1 = px + SCREEN.right;
+    const y0 = py - SCREEN.up, y1 = py + SCREEN.down;
+    for (let r = 0; r < view.grid.length; r++) {
+      const y = view.originY + r;
+      if (y < y0 || y > y1) continue;
+      for (let c = 0; c < view.grid[r].length; c++) {
+        if (view.grid[r][c] !== "o") continue;
+        const x = view.originX + c;
+        if (x < x0 || x > x1) continue;
+        const byMap = (this.data.switches ??= {});
+        const spots = (byMap[map] ??= []);
+        if (!spots.some(([a, b]) => a === x && b === y)) {
+          spots.push([x, y]);
+          this.changed = true;
+        }
+      }
+    }
+  }
+
+  /** Whether the run has seen floor switch `(x, y)` on `map` uncovered. */
+  hasSwitch(map: number, x: number, y: number): boolean {
+    return (this.data.switches?.[map] ?? []).some(([a, b]) => a === x && b === y);
   }
 
   has(map: number, x: number, y: number): boolean {
@@ -82,11 +118,12 @@ export class SeenMaps {
    * The view as the run knows it: squares never on screen are "?", and doors it hasn't been through
    * lead to "?". `map` is the view's map; `bottomRow` its last row (y), for doormats out.
    */
-  fog(view: AnyOverworldView, map: number, bottomRow?: number): KnownOverworldView {
+  fog(view: AnyOverworldView, map: number, bottomRow?: number, opts?: { boulderSwitch?: boolean }): KnownOverworldView {
     // A wide door (a gate, a building's 2-square mat) is one way through: known on any square, known on all.
     const sameDoor = (a: Door, b: Door) => a.to === b.to && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
     return maskView(view, {
       isVisible: (x, y) => this.has(map, x, y),
+      mapCell: (ch, x, y) => (ch === "b" && !(opts?.boulderSwitch && this.hasSwitch(map, x, y)) ? "B" : ch),
       mapDoors: (inSight) => {
         const known = inSight.filter((k) => this.knowsDoor(map, k, bottomRow));
         return inSight.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));

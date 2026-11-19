@@ -41,6 +41,12 @@ const REPORT_ISSUE = PLAYTEST || !/^(0|false|no)$/i.test(process.env.NUZLOCKE_RE
 // no difference in navigation at ~40% fewer map tokens); NUZLOCKE_GRID=wide gives two, and
 // NUZLOCKE_GRID=compact groups squares into 5-column blocks.
 const GRID_MODE = process.env.NUZLOCKE_GRID === "wide" ? "wide" : process.env.NUZLOCKE_GRID === "compact" ? "compact" : "narrow";
+// Showing a boulder sitting on a floor switch with its own symbol (`b`), off until an A/B decides.
+const BOULDER_SWITCH = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_BOULDER_SWITCH ?? "");
+/** Opt-in bridge options sent once on connect (empty by default: nothing sent). */
+const BRIDGE_OPTIONS = {
+  ...(BOULDER_SWITCH ? { boulderSwitch: true } : {}),
+};
 // Coordinate lists for seen points under the map (and bottom x header on tall maps), off until an A/B decides.
 const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? "");
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
@@ -106,6 +112,10 @@ const formatter = createFormatter({ mapsOnRequest: true });
 // so a test can start from any of them. A continued run keeps the ones it brought.
 const milestonesSaved = new Set(readdirSync(SAVES_DIR).map((f) => /^run\.milestone\.(\w+)\.json$/.exec(f)?.[1]).filter(Boolean));
 
+let optionsConfirmed = {};
+let optionsError = null;
+let pendingOptions = Promise.resolve();
+
 const http = createServer(createRequestHandler({ savesDir: SAVES_DIR, roms: ROMS, transcript: TRANSCRIPT, dist: DIST, log, observer }));
 const link = createBridgeLink({
   log,
@@ -118,11 +128,28 @@ const link = createBridgeLink({
   },
   onConnect: () => {
     formatter.reset(); // a fresh page: show the next screen in full
+    optionsConfirmed = {};
+    optionsError = null;
+    if (Object.keys(BRIDGE_OPTIONS).length) {
+      pendingOptions = link.send("set_options", BRIDGE_OPTIONS).then(
+        () => { optionsConfirmed = BRIDGE_OPTIONS; },
+        (e) => {
+          optionsError = `The connected page didn't accept bridge options (${Object.keys(BRIDGE_OPTIONS).join(", ")}): ${e.message}. Rebuild/reload the page.`;
+          log("set_options failed:", e.message);
+        },
+      );
+    } else {
+      pendingOptions = Promise.resolve();
+    }
     autoStart.maybeAutoStart();
   },
 });
 link.attach(http);
-const { call } = link;
+const call = async (method, params) => {
+  await pendingOptions;
+  if (optionsError) throw new Error(optionsError);
+  return link.call(method, params);
+};
 const autoStart = createAutoStart({ headless: HEADLESS, preset: PRESET, rulesetIds: RULESET_IDS, fileOf, call, log });
 const launcher = createHeadlessLauncher({ port: PORT, headed: HEADED, log, observer });
 http.listen(PORT, "127.0.0.1", () => {
@@ -191,7 +218,7 @@ const wrapLog = createToolLogger({
   mapsEntered: link.takeMapsEntered,
   onEntry: saveMilestones,
   transcript: SERVER_TRANSCRIPT,
-  session: {
+  session: () => ({
     benchmark: PRESET,
     harness: harnessVersion(PROJECT_ROOT, DIST),
     headless: HEADLESS,
@@ -202,7 +229,9 @@ const wrapLog = createToolLogger({
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
     ...(MAP_POINTS ? { mapPoints: true } : {}),
-  },
+    ...optionsConfirmed,
+    ...(optionsError ? { optionsError } : {}),
+  }),
 });
 
 const BUDGET = PRESET?.max_calls ? callBudget({ max: PRESET.max_calls, dir: SAVES_DIR }) : null;
@@ -221,6 +250,7 @@ registerTools(server, {
   grid: GRID_MODE,
   mapPoints: MAP_POINTS,
   hideEffectiveness: HIDE_EFFECTIVENESS,
+  boulderSwitch: BOULDER_SWITCH,
   rulesetIds: RULESET_IDS,
 });
 

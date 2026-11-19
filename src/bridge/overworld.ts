@@ -15,7 +15,7 @@ export type ViewStage = "raw" | "known" | "guessed";
 
 export interface OverworldView<S extends ViewStage | undefined = undefined> {
   readonly stage?: S;
-  /** grid[row][col]: @ you, N person, $ shop clerk, H nurse, B boulder, o floor switch, O hole in the floor, D door/warp, S something to use by facing it, P a PC, # blocked, . walkable, " tall grass, v<> ledge, * ice (you slide on it) */
+  /** grid[row][col]: @ you, N person, $ shop clerk, H nurse, B boulder, b boulder on a floor switch, o floor switch, O hole in the floor, D door/warp, S something to use by facing it, P a PC, # blocked, . walkable, " tall grass, v<> ledge, * ice (you slide on it) */
   grid: string[][];
   /** Map coordinates of grid[0][0]. */
   originX: number;
@@ -69,11 +69,14 @@ function swimPairBlocked(v: AnyOverworldView, c: number, r: number, nc: number, 
   return v.swimBlocked(v.tiles[r][c], v.tiles[nr][nc], nc - c, nr - r);
 }
 
+/** Whether a map square holds a boulder (plain, or sitting on a floor switch). */
+export const isBoulder = (ch: string): boolean => ch === "B" || ch === "b";
+
 /**
  * What a trainer's gaze stops at: walls and anything solid standing in the way (a gate, a counter,
  * a tree to cut, a sign or PC, a boulder) and people (N, $ clerk, H nurse, T trainer, I item ball).
  */
-const BLOCKS_SIGHT = new Set(["#", "G", "=", "C", "S", "P", "B", "N", "$", "H", "T", "I"]);
+const BLOCKS_SIGHT = new Set(["#", "G", "=", "C", "S", "P", "B", "b", "N", "$", "H", "T", "I"]);
 
 /** The four ways a trainer can face, as [dx, dy]: down, up, left, right. */
 const FACINGS: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
@@ -405,7 +408,7 @@ function cliffEdges(v: AnyOverworldView): string | null {
   const W = v.grid[0]?.length ?? 0;
   // A boulder stands on floor: an edge beside it is what stops it being pushed there.
   // Water too where the game has surfing pairs: water against a cliff you can't get ashore over.
-  const open = (c: number, r: number) => walkable(v.grid[r][c]) || v.grid[r][c] === "B" || (!!v.swimBlocked && v.grid[r][c] === "~");
+  const open = (c: number, r: number) => walkable(v.grid[r][c]) || isBoulder(v.grid[r][c]) || (!!v.swimBlocked && v.grid[r][c] === "~");
   const blocked = (c: number, r: number, nc: number, nr: number) =>
     onWater(v, c, r) || onWater(v, nc, nr) ? swimPairBlocked(v, c, r, nc, nr) : pairBlocked(v, c, r, nc, nr);
   const runs: string[] = [];
@@ -540,7 +543,7 @@ export function wayBlocker(v: AnyOverworldView, tx: number, ty: number): { x: nu
   if (tr < 0 || tr >= v.grid.length || tc < 0 || tc >= v.grid[0].length) return null;
   const kinds: [string, string, (x: number, y: number) => string][] = [
     ["NT$H", ".", (x, y) => `the ${v.grid[y - v.originY][x - v.originX] === "T" ? "trainer" : "person"} standing at (${x},${y})`],
-    ["B", ".", (x, y) => `the boulder at (${x},${y})`],
+    ["Bb", ".", (x, y) => `the boulder at (${x},${y})`],
   ];
   for (const [chars, as, say] of kinds) {
     const grid = v.grid.map((row) => row.map((ch) => (chars.includes(ch) ? as : ch)));

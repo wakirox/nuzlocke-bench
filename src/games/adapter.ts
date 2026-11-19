@@ -58,9 +58,9 @@ export interface GameAdapter {
   /** The map is dark: a player sees only part of it (see renderDarkView). */
   isDark(mem: MemoryReader): boolean;
   /** The visible screen as a text map (from the map data when the ROM is given). */
-  readView(mem: MemoryReader, playerX: number, playerY: number, beaten: number[], rom: Uint8Array | null): OverworldView;
+  readView(mem: MemoryReader, playerX: number, playerY: number, beaten: number[], rom: Uint8Array | null, boulderSwitch?: boolean): OverworldView;
   /** The whole current map as a text map, with its exits and doors. */
-  readFullMap(mem: MemoryReader, rom: Uint8Array, playerX: number, playerY: number, beaten: number[]): OverworldView;
+  readFullMap(mem: MemoryReader, rom: Uint8Array, playerX: number, playerY: number, beaten: number[], boulderSwitch?: boolean): OverworldView;
   /** Trainer people on the current map (map coordinates; only reliable while on screen). */
   trainerSprites(mem: MemoryReader, playerX: number, playerY: number): TrainerSprite[];
   /** Which trainer a map sprite is: its class and its number in that class. */

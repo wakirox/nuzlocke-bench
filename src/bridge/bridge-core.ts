@@ -133,6 +133,8 @@ export class BridgeCore {
   mapsShown = new Set<number>();
   /** The call being answered asked for the map (get_map, or a move with show_map): a new map is shown whole then. */
   mapAsked = false;
+  /** Show a boulder on a previously seen floor switch as `b` (opt-in via NUZLOCKE_BOULDER_SWITCH). */
+  boulderSwitch = false;
 
   async tap(button: Button | Button[], hold = 6, gap = 20): Promise<void> {
     const gb = this.requireGb();
@@ -153,7 +155,7 @@ export class BridgeCore {
    * through (both ends). Called after every press and every step of a walk, since the page's own
    * state poll runs too seldom while the bridge drives the game.
    */
-  noteSeen(settled = false): void {
+  noteSeen(settled = false, scanSwitches = true): void {
     const seen = this.host.seen?.();
     if (!seen || !this.host.version()) return;
     const p = this.host.position();
@@ -182,7 +184,20 @@ export class BridgeCore {
       this.warpedFrom = null;
       seen.wentThrough(from.map, from.x, from.y, p.map, p.x, p.y);
     } else if (last && last.x === p.x && last.y === p.y) return;
-    if (!this.dark()) seen.sawScreen(p.map, p.x, p.y);
+    if (!this.dark()) {
+      seen.sawScreen(p.map, p.x, p.y);
+      if (scanSwitches && this.boulderSwitch && this.host.gb()) seen.sawSwitches(p.map, this.rawView(false), p.x, p.y);
+    }
+  }
+
+  /** Records uncovered floor switches (`o`) on the current screen (called after a boulder moves in place). */
+  noteSwitches(): void {
+    if (!this.boulderSwitch || this.dark() || !this.host.version() || !this.host.gb()) return;
+    const seen = this.host.seen?.();
+    if (!seen) return;
+    const p = this.host.position();
+    if (p.battle || p.inWorld === false) return;
+    seen.sawSwitches(p.map, this.rawView(false), p.x, p.y);
   }
 
   /** Where the player stood before a warp whose arrival noteSeen hasn't taken yet. */
@@ -292,8 +307,8 @@ export class BridgeCore {
     const pos = this.host.position();
     const rom = this.host.rom();
     const v = full && rom
-      ? this.game.readFullMap(this.requireGb(), rom, pos.x, pos.y, this.host.beatenTrainers())
-      : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom);
+      ? this.game.readFullMap(this.requireGb(), rom, pos.x, pos.y, this.host.beatenTrainers(), this.boulderSwitch)
+      : this.game.readView(this.requireGb(), pos.x, pos.y, this.host.beatenTrainers(), rom, this.boulderSwitch);
     return asRawView(v);
   }
 
@@ -312,12 +327,16 @@ export class BridgeCore {
     if (!seen) return { ...v, stage: undefined };
     if (!this.dark()) {
       // A view is read once a move is over: the game has settled on whatever map it's on.
-      this.noteSeen(true);
+      // Pass scanSwitches=false so noteSeen doesn't fetch a second rawView; we already have `raw`.
+      this.noteSeen(true, false);
       const pos = this.host.position();
-      if (!pos.battle) seen.sawScreen(pos.map, pos.x, pos.y);
+      if (!pos.battle) {
+        seen.sawScreen(pos.map, pos.x, pos.y);
+        if (this.boulderSwitch) seen.sawSwitches(pos.map, raw, pos.x, pos.y);
+      }
     }
     const pos = this.host.position();
-    return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1);
+    return seen.fog(v, pos.map, this.game.mapSize(this.requireGb()).h - 1, { boulderSwitch: this.boulderSwitch });
   }
 
   /** The screen's view as shown to the player: the whole map's sealed lower-floor patches drawn as rock (sealFromWholeMap). */

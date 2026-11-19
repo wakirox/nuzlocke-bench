@@ -76,7 +76,8 @@ export function createToolLogger({ file, log = () => {}, now = Date.now, status 
         mkdirSync(dirname(file), { recursive: true });
         ready = true;
         log(`run log: ${file}`);
-        if (session) appendFileSync(file, JSON.stringify({ type: "session", t: new Date(now()).toISOString(), ...session }) + "\n");
+        const header = typeof session === "function" ? session() : session;
+        if (header) appendFileSync(file, JSON.stringify({ type: "session", t: new Date(now()).toISOString(), ...header }) + "\n");
       }
       appendFileSync(file, JSON.stringify(entry) + "\n");
     } catch (e) {

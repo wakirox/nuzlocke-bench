@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGrids, createFormatter, hideEffectiveness, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences, wideGrids } from "../../mcp-server/format.mjs";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGridNote, compactGrids, createFormatter, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences, wideGrids } from "../../mcp-server/format.mjs";
 import { renderView } from "../../src/bridge/overworld";
 
 const SCREEN = ["┌──────────────────┐", "│Wild BASEMON      │", "│appeared!         │", "└──────────────────┘"];
@@ -328,6 +328,41 @@ describe("legendFor", () => {
       expect(row[x5Col]).not.toBe(" ");
     }
     expect(legendFor(out)).toContain('" tall grass');
+  });
+
+  it("explains b in the legend and handles b in compactGrids only when boulderSwitch is on", () => {
+    expect(MAP_LEGEND).not.toContain("b boulder on a floor switch");
+    expect(mapLegend({ boulderSwitch: true })).toContain("B boulder, b boulder on a floor switch, o floor switch");
+    expect(COMPACT_GRID_NOTE).not.toContain("B b o O");
+    expect(compactGridNote({ boulderSwitch: true })).toContain("I C S P $ H B b o O");
+
+    const map = ["       0  1  2  3", "y  5   #  b  B  o"].join("\n");
+    expect(legendFor(map)).toBe("Legend: B boulder, o floor switch, # blocked.");
+    expect(legendFor(map, { boulderSwitch: true })).toBe("Legend: B boulder, b boulder on a floor switch, o floor switch, # blocked.");
+
+    // Compact + boulderSwitch: `b` is listed in Points and identical rows with `b` never collapse.
+    const cave = renderView({
+      grid: [
+        [..."..@.."],
+        [..."..b.."],
+        [..."..b.."],
+        [..."..B.o"],
+      ],
+      originX: 0, originY: 0, pc: 2, pr: 0,
+    });
+    // `b` reaches the grid only with the option on (the bridge turns it back into `B` otherwise).
+    const out = compactGrids(cave);
+    expect(out).toBe([
+      "       0",
+      "y  0   ..@..",
+      "y  1   ..b..",
+      "y  2   ..b..",
+      "y  3   ..B.o",
+      "Points: B (2,3); b (2,1), (2,2); o (4,3).",
+    ].join("\n"));
+    // NUZLOCKE_MAP_POINTS on the narrow and wide grids lists `b` too.
+    expect(narrowGrids(cave, { points: true })).toContain("Points: B (2,3); b (2,1), (2,2); o (4,3).");
+    expect(wideGrids(cave, { points: true })).toContain("Points: B (2,3); b (2,1), (2,2); o (4,3).");
   });
 
   it("narrowGrids and wideGrids with points: true share the 9-kind Points line and repeat the x header on tall maps", () => {
