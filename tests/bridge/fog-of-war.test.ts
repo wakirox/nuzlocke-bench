@@ -314,6 +314,57 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
     expect(compact).toContain("y 15   ?????");
   });
+
+  it("lists only seen items, Cut trees, PCs, boulders and switches under the map, hiding unseen ones", () => {
+    // Player at (10,10): seen screen is x 6–15, y 6–14; column 0 (x=5) and row 9 (y=15) are unseen.
+    const grid = Array.from({ length: 10 }, () => Array<string>(12).fill("."));
+    grid[4][5] = "@";
+    // Seen squares: I at (8,8), S at (12,9).
+    grid[2][3] = "I";
+    grid[3][7] = "S";
+    // Unseen squares: I at (5,6), C at (5,8), P at (7,15), B at (8,15), o at (9,15), S at (10,15).
+    grid[0][0] = "I";
+    grid[2][0] = "C";
+    grid[9][2] = "P";
+    grid[9][3] = "B";
+    grid[9][4] = "o";
+    grid[9][5] = "S";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const core = new BridgeCore(host.asHost());
+    // Default (mapPoints off): never produces coordinate lines.
+    expect(core.mapText(true)).not.toMatch(/Items \(I\)|Things to read/);
+    // Enabled: lists only seen targets, hiding unseen ones.
+    core.mapPoints = true;
+    const text = core.mapText(true);
+    expect(text).toContain("Items (I): (8,8).");
+    expect(text).toContain("Things to read or use (S): (12,9).");
+    expect(text).not.toContain("(5,6)");
+    expect(text).not.toContain("(10,15)");
+    expect(text).not.toMatch(/Cut trees|PCs|Boulders|Floor switches/);
+  });
+
+  it("emits no coordinate list in a dark cave even when mapPoints is enabled", () => {
+    const grid = Array.from({ length: 9 }, () => Array<string>(10).fill("."));
+    grid[4][4] = "@";
+    grid[4][5] = "I";
+    grid[3][4] = "S";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 6, originY: 6, pc: 4, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const core = new BridgeCore(host.asHost());
+    core.mapPoints = true;
+    core.dark = () => true;
+    core.screenPixels = () => new Uint8ClampedArray(160 * 144 * 4);
+    const text = core.mapText(true);
+    expect(text).toMatch(/^It.s dark/);
+    expect(text).not.toMatch(/Items \(I\)|Things to read/);
+  });
 });
 
 describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {

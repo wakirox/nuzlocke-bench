@@ -156,4 +156,17 @@ describe("a new map's first full view", () => {
     core.mapAsked = false;
     expect(core.result({ map: "short" }).map).toBe("short");
   });
+
+  it("gates map point lines in the bridge via set_options (off by default)", async () => {
+    const { call } = bridgeFor([{ rows: screenRows() }], {
+      position: { inWorld: true, map: 7, x: 1, y: 0 },
+      view: { grid: [["@", "I", "S"]], originX: 0, originY: 0, pc: 0, pr: 0 },
+    });
+    const off = await call("get_map", { full: true });
+    expect(String(off.map)).not.toContain("Items (I):");
+    await call("set_options", { mapPoints: true });
+    const on = await call("get_map", { full: true });
+    expect(String(on.map)).toContain("Items (I): (1,0).");
+    expect(String(on.map)).toContain("Things to read or use (S): (2,0).");
+  });
 });

@@ -131,4 +131,19 @@ describe("tool catalog and registry", () => {
     expect(text).toContain("Legend: @ you, I item ball");
     expect(text).not.toContain("# blocked");
   });
+
+  it("does not strip coordinate-list-like text the model wrote in notes", async () => {
+    let saved = "";
+    const server = fakeServer();
+    registerTools(server, {
+      call: async () => ({ status: { location: "AREA_1", battle: "none" }, screenText: [] }),
+      link: { waitForReload: async () => {} },
+      autoStart: { pending: () => null },
+      formatter: createFormatter({ mapsOnRequest: true }),
+      notes: { read: () => saved, write: (v: string) => { saved = v; } },
+      wrapLog: (_n: string, h: Handler) => h,
+    });
+    const res = await server.tools.get("notes")!({ add: "Items (I): (3,4)." });
+    expect(res.content.map((c) => c.text).join("\n")).toContain("Items (I): (3,4).");
+  });
 });

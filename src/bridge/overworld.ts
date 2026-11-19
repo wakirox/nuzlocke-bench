@@ -326,7 +326,7 @@ export function sealFromWholeMap<T extends UnfoggedView>(screen: T, whole: Unfog
   return { ...screen, grid: screen.grid.map((line, r) => line.map((ch, c) => (isSealed(r, c) ? "#" : ch))) };
 }
 
-export function renderView(view: FoggedView): string {
+export function renderView(view: FoggedView, opts?: { points?: boolean }): string {
   // Closed patches of a cave's lower floor are drawn as rock (and drop out of the cliff edges list).
   // Only a whole map (readFullMap: it has exits) can tell: on a screen or a crop a patch may go on
   // past the edge, so those come sealed from the whole map already (sealFromWholeMap); a "known"
@@ -353,13 +353,41 @@ export function renderView(view: FoggedView): string {
     ? `Doors (D): ${runs.map((r) => `(${r.from.x},${r.from.y})${r.to === r.from ? "" : `–(${r.to.x},${r.to.y})`} → ${r.key}`).join("; ")}.`
     : null;
   const edges = cliffEdges(v);
+  const points = opts?.points ? pointLines(v) : [];
   return [
     ...(exits ? [exits] : []),
     header,
     ...rows,
     ...(edges ? [edges] : []),
     ...(doors ? [doors] : []),
+    ...points,
   ].join("\n");
+}
+
+const POINT_KINDS: [string, string][] = [
+  ["I", "Items (I)"],
+  ["C", "Cut trees (C)"],
+  ["P", "PCs (P)"],
+  ["B", "Boulders (B)"],
+  ["o", "Floor switches (o)"],
+  ["S", "Things to read or use (S)"],
+];
+
+/**
+ * Coordinates of the items, Cut trees, PCs, boulders and switches shown on the view, one sorted
+ * line per kind: only squares already on `v.grid` (after fog of war), so unseen ones stay hidden.
+ */
+function pointLines(v: FoggedView): string[] {
+  const byKind = new Map<string, string[]>(POINT_KINDS.map(([ch]) => [ch, []]));
+  for (let r = 0; r < v.grid.length; r++) {
+    for (let c = 0; c < v.grid[r].length; c++) {
+      byKind.get(v.grid[r][c])?.push(`(${v.originX + c},${v.originY + r})`);
+    }
+  }
+  return POINT_KINDS.flatMap(([ch, label]) => {
+    const spots = byKind.get(ch)!;
+    return spots.length ? [`${label}: ${spots.join(", ")}.`] : [];
+  });
 }
 
 /**

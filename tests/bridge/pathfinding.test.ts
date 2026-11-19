@@ -346,6 +346,47 @@ describe("renderView", () => {
     v.exits = ["up"];
     expect(renderView(v)).toMatch(/^Map exits: up\.\n/);
   });
+
+  it("lists items, Cut trees, PCs, boulders, floor switches and things to read/use only when points is enabled", () => {
+    const v = view([
+      "S.I.C",
+      ".@.P.",
+      "B.o.I",
+    ]);
+    // Default (off): no coordinate lines emitted at all.
+    expect(renderView(v).split("\n")).toHaveLength(4);
+    expect(renderView(v)).not.toMatch(/Items|Cut trees|PCs|Boulders|Floor switches|Things to read/);
+
+    const tail = renderView(v, { points: true }).split("\n").slice(4);
+    expect(tail).toEqual([
+      `Items (I): (${OX + 2},${OY}), (${OX + 4},${OY + 2}).`,
+      `Cut trees (C): (${OX + 4},${OY}).`,
+      `PCs (P): (${OX + 3},${OY + 1}).`,
+      `Boulders (B): (${OX},${OY + 2}).`,
+      `Floor switches (o): (${OX + 2},${OY + 2}).`,
+      `Things to read or use (S): (${OX},${OY}).`,
+    ]);
+    // Kinds absent from the view emit no line at all.
+    expect(renderView(view([".@I"]), { points: true })).toMatch(/\nItems \(I\): \(12,20\)\.$/);
+    expect(renderView(view([".@I"]), { points: true })).not.toMatch(/Cut trees|PCs|Boulders|switches|Things to read/);
+
+    // Long lists (e.g. a crowded room with many items/trees) keep every coordinate in (y, x) order.
+    const crowded = view([
+      "IIIIIIIIII",
+      "I.@.CCCCCC",
+      "IIIIIIIIII",
+      "IIIIIIIIII",
+    ]);
+    const crowdedLines = renderView(crowded, { points: true }).split("\n").slice(5);
+    const expectedItems = [
+      ...Array.from({ length: 10 }, (_, c) => `(${OX + c},${OY})`),
+      `(${OX},${OY + 1})`,
+      ...Array.from({ length: 10 }, (_, c) => `(${OX + c},${OY + 2})`),
+      ...Array.from({ length: 10 }, (_, c) => `(${OX + c},${OY + 3})`),
+    ];
+    expect(crowdedLines[0]).toBe(`Items (I): ${expectedItems.join(", ")}.`);
+    expect(crowdedLines[1]).toBe(`Cut trees (C): ${Array.from({ length: 6 }, (_, i) => `(${OX + 4 + i},${OY + 1})`).join(", ")}.`);
+  });
 });
 
 describe("reachability", () => {
