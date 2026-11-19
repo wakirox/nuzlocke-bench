@@ -301,6 +301,18 @@ describe("renderDashboard", () => {
     expect(html.match(/<\/script>/g)).toHaveLength(1);
     expect(html).toContain('"label":"Badge 1"');
   });
+
+  const dataOf = (html: string) => JSON.parse(/const DATA = (.*);<\/script>/.exec(html)![1]);
+
+  it("embeds the bench version as current in the data", () => {
+    const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z", "0.2.0");
+    expect(dataOf(html).current).toBe("0.2.0");
+  });
+
+  it("embeds current as null when no version is given", () => {
+    const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z");
+    expect(dataOf(html).current).toBeNull();
+  });
 });
 
 describe("the dashboard page", () => {

@@ -151,15 +151,16 @@ td.top { vertical-align: top; }
       <h1>Nuzlocke Bench</h1>
       <p class="sub">How far each model gets through a one-attempt, permadeath playthrough, playing through text tools alone.</p>
     </div>
-    <div class="filters"><label>Game <select id="f-game"></select></label></div>
+    <div class="filters"><label>Game <select id="f-game"></select></label><label>Version <select id="f-version"></select></label></div>
   </div>
   <section class="board" aria-labelledby="board-h">
     <h2 id="board-h" style="padding-top:12px">Leaderboard</h2>
+    <p class="note" id="version-note"></p>
     <p class="note" id="board-note"></p>
     <div id="board"></div>
     <div class="key"><span><i style="background:var(--reach)"></i>Median run</span><span><i style="background:var(--best)"></i>Best run</span><span>Circles are the 8 badges, squares the league's 4 elite rooms, the diamond is the Champion.</span></div>
   </section>
-  <p class="rules"><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Most models have very few runs, so read the medians with care.</p>
+  <p class="rules"><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care.</p>
   <section style="margin-top:24px">
     <h2>How far each model gets</h2>
     <p class="note">Share of runs reaching each milestone, in game order. Hover or focus a cell for the counts.</p>
@@ -196,10 +197,39 @@ const counts = (key) => { const m = {}; for (const r of runsAll) if (r[key]) m[r
 // One game at a time: scores from different games don't compare. The one with the most runs first.
 $("f-game").innerHTML = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]).map(([g, n]) => `<option value="${esc(g)}">${esc(g[0].toUpperCase() + g.slice(1))} (${n})</option>`).join("");
 
+// One benchmark version at a time (results/<version>.json): what the model is shown changes between versions,
+// so a run on one isn't the same test as a run on another. The version is the harness's, before "@commit".
+const versionOf = (r) => /^[^@\s(]+/.exec(String(r.harness ?? ""))?.[0] ?? "?";
+const vparts = (v) => v.split(".").map(Number);
+const newer = (a, b) => { const x = vparts(a), y = vparts(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; };
+// What changed for the model in each version, in a few words (add one with each new version).
+const VERSION_NOTES = {
+  "0.2.0": "fog of war: maps show only what the run has seen",
+  "0.1.0": "whole maps from the start",
+};
+function versionOptions() {
+  const n = {};
+  for (const r of runsAll) if (r.game === $("f-game").value) n[versionOf(r)] = (n[versionOf(r)] ?? 0) + 1;
+  const list = Object.keys(n).sort(newer);
+  const keep = $("f-version").value;
+  $("f-version").innerHTML = list.map((v) => `<option value="${esc(v)}">${esc(v)} (${n[v]})</option>`).join("");
+  // The newest version that has runs, unless the reader picked one that this game also has.
+  $("f-version").value = list.includes(keep) ? keep : list[0] ?? "";
+}
+
 let sort = { key: "id", dir: -1 };
 const PAGE = 25;
 let showAll = false;
-const chosen = () => runsAll.filter((r) => r.game === $("f-game").value);
+const chosen = () => runsAll.filter((r) => r.game === $("f-game").value && versionOf(r) === $("f-version").value);
+function versionNote() {
+  const v = $("f-version").value;
+  const what = (x) => (VERSION_NOTES[x] ? ` (${VERSION_NOTES[x]})` : "");
+  const ahead = DATA.current && v && newer(DATA.current, v) < 0;
+  const currentHasRuns = [...$("f-version").options].some((o) => o.value === DATA.current);
+  $("version-note").textContent = !v ? "" : !ahead ? `Version ${v}${what(v)}.`
+    : currentHasRuns ? `Version ${v}${what(v)}, an older one: the current is ${DATA.current}${what(DATA.current)}.`
+    : `Version ${DATA.current}${what(DATA.current)} is the current one, with no official runs here yet. These are version ${v}'s${what(v)}.`;
+}
 
 const isBadge = (o) => /^badge\d$/.test(o.id);
 const isEnd = (o, i) => i === DATA.objectives.length - 1;
@@ -303,7 +333,6 @@ function oneRun(r) {
   ];
   const captures = r.captures ?? [];
   const alive = captures.filter((c) => !c.died).length;
-  const dark = r.dark ? `<section><h2>The dark tunnel</h2><p class="note">${esc(r.dark.result)}</p><div class="tiles" style="margin:0">${[[r.dark.calls, "calls"], [r.dark.deaths, "deaths inside"], [r.dark.flashAt ?? "—", "Flash at call"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div></section>` : "";
   const capturesTable = !r.captures ? "" : `<section><h2>Captures</h2><p class="note">${captures.length ? `${captures.length} Pokémon, ${alive} not recorded as dead.${r.outcome === "wipe" ? " The one that fainted last in the wipe isn't marked." : ""} A dash means the run gave it no name we can find.` : "No captures recorded for this run."}</p>${captures.length ? `<div class="scroll"><table><thead><tr><th>Name</th><th>Species</th><th>Caught at</th><th class="num">Level caught</th><th class="num">Last known level</th><th>Status</th></tr></thead><tbody>${captures.map((c) => row([`<td>${esc(c.nickname ?? "—")}</td>`, `<td>${esc(c.species)}</td>`, `<td>${esc(c.where ?? "")}</td>`, `<td class="num">${c.level ?? ""}</td>`, `<td class="num">${c.lastLevel ?? ""}</td>`, c.died ? `<td class="status-dead">Died: ${esc(c.died)}</td>` : `<td>Alive</td>`])).join("")}</tbody></table></div>` : ""}</section>`;
   const mon = (m) => {
     const name = m.nickname && m.nickname !== m.species ? `${esc(m.nickname)} <span>${esc(m.species)}</span>` : esc(m.species);
@@ -364,8 +393,7 @@ function oneRun(r) {
     ${capsTable ? fold(capsTable) : ""}
     ${areasTable ? fold(areasTable) : ""}
     ${capturesTable ? fold(capturesTable) : ""}
-    ${fightsTable ? fold(fightsTable) : ""}
-    ${dark ? fold(dark) : ""}`;
+    ${fightsTable ? fold(fightsTable) : ""}`;
 }
 
 function route() {
@@ -380,10 +408,12 @@ addEventListener("hashchange", route);
 
 function draw() {
   const rows = chosen();
-  board(rows); heat(rows); runs(rows);
+  versionNote(); board(rows); heat(rows); runs(rows);
 }
 
-$("f-game").addEventListener("change", draw);
+$("f-game").addEventListener("change", () => { versionOptions(); draw(); });
+$("f-version").addEventListener("change", draw);
+versionOptions();
 $("runs").addEventListener("click", (e) => {
   const k = e.target.closest("button")?.dataset.sort;
   if (!k) return;
