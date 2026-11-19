@@ -257,6 +257,9 @@ describe("legendFor", () => {
 
   it("compactGrids groups 5-square blocks, trims rock margins to 5s, collapses plain rows, and writes Cliffs + Points", () => {
     expect(COMPACT_GRID_NOTE).toContain("5-column blocks");
+    expect(COMPACT_GRID_NOTE).toContain("floor switches");
+    expect(COMPACT_GRID_NOTE).toContain("Cliffs");
+    expect(COMPACT_GRID_NOTE).toContain("y8|9 x5–7");
     // 16 columns (x 0..15): columns 0..5 and 13..15 are all #, so left snaps to x=5 and right trims to x=12.
     // Row 0 and row 6 are all # (trimmed); rows 2..4 are identical plain floor (collapsed to y  2-4);
     // rows 1 and 5 have interactive squares (@, I, C, S, D), which never collapse even if repeated.
@@ -297,5 +300,33 @@ describe("legendFor", () => {
     const tallLines = compactGrids(tall).split("\n");
     expect(tallLines[0]).toBe("       0     5");
     expect(tallLines.at(-1)).toBe("       0     5");
+  });
+
+  it("compactGrids widens the row-tag column for y >= 100 ranges so every row stays aligned with the ruler", () => {
+    // 144-row route (the height of the long north-south routes): has 6-char (96-101) and 7-char (102-143) ranges.
+    const grid = Array.from({ length: 144 }, (_, r) => {
+      if (r === 95) return [..."..@......."];
+      if (r >= 96 && r <= 101) return [...'""""......'];
+      if (r >= 102) return [...".........."];
+      return [..."#........."];
+    });
+    const out = compactGrids(renderView({ grid, originX: 0, originY: 0, pc: 2, pr: 95 }));
+    const lines = out.split("\n");
+    expect(lines).toEqual([
+      "         0     5",
+      "y   0-94 #.... .....",
+      "y 95     ..@.. .....",
+      'y 96-101 """". .....',
+      "y102-143 ..... .....",
+    ]);
+    // Every emitted row's squares start at the exact column of the 0 tick, and x=5 aligns on every line.
+    const x0Col = lines[0].indexOf("0");
+    const x5Col = lines[0].indexOf("5");
+    for (const row of lines.slice(1)) {
+      expect(row[x0Col]).not.toBe(" ");
+      expect(row[x5Col - 1]).toBe(" ");
+      expect(row[x5Col]).not.toBe(" ");
+    }
+    expect(legendFor(out)).toContain('" tall grass');
   });
 });

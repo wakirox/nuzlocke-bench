@@ -52,8 +52,11 @@ describe("the tools the model is offered", () => {
     const plain = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap");
     const compact = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_GRID: "compact" });
     expect(plain.find((t) => t.name === "get_map")?.description).toContain("tens above ones");
-    expect(compact.find((t) => t.name === "get_map")?.description).toContain("5-column blocks");
-    expect(compact.find((t) => t.name === "get_map")?.description).not.toContain("tens above ones");
+    const compactDesc = compact.find((t) => t.name === "get_map")?.description ?? "";
+    expect(compactDesc).toContain("5-column blocks");
+    expect(compactDesc).toContain("floor switches");
+    expect(compactDesc).toContain("Cliffs");
+    expect(compactDesc).not.toContain("tens above ones");
     expect(compact.order).toEqual(plain.order);
     expect(compact.instructions).toBe(plain.instructions);
     const same = (t: (typeof plain)[number]) => (t.name === "get_map" ? { ...t, description: "" } : t);

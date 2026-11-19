@@ -71,7 +71,7 @@ const FINAL_READS = { get_map: mapResult, get_state: stateResult };
 
 /**
  * Tool definitions keyed by tool name; merged with TOOL_CATALOG below so metadata and handlers stay
- * in lockstep. `description` and `schema` may be functions of `{ preset, narrowGrid, hideEffectiveness, rulesetIds }`.
+ * in lockstep. `description` and `schema` may be functions of `{ preset, grid, hideEffectiveness, rulesetIds }`.
  * @type {Record<string, { title: string, description: string | ((env: any) => string), schema: Record<string, any> | ((env: any) => Record<string, any>), run: (args: any, ctx: any) => Promise<any> }>}
  */
 const DEFINITIONS = {
@@ -562,11 +562,10 @@ const DEFINITIONS = {
 
 /**
  * Resolves the enabled tool specs for `env`, with concrete descriptions and Zod input schemas.
- * @param {{ preset?: any, reportIssue?: boolean, narrowGrid?: boolean, grid?: "wide" | "narrow" | "compact", hideEffectiveness?: boolean, rulesetIds?: string[] }} [env]
+ * @param {{ preset?: any, reportIssue?: boolean, grid?: "wide" | "narrow" | "compact", hideEffectiveness?: boolean, rulesetIds?: string[] }} [env]
  */
-export function buildToolSpecs({ preset = null, reportIssue = true, narrowGrid = true, grid, hideEffectiveness = true, rulesetIds = ["nuzlocke"] } = {}) {
-  const gridMode = grid ?? (narrowGrid ? "narrow" : "wide");
-  const fullEnv = { preset, reportIssue, narrowGrid: gridMode === "narrow", grid: gridMode, hideEffectiveness, rulesetIds };
+export function buildToolSpecs({ preset = null, reportIssue = true, grid = "narrow", hideEffectiveness = true, rulesetIds = ["nuzlocke"] } = {}) {
+  const fullEnv = { preset, reportIssue, grid, hideEffectiveness, rulesetIds };
   return TOOL_CATALOG
     .filter((meta) => (meta.enabled ? meta.enabled({ preset, reportIssue }) : true))
     .map((meta) => {
@@ -602,19 +601,17 @@ export function registerTools(server, {
   runLogFile = null,
   preset = null,
   reportIssue = true,
-  narrowGrid = true,
-  grid,
+  grid = /** @type {"wide" | "narrow" | "compact"} */ ("narrow"),
   hideEffectiveness = true,
   rulesetIds = ["nuzlocke"],
 }) {
-  const gridMode = grid ?? (narrowGrid ? "narrow" : "wide");
-  const specs = buildToolSpecs({ preset, reportIssue, grid: gridMode, hideEffectiveness, rulesetIds });
+  const specs = buildToolSpecs({ preset, reportIssue, grid, hideEffectiveness, rulesetIds });
   // Each tool's argument schema, so `do` can check its steps' arguments the same way.
   const schemas = Object.fromEntries(specs.map((s) => [s.name, s.strictSchema]));
   let reports = 0;
 
   const shown = (text) => {
-    const t = gridMode === "compact" ? compactGrids(text) : gridMode === "narrow" ? narrowGrids(text) : text;
+    const t = grid === "compact" ? compactGrids(text) : grid === "narrow" ? narrowGrids(text) : text;
     return hideEffectiveness ? stripEffectiveness(t) : t;
   };
   const narrow = (r) => ({ ...r, content: r.content.map((c) => (c.type === "text" ? { ...c, text: shown(c.text) } : c)) });
@@ -628,7 +625,7 @@ export function registerTools(server, {
     budget,
     runLogFile,
     preset,
-    grid: gridMode,
+    grid,
     schemas,
     nextReportNumber: () => ++reports,
   };

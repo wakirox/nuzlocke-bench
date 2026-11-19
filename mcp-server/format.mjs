@@ -183,10 +183,14 @@ export function plainErrorScreen(text) {
 export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
-export const COMPACT_GRID_NOTE = " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); identical plain rows collapse as y14-17, all-# outer margins are trimmed, and Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders and holes.";
+export const COMPACT_GRID_NOTE =
+  " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
+  "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
+  "Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (I C S P $ H B o O), " +
+  "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22).";
 
 const COMPACT_POINTS = ["I", "C", "S", "P", "$", "H", "B", "o", "O"];
-const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
+const INTERACTIVE = /[@TN$HFIDGSPCBoO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
 
@@ -240,12 +244,6 @@ export function compactGrids(text) {
     const xStart = Math.max(x0, Math.floor((x0 + cMin) / 5) * 5);
     const cStart = xStart - x0;
     const trimmedXs = xs.slice(cStart, cMax + 1);
-    const col = [7];
-    for (let k = 1; k < trimmedXs.length; k++) col.push(col[k - 1] + (mod5(trimmedXs[k]) === 0 ? 2 : 1));
-    const mults = trimmedXs.flatMap((x, k) => (mod5(x) === 0 ? [k] : []));
-    const ticks = !mults.length || (mults[0] > 0 && col[mults[0]] - 7 > String(trimmedXs[0]).length) ? [0, ...mults] : mults;
-    let ruler = "";
-    for (const k of ticks) ruler = ruler.padEnd(col[k], " ") + String(trimmedXs[k]);
 
     const collapsed = [];
     for (let r = rMin; r <= rMax; r++) {
@@ -254,7 +252,18 @@ export function compactGrids(text) {
       if (prev && prev.yEnd + 1 === rawRows[r].y && prev.blocks === blocks && !INTERACTIVE.test(blocks)) prev.yEnd = rawRows[r].y;
       else collapsed.push({ y0: rawRows[r].y, yEnd: rawRows[r].y, blocks });
     }
-    const rowTag = (y0, y1) => (y0 === y1 ? `y${String(y0).padStart(3)}   ` : `y${`${y0}-${y1}`.padStart(5)} `);
+    // Size the row-tag column from the widest row label so y >= 100 ranges (e.g. y96-101, y102-143)
+    // stay aligned with single rows and the x ruler.
+    const rangeW = Math.max(5, ...collapsed.map((g) => (g.y0 === g.yEnd ? String(g.y0).length : `${g.y0}-${g.yEnd}`.length)));
+    const tagW = rangeW + 2;
+    const col = [tagW];
+    for (let k = 1; k < trimmedXs.length; k++) col.push(col[k - 1] + (mod5(trimmedXs[k]) === 0 ? 2 : 1));
+    const mults = trimmedXs.flatMap((x, k) => (mod5(x) === 0 ? [k] : []));
+    const ticks = !mults.length || (mults[0] > 0 && col[mults[0]] - tagW > String(trimmedXs[0]).length) ? [0, ...mults] : mults;
+    let ruler = "";
+    for (const k of ticks) ruler = ruler.padEnd(col[k], " ") + String(trimmedXs[k]);
+
+    const rowTag = (y0, y1) => (y0 === y1 ? `y${String(y0).padStart(3)}`.padEnd(tagW, " ") : `y${`${y0}-${y1}`.padStart(rangeW)} `);
     const gridLines = collapsed.map((g) => rowTag(g.y0, g.yEnd) + g.blocks);
     const out = [ruler, ...gridLines, ...(gridLines.length >= 16 ? [ruler] : [])];
     lines.splice(i, j - i, ...out);

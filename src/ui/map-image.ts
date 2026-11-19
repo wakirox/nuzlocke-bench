@@ -49,6 +49,7 @@ const DARK_HEAD = /^It.s dark[.:]/;
 const DARK_ROW = /^[#.,?D@]( [#.,?D@])*$/;
 
 const ROW = /^y\s*-?\d+(?:--?\d+)? /;
+const ROW_TAG = /^y\s*(-?\d+)(?:-(-?\d+))? +/;
 const HEADER = /^ {5}[ \d-]+$/;
 
 interface Grid { cells: string[][]; ys: number[]; x0: number; start: number; end: number; dark?: boolean; cliffs?: Cliff[] }
@@ -89,24 +90,26 @@ export function findGrid(lines: string[]): Grid | null {
   while (start > 0 && HEADER.test(lines[start - 1])) start--;
   const rows = lines.slice(first, rowsEnd);
   const head = lines.slice(start, first);
-  const isCompact = rows.some((l) => /^y\s*-?\d+--?\d+ /.test(l) || /\S{2}/.test(l.slice(7)))
-    || (rows.every((l) => /^y[ \d-]{3} {3}\S/.test(l)) && !rows[0].slice(5).includes("  ", 1));
+  const rowBody = (l: string) => l.replace(ROW_TAG, "");
+  const isCompact = rows.some((l) => /^y\s*-?\d+--?\d+ /.test(l) || /\S{2}/.test(rowBody(l)))
+    || (rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
   if (isCompact) {
     const cells: string[][] = [];
     const ys: number[] = [];
     for (const l of rows) {
-      const m = /^y\s*(-?\d+)(?:-(-?\d+))?$/.exec(l.slice(0, 7).trimEnd());
+      const m = ROW_TAG.exec(l);
       const y0 = Number(m?.[1] ?? 0);
       const y1 = m?.[2] != null ? Number(m[2]) : y0;
-      const rowCells = l.slice(7).trim().split(/\s+/).flatMap((b) => [...b]);
+      const rowCells = l.slice(m?.[0].length ?? 7).trim().split(/\s+/).flatMap((b) => [...b]);
       for (let y = y0; y <= y1; y++) {
         cells.push(rowCells);
         ys.push(y);
       }
     }
     let x0 = 0;
+    const gridCol = ROW_TAG.exec(rows[0])?.[0].length ?? 7;
     const tick = head.length ? /-?\d+/.exec(head[0]) : null;
-    if (tick) x0 = Number(tick[0]) - rows[0].slice(7, tick.index).replace(/ /g, "").length;
+    if (tick) x0 = Number(tick[0]) - rows[0].slice(gridCol, tick.index).replace(/ /g, "").length;
     return { cells, ys, x0, start, end, cliffs: cliffsOf(lines) };
   }
   const cells = rows.map((l) => l.slice(5).trim().split(/\s+/));

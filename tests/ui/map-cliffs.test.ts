@@ -1,6 +1,9 @@
 // The ledges a result lists, for drawing them on the model panel's map picture.
 
 import { describe, expect, it } from "vitest";
+// @ts-expect-error plain ESM module without type declarations
+import { compactGrids } from "../../mcp-server/format.mjs";
+import { renderView } from "../../src/bridge/overworld";
 import { cliffsOf, findGrid } from "../../src/ui/map-image";
 
 describe("cliffsOf", () => {
@@ -51,8 +54,21 @@ describe("cliffsOf", () => {
     const crop = findGrid(["         15    20", "y  4   # ..@.. ...."])!;
     expect(crop.x0).toBe(14);
     expect(crop.cells[0]).toHaveLength(10);
-    const neg = findGrid(["       -2 0     5", "y -2--1 ## ..... ."])!;
+    const neg = findGrid(["       -2 0     5", "y-2--1 ## ..... ."])!;
     expect(neg.x0).toBe(-2);
     expect(neg.ys).toEqual([-2, -1]);
+
+    // Tall routes with y >= 100 collapsed ranges (wider row-tag column) decode back losslessly.
+    const route = Array.from({ length: 144 }, (_, r) => {
+      if (r === 95) return [..."..@......."];
+      if (r >= 96 && r <= 101) return [...'""""......'];
+      if (r >= 102) return [...".........."];
+      return [..."#........."];
+    });
+    const compact = compactGrids(renderView({ grid: route, originX: 14, originY: 0, pc: 2, pr: 95 }));
+    const parsed = findGrid(compact.split("\n"))!;
+    expect(parsed.x0).toBe(14);
+    expect(parsed.ys).toEqual(Array.from({ length: 144 }, (_, y) => y));
+    expect(parsed.cells).toEqual(route);
   });
 });
