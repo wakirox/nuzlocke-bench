@@ -192,6 +192,10 @@ export class BridgeCore {
     if (!this.dark()) {
       seen.sawScreen(p.map, p.x, p.y);
       if (scanSwitches && this.boulderSwitch && this.host.gb()) seen.sawSwitches(p.map, this.rawView(false), p.x, p.y);
+    } else if (!from) {
+      // In the dark: the square walked onto is floor (the screen is read only when the move is over).
+      // Not the one arrived on by a ladder: the move's view keeps that as the ladder (noteDark).
+      seen.walkedInDark(p.map, p.x, p.y);
     }
   }
 
@@ -460,13 +464,16 @@ export class BridgeCore {
     };
   }
 
+  /** A view drawn for the model: in its coordinates, and in the dark under the dark's header. */
+  drawn(v: FoggedView): string {
+    const map = renderView(this.shownView(v));
+    return this.dark() ? `${DARK_HEADER}\n${map}` : map;
+  }
+
   mapText(full = false): string {
     if (!this.host.version() || this.host.position().battle) return "(in battle — no map)";
-    if (this.dark()) {
-      // No trainers listed: in the dark they're black sprites.
-      const v = full ? seenPart(this.view(true)) : this.screenView();
-      return `${DARK_HEADER}\n${renderView(this.shownView(v))}`;
-    }
+    // No trainers listed in the dark: they're black sprites there.
+    if (this.dark()) return this.drawn(full ? seenPart(this.view(true)) : this.screenView());
     const v = full ? seenPart(this.view(true)) : this.screenView();
     const W = v.grid[0]?.length ?? 0;
     const H = v.grid.length;

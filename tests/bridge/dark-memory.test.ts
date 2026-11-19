@@ -133,6 +133,22 @@ describe("BridgeCore: the dark map", () => {
     expect(seen.origin(MAP)).toEqual([26, 4]);
   });
 
+  it("remembers the squares walked over mid-walk as floor, though the screen is read only at the end", () => {
+    const { host, core, seen } = darkCave();
+    core.mapText(); // the first look, at (5,4)
+    for (let x = 6; x <= 15; x++) {
+      host.moveTo({ x });
+      core.noteSeen(); // each step of the walk
+    }
+    // Nothing was read off the screen mid-walk, but every square walked on is known floor.
+    for (let x = 6; x <= 14; x++) expect(seen.sawInDark(MAP, x, 4)).toBe(true);
+    expect(seen.data.dark?.[MAP]["12,4"]).toBe(".");
+    // A square already known keeps what it showed (a ladder stays a ladder).
+    seen.sawDark(MAP, [["D"]], 30, 30);
+    seen.walkedInDark(MAP, 30, 30);
+    expect(seen.data.dark?.[MAP]["30,30"]).toBe("D");
+  });
+
   it("remembers a ladder the player stands on as a ladder", () => {
     const { host, core } = darkCave();
     host.moveTo({ x: 26 });

@@ -116,6 +116,18 @@ export class SeenMaps {
     }
   }
 
+  /**
+   * The player stood on (x, y) of dark `map`, mid-walk: a player knows the way they walked is floor,
+   * though the screen (still scrolling) isn't read until the move is over. A ladder can't be walked
+   * over (stepping on one takes you away) and a lower floor is drawn "," from its tile, so "." it is.
+   */
+  walkedInDark(map: number, x: number, y: number): void {
+    const known = ((this.data.dark ??= {})[map] ??= {});
+    if (`${x},${y}` in known) return;
+    known[`${x},${y}`] = ".";
+    this.changed = true;
+  }
+
   /** Whether the run has seen floor switch `(x, y)` on `map` uncovered. */
   hasSwitch(map: number, x: number, y: number): boolean {
     return (this.data.switches?.[map] ?? []).some(([a, b]) => a === x && b === y);
