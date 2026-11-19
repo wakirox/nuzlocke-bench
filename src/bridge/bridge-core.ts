@@ -293,6 +293,8 @@ export class BridgeCore {
     const from = this.host.position().map;
     for (let f = 0; f < 900 && this.host.position().map === from; f += 6) await gb.runFrames(6, 6);
     await gb.runFrames(300); // the landing animation, which ignores the buttons
+    // Landed: a map new to the run gets its origin here, so the result's location has coordinates.
+    this.noteSeen(true);
   }
 
   /** The map is dark right now (never in a battle: battles are lit). */

@@ -141,6 +141,9 @@ export class AiBridge {
       || (method === "walk" && /^@(cut|field)\b/i.test(String(p.path ?? "").trim()));
     switch (method) {
       case "get_state":
+        // Settled: a map the run has just come to (a resumed save, a field move) gets its origin, so
+        // the location has coordinates.
+        this.core.noteSeen(true);
         this.core.host.refresh();
         return this.core.host.summary();
       case "hint_facts": {

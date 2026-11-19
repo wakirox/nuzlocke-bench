@@ -71,6 +71,13 @@ describe("the model's coordinates on a lit map", () => {
     await expect(dispatch("walk_to", { x: -12, y: 0 })).rejects.toThrow(/No path to \(-12, 0\)/);
   });
 
+  it("is set by get_state too, for a run resumed from before origins were kept", async () => {
+    const { seen, dispatch } = room([12, 6]);
+    expect(seen.origin(MAP)).toBeUndefined();
+    await dispatch("get_state");
+    expect(seen.origin(MAP)).toEqual([12, 6]);
+  });
+
   it("is set on arrival through a warp, once the game has settled there, not before", () => {
     const { host, core, seen } = room([12, 6]);
     core.noteSeen(true);

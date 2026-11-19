@@ -521,6 +521,8 @@ export class Travel {
     let route = this.planTo(full, x, y);
     const guessed = Boolean(route?.guessed);
     const crossed = route?.crosses ?? [];
+    // Said now, on this map: the walk may end through a door, on the next one.
+    const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
@@ -636,7 +638,6 @@ export class Travel {
         messages = (await this.menus.advanceText(30)).messages;
       }
     }
-    const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
     const guessNote = guessed ? " (no seen way there, so it tried a way through squares you hadn't seen)" : "";
     return this.core.result({ walk: report + sightNote + guessNote, messages, map: this.core.mapText() });
   }
@@ -685,8 +686,10 @@ export class Travel {
         break;
       }
       const crosses = this.core.sight().avoidSight ? [] : sightCrossings(view, route);
+      // Said before the leg: it may cross into the next map.
+      const crossed = crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : "";
       const report = await this.walkSegments(toSegments(route));
-      legs.push(report.replace(/ — arrived$/, "") + (crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : ""));
+      legs.push(report.replace(/ — arrived$/, "") + crossed);
       if (!report.endsWith("arrived")) {
         const stop = report.split(" — stopped: ")[1];
         why = stop === "entered a new map" || stop === "a battle started" ? stop : `stopped: ${stop ?? "?"}`;
@@ -788,11 +791,13 @@ export class Travel {
         await this.core.requireGb().runFrames(40, 8);
         continue;
       }
+      // Said before the walk: it crosses into the next map.
+      const crossed = route.crosses?.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(route.crosses)})` : "";
       let report = route.dirs.length ? await this.walkSegments(toSegments(route.dirs)) : "at the edge";
       if (report.endsWith("arrived") || report === "at the edge") {
         report += `; crossing: ${await this.walkSegments([[dir, 3]])}`;
       }
-      if (route.crosses?.length) report += ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(route.crosses)})`;
+      report += crossed;
       reports.push(report);
       const pos = this.core.host.position();
       if (pos.map !== startMap || pos.battle || !/blocked/.test(report)) break;
@@ -802,7 +807,10 @@ export class Travel {
     return this.core.result({ walk: reports.join(" | retry: "), map: this.core.mapText() });
   }
 
-  /** "(8,12) WALKER" for each crossing (names are known in the Nuzlocke). */
+  /**
+   * "(8,12) WALKER" for each crossing (names are known in the Nuzlocke), in this map's coordinates
+   * and with its trainers: say it before a walk that may leave the map (through a door, over an edge).
+   */
   private describeCrossings(crosses: [number, number][]): string {
     const known = this.core.host.mapTrainers();
     return crosses.map(([x, y]) => {
