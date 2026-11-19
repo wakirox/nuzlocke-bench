@@ -154,7 +154,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
 /**
  * True while battle memory still holds the last battle's foe at the start of a trainer battle: the game
  * loads the trainer's first Pokémon only as it's sent out, so a foe that isn't in this trainer's party
- * isn't theirs (a caught MANKEY was shown as a Bug Catcher's, 2026-11-19).
+ * isn't theirs (a wild one just caught was shown as a trainer's, 2026-11-19).
  */
 export function staleFoe(s: Pick<GameState, "battle" | "enemy" | "enemyTrainer">): boolean {
   const e = s.enemy;

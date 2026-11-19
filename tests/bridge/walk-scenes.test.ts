@@ -112,10 +112,10 @@ describe("walk: when the player stops moving", () => {
     const poisoned = () => new Map(cured ? [] : [["w1", { slot: 0, hp: 30 - Math.floor((10 - pos.y) / 4), maxHp: 40 }]]);
     Object.assign(core, {
       game: { data: { poisonFaintsWhileWalking: true }, poisonedParty: poisoned },
-      summary: () => ({ party: [{ nickname: "WINGS", species: "PIDGEOTTO" }] }),
+      summary: () => ({ party: [{ nickname: "WINGS", species: "MONA" }] }),
     });
     expect(await walk(travel, "up 8")).toMatch(/^up 4\/8 — stopped: WINGS is hurt by poison \(30→29\/40 HP; ack_poison/);
-    expect(() => travel.ackPoison("PIDGEY")).toThrow(/No party Pokémon "PIDGEY"/);
+    expect(() => travel.ackPoison("PIP")).toThrow(/No party Pokémon "PIP"/);
     travel.ackPoison("wings");
     expect(await walk(travel, "up 8")).toBe("up 8/8 — arrived"); // two hits on the way, no stop
     cured = true;

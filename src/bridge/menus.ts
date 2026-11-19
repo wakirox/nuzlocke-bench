@@ -676,7 +676,7 @@ export class Menus {
     await this.choose(this.core.layout.startMenu.bag);
     const picked = (await this.chooseInBag(it.item)) as { messages?: string[] };
     // Most items open USE/TOSS; the bicycle doesn't (Gen 1): picking it uses it, and looking for
-    // USE then left the bag open (on Cycling Road, 2026-11-19).
+    // USE then left the bag open (on a road where the game won't let you off it, 2026-11-19).
     const useMenu = this.core.screenText().some((l) => /(^|[\s▶])USE\b/.test(l));
     const use = useMenu ? ((await this.choose("USE")) as { messages?: string[] }) : picked;
     const messages = [...(use.messages ?? [])];
