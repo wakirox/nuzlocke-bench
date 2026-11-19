@@ -192,10 +192,11 @@ describe("a new map's first full view", () => {
     });
     const off = await call("get_map", { full: true });
     expect(String(off.map)).toContain("B");
-    expect(String(off.map)).not.toMatch(/y\s*0\s+@\s+b/);
+    // The whole map's row 0 between the ring's "?" (seenPart).
+    expect(String(off.map)).not.toMatch(/y\s*0\s+\?\s+@\s+b\s+\?/);
     await call("set_options", { boulderSwitch: true });
     const on = await call("get_map", { full: true });
-    expect(String(on.map)).toMatch(/y\s*0\s+@\s+b/);
+    expect(String(on.map)).toMatch(/y\s*0\s+\?\s+@\s+b\s+\?/);
   });
 
   it("asks the host for trainer facing only after set_options enables it (off by default)", async () => {
@@ -228,7 +229,7 @@ describe("a new map's first full view", () => {
     await call("set_options", { boulderSwitch: true, trainerFacing: true });
     host.mapTrainersCalls.length = 0;
     const on = await call("get_map", { full: true });
-    expect(String(on.map)).toMatch(/y\s*0\s+@\s+b\s+T/);
+    expect(String(on.map)).toMatch(/y\s*0\s+\?\s+@\s+b\s+T\s+\?/);
     expect(host.mapTrainersCalls.length).toBeGreaterThan(0);
     expect(host.mapTrainersCalls.every((v) => v === true)).toBe(true);
     expect(String(on.map)).toContain("Trainers (T): (2,0) SCOUT facing left.");

@@ -111,12 +111,13 @@ describe("BridgeCore: the dark map", () => {
     const screen = grid(core.mapText());
     expect(screen.x0).toBe(6);
     expect(screen.rows[0]).toBe("....@.....");
-    // The whole map: every square seen in the dark, the first stop (0,0) remembered as floor.
+    // The whole map: every square seen in the dark, the first stop (0,0) remembered as floor, in a ring of "?".
     const whole = grid(core.mapText(true));
-    expect(whole.x0).toBe(-4);
-    expect(whole.rows[0]).toBe("#.............@.....");
-    expect(whole.rows[-1]).toBe("?###################");
-    expect(Object.keys(whole.rows).map(Number).sort((a, b) => a - b)).toEqual([-1, 0, 1]);
+    expect(whole.x0).toBe(-5);
+    expect(whole.rows[0]).toBe("?#.............@.....?");
+    expect(whole.rows[-1]).toBe("??###################?");
+    expect(whole.rows[-2]).toBe("?".repeat(22));
+    expect(Object.keys(whole.rows).map(Number).sort((a, b) => a - b)).toEqual([-2, -1, 0, 1, 2]);
     // Nothing went into the lit memory: a map lit later (Flash) shows what it always did.
     expect(seen.data.squares).toEqual({});
   });
@@ -156,7 +157,7 @@ describe("BridgeCore: the dark map", () => {
     host.moveTo({ x: 15 });
     // x 11..28 as 6..23: the screen now, nothing seen at 21 (16), the ladder at 26 (21), the rock lit floor touches at 28 (23).
     const whole = grid(core.mapText(true));
-    expect(whole.rows[0].slice(-18)).toBe("....@.....?....D.#");
+    expect(whole.rows[0].slice(-19)).toBe("....@.....?....D.#?"); // the last "?" is the ring
   });
 });
 

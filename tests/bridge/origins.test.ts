@@ -51,9 +51,10 @@ describe("the model's coordinates on a lit map", () => {
     const { core } = room([12, 6]);
     core.noteSeen(true);
     const text = core.mapText(true);
-    // Seen: the screen around (12,6), x 8..17, y 2..10: in the model's coordinates x -4..5, y -4..4.
-    expect(ruler(text)).toEqual([-4, -3, -2, -1, 0, 1, 2, 3, 4, 5]);
-    expect(ys(text)).toEqual([-4, -3, -2, -1, 0, 1, 2, 3, 4]);
+    // Seen: the screen around (12,6), x 8..17, y 2..10: in the model's coordinates x -4..5, y -4..4,
+    // drawn with the ring of "?" one past each side.
+    expect(ruler(text)).toEqual([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6]);
+    expect(ys(text)).toEqual([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]);
   });
 
   it("walk_to takes them, and the origin stays put as the player moves", async () => {

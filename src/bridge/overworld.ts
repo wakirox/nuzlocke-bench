@@ -611,8 +611,11 @@ export function cropView<T extends AnyOverworldView>(v: T, x0: number, y0: numbe
 
 /**
  * A whole map as the run knows it (BridgeCore.view(true)), cut to the smallest rectangle holding
- * every square it has seen (everything but "?"): a player doesn't know how big a map is until they
- * have been to its edges. The exits line stays (which ways lead on, not where the edges are).
+ * every square it has seen (everything but "?"), with one ring of "?" around it: a player doesn't
+ * know how big a map is until they have been to its edges, but does know there may be more past what
+ * they've seen (a crop ending on floor read as a room's wall: the stairs, a Pokémon Center's PC,
+ * 2026-11-19). The ring is drawn past the map's real edges too, so it gives no size away.
+ * The exits line stays (which ways lead on, not where the edges are).
  * Only for what's printed: walks still plan on the whole view.
  */
 export function seenPart<T extends FoggedView>(v: T): T {
@@ -622,8 +625,28 @@ export function seenPart<T extends FoggedView>(v: T): T {
     if (ch === "?") return;
     [r0, r1, c0, c1] = [Math.min(r0, r), Math.max(r1, r), Math.min(c0, c), Math.max(c1, c)];
   }));
-  if (r1 < 0 || (r0 === 0 && c0 === 0 && r1 === v.grid.length - 1 && c1 === (v.grid[0]?.length ?? 0) - 1)) return v;
-  return { ...cropView(v, v.originX + c0, v.originY + r0, v.originX + c1, v.originY + r1), exits: v.exits };
+  if (r1 < 0) return v;
+  return fogRing({ ...cropView(v, v.originX + c0, v.originY + r0, v.originX + c1, v.originY + r1), exits: v.exits });
+}
+
+/** The view with one row or column of "?" added on every side (squares keyed by row * width move with it). */
+function fogRing<T extends FoggedView>(v: T): T {
+  const W = v.grid[0]?.length ?? 0;
+  const W2 = W + 2;
+  const moved = (k: number) => (Math.floor(k / W) + 1) * W2 + (k % W) + 1;
+  const pad = <C>(rows: C[][], fill: C) => [Array<C>(W2).fill(fill), ...rows.map((row) => [fill, ...row, fill]), Array<C>(W2).fill(fill)];
+  return {
+    ...v,
+    grid: pad(v.grid, "?"),
+    // A "?" square is never drawn by its tile (the lower floor, cliff edges), so any id does.
+    tiles: v.tiles && pad(v.tiles, 0),
+    originX: v.originX - 1,
+    originY: v.originY - 1,
+    pc: v.pc + 1,
+    pr: v.pr + 1,
+    watched: v.watched && new Set([...v.watched].map(moved)),
+    watchers: v.watchers && new Map([...v.watchers].map(([k, t]) => [moved(k), t])),
+  };
 }
 
 /**

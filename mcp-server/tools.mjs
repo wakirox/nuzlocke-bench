@@ -293,7 +293,7 @@ const DEFINITIONS = {
     title: "Map around you",
     description: ({ grid, boulderSwitch }) =>
       "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
-      "Rows/columns are map coordinates for walk_to, counted from where you first arrived on this map (0,0): left of it and above it they're negative. A map is shown only as far as you've seen it, so its size shows only once you've been to its edges. Dark maps show what you've seen in the dark, with the same coordinates. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
+      "Rows/columns are map coordinates for walk_to, counted from where you first arrived on this map (0,0): left of it and above it they're negative. A map is shown only as far as you've seen it, with a ring of ? around that: there may be more past what you've seen (the ring is there past a map's edge too, so it doesn't tell you its size; walls and the exits do). Dark maps show what you've seen in the dark, with the same coordinates. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
       mapLegend({ boulderSwitch }) + (grid === "compact" ? compactGridNote({ boulderSwitch }) : grid === "narrow" ? NARROW_GRID_NOTE : ""),
     schema: {
       full: z.boolean().optional().describe("The current map as far as you've seen it, instead of the screen"),

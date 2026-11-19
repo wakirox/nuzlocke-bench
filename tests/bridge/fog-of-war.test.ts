@@ -2,7 +2,7 @@
 // walks by (BridgeCore.view), and the renderings and paths that read it.
 
 import { describe, expect, it } from "vitest";
-import { findPath, renderView, trainerFacing, type Door, type OverworldView, type TrainerSprite } from "../../src/bridge/overworld";
+import { findPath, renderView, seenPart, trainerFacing, type Door, type KnownOverworldView, type OverworldView, type TrainerSprite } from "../../src/bridge/overworld";
 import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import { gen1Adapter } from "../../src/games/gen1";
@@ -311,10 +311,10 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     const compact = compactGrids(new BridgeCore(host.asHost()).mapText(true));
     expect(compact).toContain("Points: I (8,8).");
     expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
-    // The whole map ends where the run has seen: unseen row y=15 and column x=5 aren't drawn, so
-    // the map's size isn't given away.
-    expect(compact).not.toMatch(/^y 15/m);
-    expect(compact).not.toContain("?");
+    // The whole map ends one ring of "?" past what the run has seen: the unseen row y=15 is drawn
+    // all "?", and nothing past it, so the map's size isn't given away.
+    expect(compact).toMatch(/^y 15[ ?]+$/m);
+    expect(compact).not.toMatch(/^y 16/m);
   });
 
   it("draws the whole map only as far as the run has seen, and says nothing of its size", () => {
@@ -329,10 +329,22 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     });
     const lines = new BridgeCore(host.asHost()).mapText(true).split("\n");
     expect(lines[0]).toBe("Map exits: up.");
-    expect(lines[1].trim().split(/ +/).map(Number)).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    // What's been seen, x 6–15 and y 6–14, in one ring of "?": there may be more past it.
+    expect(lines[1].trim().split(/ +/).map(Number)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
     const rows = lines.filter((l) => /^y/.test(l));
-    expect(rows.map((l) => Number(l.slice(1, 4)))).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14]);
-    expect(lines.join("\n")).not.toContain("?");
+    expect(rows.map((l) => Number(l.slice(1, 4)))).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+    const cells = rows.map((l) => l.slice(4).trim().split(/ +/));
+    expect(cells[0].every((ch) => ch === "?") && cells[10].every((ch) => ch === "?")).toBe(true);
+    expect(cells.every((row) => row[0] === "?" && row[11] === "?")).toBe(true);
+    expect(cells.slice(1, 10).every((row) => row.slice(1, 11).every((ch) => ch !== "?"))).toBe(true);
+  });
+
+  it("draws the ring of ? past the map's real edge too, so a map seen to its edges looks like any other", () => {
+    const v: KnownOverworldView = { stage: "known", grid: [["@", "."], [".", "#"]], originX: 0, originY: 0, pc: 0, pr: 0, watched: new Set([3]) };
+    const out = seenPart(v);
+    expect(out.grid.map((r) => r.join(""))).toEqual(["????", "?@.?", "?.#?", "????"]);
+    expect([out.originX, out.originY, out.pc, out.pr]).toEqual([-1, -1, 1, 1]);
+    expect([...out.watched!]).toEqual([2 * 4 + 2]); // the "#" square (1,1), at row 2 col 2 of the ringed grid
   });
 
   it("shows b through decorate and SeenMaps fog only when boulderSwitch is on and the switch was seen uncovered", async () => {

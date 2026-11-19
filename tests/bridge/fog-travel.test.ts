@@ -149,9 +149,11 @@ describe("walk_to through the fog", () => {
     const row1 = errText.split("\n").find((l) => l.trimStart().startsWith("y  1")) ?? "";
     const cells = row1.trim().replace(/^y\s+\d+\s+/, "").split(/\s+/);
     // Seen part of the sealed patch (x=5, 6) shows as '#'; unseen part (x=7, 8, 9) must stay '?'.
-    expect(cells[5]).toBe("#");
+    // The first cell is the ring of '?' at x=-1 (seenPart).
+    expect(cells[0]).toBe("?");
     expect(cells[6]).toBe("#");
-    expect(cells.slice(7, 10)).toEqual(["?", "?", "?"]);
+    expect(cells[7]).toBe("#");
+    expect(cells.slice(8, 11)).toEqual(["?", "?", "?"]);
   });
 });
 
