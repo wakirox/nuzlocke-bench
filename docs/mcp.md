@@ -72,6 +72,7 @@ Then give the server `NUZLOCKE_HEADLESS=1`, e.g. in `.mcp.json`:
 | `NUZLOCKE_ROMS_DIR` | More ROM files for saves that keep the ROM by reference (default: `NUZLOCKE_ROM`'s folder) |
 | `NUZLOCKE_REPORT_ISSUE=0` | Leave out `report_issue` (on by default) |
 | `NUZLOCKE_PLAYTEST=1` | Playtest: the run tests the tools and is marked as not a benchmark result |
+| `NUZLOCKE_PLAYTEST_INBOX=<file>` | Playtest only: a message written to this file is handed to the model in its next tool result (as the bench maintainer's), and the model answers with `report_issue`. `bench --playtest` sets it to the run folder's `inbox.txt`; what was delivered is kept in `inbox.txt.delivered` |
 | `NUZLOCKE_SERVER_TRANSCRIPT=1` | Write `transcript.jsonl` next to the run log (`NUZLOCKE_RUN_LOG` must be set): every call and result, for the page's conversation panel when another app plays ([below](#playing-from-another-agent-app)) |
 
 Without `NUZLOCKE_ROM`, call `new_run` with `rom_path` as the first step. Closing the MCP client closes

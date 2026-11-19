@@ -61,6 +61,9 @@ describe("bench runner", () => {
     expect(runnerEnv({ PATH: "/bin" }, 0)).toEqual({ PATH: "/bin", CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" }); // the model's own window
     const env = mcpConfig({ node: "node", server: "s.mjs", rom: "r.gb", preset: "p", port: 7890, savesDir: "sv", runLog: "l.jsonl" }).mcpServers["nuzlocke-bench"].env;
     expect(env).toEqual({ NUZLOCKE_HEADLESS: "1", NUZLOCKE_BENCHMARK: "p", NUZLOCKE_ROM: "r.gb", NUZLOCKE_BRIDGE_PORT: "7890", NUZLOCKE_SAVES_DIR: "sv", NUZLOCKE_RUN_LOG: "l.jsonl" });
+    // A playtest gets an inbox beside its run log; a benchmark run never has one.
+    const playtest = mcpConfig({ node: "node", server: "s.mjs", rom: "r.gb", preset: "p", port: 7890, savesDir: "sv", runLog: "runs/r1/run-log.jsonl", playtest: true }).mcpServers["nuzlocke-bench"].env;
+    expect(playtest).toMatchObject({ NUZLOCKE_PLAYTEST: "1", NUZLOCKE_PLAYTEST_INBOX: "runs/r1/inbox.txt" });
   });
 
   it("shows who played, the nudges and the tokens in the report", () => {

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { BATCH_TOOLS, FINAL_READ_TOOLS, TOOL_CATALOG, stepToolError } from "./tool-catalog.mjs";
 import { normalizeStep, runBatch, stepSummary } from "./batch.mjs";
 import { UNCOUNTED_RESULT, withCallBudget } from "./call-budget.mjs";
+import { withInbox } from "./inbox.mjs";
 import { NARROW_GRID_NOTE, compactGridNote, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText, wideGrids } from "./format.mjs";
 import { applyPreset } from "./benchmark.mjs";
 import { entriesOf, NOTES_MAX, numbered, updateNotes } from "./notes.mjs";
@@ -606,6 +607,7 @@ export function registerTools(server, {
   hideEffectiveness = true,
   boulderSwitch = false,
   rulesetIds = ["nuzlocke"],
+  playtestInbox = /** @type {(() => string | null) | null} */ (null),
 }) {
   const specs = buildToolSpecs({ preset, reportIssue, grid, hideEffectiveness, boulderSwitch, rulesetIds });
   // Each tool's argument schema, so `do` can check its steps' arguments the same way.
@@ -652,6 +654,8 @@ export function registerTools(server, {
   for (const spec of specs) {
     let handler = safeWrap(spec);
     handler = withCallBudget(budget, handler, { counted: spec.counted !== false });
+    // Inside the run log: the transcript keeps the maintainer's message as the model got it.
+    handler = withInbox(playtestInbox, handler);
     handler = wrapLog(spec.name, handler);
     server.registerTool(spec.name, { title: spec.title, description: spec.description, inputSchema: spec.inputSchema }, handler);
   }

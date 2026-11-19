@@ -122,7 +122,9 @@ and scoring aren't settled yet.
   that doesn't match the screen, a wrong-looking map, an error it doesn't understand); it doesn't use up a tool call.
   `--no-report` leaves it out.
 - **`--playtest`** (to test the tools, not the model): the model is asked to look out for such problems and report
-  them as it plays. Playtests are marked in the report and aren't benchmark results.
+  them as it plays. Playtests are marked in the report and aren't benchmark results. You can talk to the model
+  during one: a line written to `runs/<id>/inbox.txt` reaches it in its next tool result, and it answers with
+  `report_issue` (so the answer is in the run log).
 - **`npm run bench:friction`** reads every recorded run and lists the spots where the tools may have let the model
   down: walks stopped by something in the way, errors, empty results, screenshots, the same call over and over,
   maps where one run took far longer than the others, and playtest reports. The same spot across several runs
