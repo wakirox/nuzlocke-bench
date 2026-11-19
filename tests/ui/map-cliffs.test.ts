@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { compactGrids } from "../../mcp-server/format.mjs";
+import { compactGrids, narrowGrids, wideGrids } from "../../mcp-server/format.mjs";
 import { renderView } from "../../src/bridge/overworld";
 import { cliffsOf, findGrid } from "../../src/ui/map-image";
 
@@ -70,5 +70,23 @@ describe("cliffsOf", () => {
     expect(parsed.x0).toBe(14);
     expect(parsed.ys).toEqual(Array.from({ length: 144 }, (_, y) => y));
     expect(parsed.cells).toEqual(route);
+  });
+
+  it("consumes repeated bottom x headers on tall narrow and wide maps before Points", () => {
+    const grid = Array.from({ length: 16 }, (_, r) => (r === 0 ? [..."@..........."] : r === 15 ? [..."...........I"] : [..."............"]));
+    const wide = renderView({ grid, originX: 0, originY: 0, pc: 0, pr: 0 });
+    const narrowLines = narrowGrids(wide, { points: true }).split("\n");
+    const parsedNarrow = findGrid(narrowLines)!;
+    expect(parsedNarrow.cells).toHaveLength(16);
+    expect(parsedNarrow.start).toBe(0);
+    expect(parsedNarrow.end).toBe(20); // 2 top header lines + 16 rows + 2 bottom header lines, stopping before Points
+    expect(narrowLines[parsedNarrow.end]).toBe("Points: I (11,15).");
+
+    const wideLines = wideGrids(wide, { points: true }).split("\n");
+    const parsedWide = findGrid(wideLines)!;
+    expect(parsedWide.cells).toHaveLength(16);
+    expect(parsedWide.start).toBe(0);
+    expect(parsedWide.end).toBe(18); // 1 top header + 16 rows + 1 bottom header, stopping before Points
+    expect(wideLines[parsedWide.end]).toBe("Points: I (11,15).");
   });
 });

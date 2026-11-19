@@ -118,7 +118,6 @@ const link = createBridgeLink({
   },
   onConnect: () => {
     formatter.reset(); // a fresh page: show the next screen in full
-    if (MAP_POINTS) void link.send("set_options", { mapPoints: true }).catch((e) => log("set_options failed:", e.message));
     autoStart.maybeAutoStart();
   },
 });
@@ -220,6 +219,7 @@ registerTools(server, {
   preset: PRESET,
   reportIssue: REPORT_ISSUE,
   grid: GRID_MODE,
+  mapPoints: MAP_POINTS,
   hideEffectiveness: HIDE_EFFECTIVENESS,
   rulesetIds: RULESET_IDS,
 });

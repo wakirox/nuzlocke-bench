@@ -133,8 +133,6 @@ export class BridgeCore {
   mapsShown = new Set<number>();
   /** The call being answered asked for the map (get_map, or a move with show_map): a new map is shown whole then. */
   mapAsked = false;
-  /** List seen coordinates of I, C, P, B, o, S under rendered maps (opt-in via NUZLOCKE_MAP_POINTS). */
-  mapPoints = false;
 
   async tap(button: Button | Button[], hold = 6, gap = 20): Promise<void> {
     const gb = this.requireGb();
@@ -353,7 +351,7 @@ export class BridgeCore {
     const trainers = this.host.mapTrainers()
       .filter((t) => t.x >= v.originX && t.x < v.originX + W && t.y >= v.originY && t.y < v.originY + H)
       .filter((t) => v.grid[t.y - v.originY][t.x - v.originX] !== "?");
-    return renderView(v, { points: this.mapPoints }) + trainerList(trainers);
+    return renderView(v) + trainerList(trainers);
   }
 
   /** Compact result: status + screen text (+ any extras). */

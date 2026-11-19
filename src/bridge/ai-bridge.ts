@@ -202,9 +202,6 @@ export class AiBridge {
         return this.travel.hunt(clamp(Number(p.max_steps) || 300, 10, 2000));
       case "policies":
         return { policies: this.setPolicies(p) };
-      case "set_options":
-        if (typeof p.mapPoints === "boolean") this.core.mapPoints = p.mapPoints;
-        return { ok: true };
       case "field_move":
         return this.travel.fieldMove(String(p.move ?? "CUT").toUpperCase());
       case "go_to":

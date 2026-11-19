@@ -9,12 +9,8 @@
 //                               are on unless turned off with nohardcap / nofirstrival
 //        [--playtest]           test the tools: the model is asked to look for what lets it down (not a benchmark result)
 //        [--no-report]          without report_issue (on by default: the model reports tools that let it down)
-<<<<<<< HEAD
 //        [--grid compact|wide]  map grid format: compact 5-square blocks, wide, or narrow (default)
-=======
-//        [--grid wide]          map grids with two spaces between squares (the default, narrow, has one)
-//        [--map-points [on|off]]  list coordinates of items, Cut trees, PCs, boulders and switches under the map
->>>>>>> 89cc9bb (List seen map points under the map behind NUZLOCKE_MAP_POINTS)
+//        [--map-points [on|off]]  add the Points coordinate line under the map and repeat the x header at the bottom of tall maps
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
 // Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
 // choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
@@ -54,7 +50,7 @@ import { writeSummary } from "../mcp-server/run-summary.mjs";
 const argv = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = argv.indexOf(`--${name}`);
-  return i < 0 ? fallback : argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : true;
+  return i < 0 ? fallback : argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[i + 1] : true;
 };
 if (argv.includes("--help") || argv.includes("-h")) {
   console.log(`Plays one benchmark run with Claude Code (claude -p) and records it in runs/<id>/.
@@ -202,8 +198,8 @@ if (grid !== undefined && grid !== "narrow" && grid !== "wide" && grid !== "comp
   console.error("--grid takes compact, wide or narrow (the default).");
   process.exit(1);
 }
-const mapPointsAt = argv.indexOf("--map-points");
-const mapPointsVal = mapPointsAt < 0 ? "off" : argv[mapPointsAt + 1] && !argv[mapPointsAt + 1].startsWith("-") ? argv[mapPointsAt + 1] : "on";
+const rawMapPoints = opt("map-points", "off");
+const mapPointsVal = rawMapPoints === true ? "on" : rawMapPoints;
 if (mapPointsVal !== "on" && mapPointsVal !== "off") {
   console.error("--map-points takes on or off.");
   process.exit(1);

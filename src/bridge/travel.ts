@@ -538,7 +538,7 @@ export class Travel {
         ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
           Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
         : screen;
-      throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown, { points: this.core.mapPoints })}`);
+      throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
     }
     let report = "already there";
     // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
@@ -746,7 +746,7 @@ export class Travel {
           if (!reports.length || reports[reports.length - 1].startsWith("(no seen way")) reports.push(`no way to the ${dir} edge found from here`);
           break;
         }
-        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view, { points: this.core.mapPoints })}`);
+        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(view)}`);
       }
       if (route.guessed && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {
