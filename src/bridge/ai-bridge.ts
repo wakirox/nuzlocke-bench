@@ -248,6 +248,8 @@ export class AiBridge {
       }
       case "fight":
         return this.battle.fight(p.move as string | number);
+      case "ack_poison":
+        return this.travel.ackPoison(String(p.pokemon ?? ""));
       case "wait": {
         await this.core.requireGb().runFrames(clamp(Number(p.frames) || 60, 1, 3600), 8);
         return this.core.result({});

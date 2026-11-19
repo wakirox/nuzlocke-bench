@@ -18,6 +18,7 @@ What the model can call, and how to run the server without a browser tab. [Back 
 | `start_game` | From the title screen: options (battle style Set), names; stops when you have control |
 | `fight` / `switch_pokemon` / `throw_ball` | Battle: a move (plays the turn), a switch, a ball (with the catch's nickname) |
 | `fight_trainer` / `hunt` | Walk up to a trainer and start the battle; pace grass until a wild battle |
+| `ack_poison` | The model says it knows a party Pokémon is poisoned: walks stop no more for each poison hit on it (Gen 1, where poison can make it faint while walking) until it's cured or faints; until then every hit stops the walk. Each hit still shows in the result's Poison line |
 | `make_lead` / `use_item` / `rare_candy` / `field_move` | Outside battle: reorder the party, use an item, level a Pokémon up to a target level with the infinite-candy option (a level past the cap is refused; the candies come after the first rival battle), use a field move |
 | `policies` | Standing choices: flee wild battles that don't count, route around trainers' sight |
 | `wait` | Advance N frames |

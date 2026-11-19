@@ -380,6 +380,14 @@ const DEFINITIONS = {
     run: action("use_item"),
   },
 
+  ack_poison: {
+    title: "Acknowledge poison",
+    description: "Say you know a party Pokémon is poisoned: walks (walk, walk_to, travel, exit_map, go_to, hunt) then stop no more each time its poison hurts it, until it's cured or faints. " +
+      "Until then, every poison hit while walking stops the walk. Each hit still shows in the result's Poison line. In Gen 1 poison can make a Pokémon faint while walking.",
+    schema: { pokemon: z.string().describe("Nickname, species or slot (1-6)") },
+    run: action("ack_poison"),
+  },
+
   fight_trainer: {
     title: "Fight a trainer",
     description: "Walk up to the trainer at (x, y) (map coordinates, as get_map shows them), talk, and play through the intro to the battle menu. Not in the dark: trainers can't be seen there.",

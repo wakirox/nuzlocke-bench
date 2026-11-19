@@ -105,6 +105,26 @@ describe("walk: when the player stops moving", () => {
     expect(await core.settleMove(2)).toBe(false);
   });
 
+  it("stops on each poison hit until the model acks that Pokémon's poison, and again once it's cured", async () => {
+    // Gen 1: WINGS loses 1 HP every 4 squares walked while poisoned.
+    const { travel, core, pos } = setup({ wallAt: -40 });
+    let cured = false;
+    const poisoned = () => new Map(cured ? [] : [["w1", { slot: 0, hp: 30 - Math.floor((10 - pos.y) / 4), maxHp: 40 }]]);
+    Object.assign(core, {
+      game: { data: { poisonFaintsWhileWalking: true }, poisonedParty: poisoned },
+      summary: () => ({ party: [{ nickname: "WINGS", species: "PIDGEOTTO" }] }),
+    });
+    expect(await walk(travel, "up 8")).toMatch(/^up 4\/8 — stopped: WINGS is hurt by poison \(30→29\/40 HP; ack_poison/);
+    expect(() => travel.ackPoison("PIDGEY")).toThrow(/No party Pokémon "PIDGEY"/);
+    travel.ackPoison("wings");
+    expect(await walk(travel, "up 8")).toBe("up 8/8 — arrived"); // two hits on the way, no stop
+    cured = true;
+    expect(() => travel.ackPoison("1")).toThrow(/WINGS isn't poisoned/);
+    expect(await walk(travel, "up 1")).toBe("up 1/1 — arrived"); // the ack lapses: it was cured
+    cured = false;
+    expect(await walk(travel, "up 8")).toMatch(/stopped: WINGS is hurt by poison/);
+  });
+
   it("gives up waiting on a scene after 30 s and says it's still going", async () => {
     const { travel } = setup({ wallAt: 0, tick: (f, p) => { p.scripted = f >= 20; } });
     expect(await walk(travel, "up 3")).toMatch(/^up 1\/3 — stopped: a scene has the controls \(still going after 30 s\) — wait, then walk again$/);

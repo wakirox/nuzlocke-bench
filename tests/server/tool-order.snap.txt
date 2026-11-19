@@ -20,6 +20,7 @@ rare_candy
 switch_pokemon
 throw_ball
 use_item
+ack_poison
 fight_trainer
 hunt
 policies

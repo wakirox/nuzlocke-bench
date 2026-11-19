@@ -49,6 +49,13 @@ export function huntableIn(note: string): { land: boolean; water: boolean } {
 }
 
 export class Travel {
+  /**
+   * Poisoned Pokémon (by uid) the model has acknowledged with ack_poison: walks go on through their
+   * poison until it's cured or they faint (a stop every 4 steps cost a call each, 2026-11-19). Each
+   * tick is still in the result's Poison line.
+   */
+  private poisonAcked = new Set<string>();
+
   constructor(private core: BridgeCore, private menus: Menus) {}
 
   /**
@@ -426,9 +433,11 @@ export class Travel {
     let idle = 0;
     let stopped = "arrived";
     // The screen flashes each time poison hurts a Pokémon while walking: where poison can make it
-    // faint (Gen 1), every flash stops the walk and says so, as a player sees each one. Where it
-    // can't (Crystal: it stops at 1 HP), the walk goes on and the result's Poison line has the damage.
+    // faint (Gen 1), every flash stops the walk and says so, as a player sees each one, until the
+    // model acknowledges that Pokémon's poison (ack_poison; it lapses once cured or fainted). Where
+    // it can't (Crystal: it stops at 1 HP), the walk goes on and the result's Poison line has the damage.
     const poisonAtStart = this.core.game.data.poisonFaintsWhileWalking ? this.poisoned() : new Map();
+    this.dropLapsedAcks();
     gb.setButton(dir, true);
     let drawn = performance.now();
     try {
@@ -450,11 +459,11 @@ export class Travel {
           moved += Math.abs(p.x - last.x) + Math.abs(p.y - last.y);
           idle = 0;
           last = p;
-          const hurt = [...this.poisoned()].find(([uid, now]) => now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
+          const hurt = [...this.poisoned()].find(([uid, now]) => !this.poisonAcked.has(uid) && now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
           if (hurt) {
             const [uid, now] = hurt;
             const name = this.core.summary()?.party?.[now.slot]?.nickname ?? `party slot ${now.slot + 1}`;
-            stopped = `${name} is hurt by poison (${poisonAtStart.get(uid)!.hp}→${now.hp}/${now.maxHp} HP)`;
+            stopped = `${name} is hurt by poison (${poisonAtStart.get(uid)!.hp}→${now.hp}/${now.maxHp} HP; ack_poison and walks go on through it)`;
             // The step that hurt can be the one onto a ladder or door: let that warp happen, so the
             // walk ends on the new map (the damage is in the result's Poison line either way).
             gb.setButton(dir, false);
@@ -897,6 +906,32 @@ export class Travel {
    * Poisoned party members by uid (as the tracker's: OT ID + DVs), straight from RAM: cheap
    * enough to check after every step.
    */
+  /**
+   * ack_poison: the model knows this party Pokémon (nickname, species or slot 1-6) is poisoned, so
+   * walks stop no more for its poison until it's cured or faints.
+   */
+  ackPoison(who: string | number): unknown {
+    this.dropLapsedAcks();
+    const party = this.core.summary()?.party ?? [];
+    const key = String(who).trim().toUpperCase();
+    const index = /^[1-6]$/.test(key) ? Number(key) - 1
+      : party.findIndex((m) => m.nickname?.toUpperCase() === key || m.species?.toUpperCase() === key);
+    const mon = party[index];
+    if (!mon) throw new Error(`No party Pokémon "${who}": give its nickname, species or slot (1-6).`);
+    const name = mon.nickname ?? mon.species;
+    const hit = [...this.poisoned()].find(([, p]) => p.slot === index && p.hp > 0);
+    if (!hit) throw new Error(`${name} isn't poisoned.`);
+    this.poisonAcked.add(hit[0]);
+    return this.core.result({ note: `Walks won't stop for ${name}'s poison until it's cured or faints (each hit still shows in the Poison line).` });
+  }
+
+  /** Acks lapse once the Pokémon is cured or has fainted (no longer poisoned with HP left). */
+  private dropLapsedAcks(): void {
+    if (!this.poisonAcked.size) return;
+    const now = this.poisoned();
+    for (const uid of this.poisonAcked) if (!now.get(uid)?.hp) this.poisonAcked.delete(uid);
+  }
+
   private poisoned(): Map<string, { slot: number; hp: number; maxHp: number }> {
     const gb = this.core.requireGb();
     return this.core.game.poisonedParty(gb);

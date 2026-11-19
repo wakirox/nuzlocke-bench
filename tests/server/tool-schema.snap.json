@@ -1,5 +1,22 @@
 [
   {
+    "name": "ack_poison",
+    "description": "Say you know a party Pokémon is poisoned: walks (walk, walk_to, travel, exit_map, go_to, hunt) then stop no more each time its poison hurts it, until it's cured or faints. Until then, every poison hit while walking stops the walk. Each hit still shows in the result's Poison line. In Gen 1 poison can make a Pokémon faint while walking.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pokemon": {
+          "type": "string",
+          "description": "Nickname, species or slot (1-6)"
+        }
+      },
+      "required": [
+        "pokemon"
+      ],
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
     "name": "advance_text",
     "description": "Press A through dialogue/battle text until a menu or YES/NO choice appears, the text box closes, or max_presses is hit. Returns every message shown — use this instead of pressing A one box at a time.",
     "inputSchema": {
@@ -33,7 +50,7 @@
   },
   {
     "name": "do",
-    "description": "Run several of your own actions in one call, in order — e.g. walk_to a door, advance_text, choose YES, exit_map. Each step is { tool, args: { …that tool's usual arguments } }. It stops after the first step that leaves something new to decide (a battle, a step cut short, a tracker warning or violation, an error, the end of the run) and says which steps didn't run. Returns every step's messages and the final screen. Steps can be: walk, walk_to, travel, exit_map, go_to, note_route, advance_text, choose, press, wait, use_item, rare_candy, make_lead, field_move, fight_trainer, hunt, fight, switch_pokemon, throw_ball; the last step may also be get_map or get_state (run only if every step before it went through).",
+    "description": "Run several of your own actions in one call, in order — e.g. walk_to a door, advance_text, choose YES, exit_map. Each step is { tool, args: { …that tool's usual arguments } }. It stops after the first step that leaves something new to decide (a battle, a step cut short, a tracker warning or violation, an error, the end of the run) and says which steps didn't run. Returns every step's messages and the final screen. Steps can be: walk, walk_to, travel, exit_map, go_to, note_route, advance_text, choose, press, wait, use_item, rare_candy, make_lead, field_move, fight_trainer, hunt, fight, switch_pokemon, throw_ball, ack_poison; the last step may also be get_map or get_state (run only if every step before it went through).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -66,6 +83,7 @@
                   "fight",
                   "switch_pokemon",
                   "throw_ball",
+                  "ack_poison",
                   "get_map",
                   "get_state"
                 ]
