@@ -131,4 +131,75 @@ describe("tool catalog and registry", () => {
     expect(text).toContain("Legend: @ you, I item ball");
     expect(text).not.toContain("# blocked");
   });
+
+  it("does not duplicate Points when both grid=compact and mapPoints=true are enabled", async () => {
+    const map = [
+      "       0  1  2  3  4  5",
+      "y  0   #  #  #  #  #  #",
+      "y  1   @  .  .  .  .  I",
+    ].join("\n");
+    const server = fakeServer();
+    registerTools(server, {
+      call: async () => ({ status: { location: "AREA_1", battle: "none" }, map, screenText: [] }),
+      link: { waitForReload: async () => {} },
+      autoStart: { pending: () => null },
+      formatter: createFormatter({ mapsOnRequest: true }),
+      notes: { read: () => "", write: () => {} },
+      wrapLog: (_n: string, h: Handler) => h,
+      grid: "compact",
+      mapPoints: true,
+    });
+    const res = await server.tools.get("get_map")!({});
+    const text = res.content.map((c) => c.text).join("\n");
+    expect(text.match(/^Points:/gm)).toHaveLength(1);
+    expect(text).toContain("Points: I (5,1).");
+  });
+
+  it("applies mapPoints to walk_to and exit_map error maps when enabled and omits them when off", async () => {
+    const errMap = [
+      "       0  1  2  3  4  5",
+      "y  0   #  #  #  #  #  #",
+      "y  1   @  #  .  .  .  I",
+    ].join("\n");
+    const runErr = async (tool: string, args: Record<string, unknown>, msg: string, mapPoints: boolean) => {
+      const server = fakeServer();
+      registerTools(server, {
+        call: async () => {
+          throw new Error(`${msg}\n${errMap}`);
+        },
+        link: { waitForReload: async () => {} },
+        autoStart: { pending: () => null },
+        formatter: createFormatter({ mapsOnRequest: true }),
+        notes: { read: () => "", write: () => {} },
+        wrapLog: (_n: string, h: Handler) => h,
+        mapPoints,
+      });
+      const res = await server.tools.get(tool)!(args);
+      return res.content.map((c) => c.text).join("\n");
+    };
+    const walkOff = await runErr("walk_to", { x: 5, y: 1 }, "No path to (5, 1) from (0, 1).", false);
+    const walkOn = await runErr("walk_to", { x: 5, y: 1 }, "No path to (5, 1) from (0, 1).", true);
+    expect(walkOff).not.toContain("Points:");
+    expect(walkOn).toContain("Points: I (5,1).");
+
+    const exitOff = await runErr("exit_map", { direction: "right" }, "Can't reach the right edge from (0, 1).", false);
+    const exitOn = await runErr("exit_map", { direction: "right" }, "Can't reach the right edge from (0, 1).", true);
+    expect(exitOff).not.toContain("Points:");
+    expect(exitOn).toContain("Points: I (5,1).");
+  });
+
+  it("does not strip coordinate-list-like text the model wrote in notes", async () => {
+    let saved = "";
+    const server = fakeServer();
+    registerTools(server, {
+      call: async () => ({ status: { location: "AREA_1", battle: "none" }, screenText: [] }),
+      link: { waitForReload: async () => {} },
+      autoStart: { pending: () => null },
+      formatter: createFormatter({ mapsOnRequest: true }),
+      notes: { read: () => saved, write: (v: string) => { saved = v; } },
+      wrapLog: (_n: string, h: Handler) => h,
+    });
+    const res = await server.tools.get("notes")!({ add: "Points: I (3,4)." });
+    expect(res.content.map((c) => c.text).join("\n")).toContain("Points: I (3,4).");
+  });
 });

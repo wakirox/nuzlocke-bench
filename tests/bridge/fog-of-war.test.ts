@@ -314,6 +314,62 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
     expect(compact).toContain("y 15   ?????");
   });
+
+  it("lists only seen points (all 9 kinds) under narrowGrids({ points: true }), hiding unseen ones", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { narrowGrids } = await import("../../mcp-server/format.mjs");
+    // Player at (10,10): seen screen is x 6–15, y 6–14; column 0 (x=5) and row 9 (y=15) are unseen.
+    const grid = Array.from({ length: 10 }, () => Array<string>(12).fill("."));
+    grid[4][5] = "@";
+    // Seen squares: I at (8,8), $ at (9,8), H at (10,8), O at (11,8), S at (12,9).
+    grid[2][3] = "I";
+    grid[2][4] = "$";
+    grid[2][5] = "H";
+    grid[2][6] = "O";
+    grid[3][7] = "S";
+    // Unseen squares: I at (5,6), C at (5,8), P at (7,15), B at (8,15), o at (9,15), S at (10,15), $ at (11,15), H at (12,15), O at (13,15).
+    grid[0][0] = "I";
+    grid[2][0] = "C";
+    grid[9][2] = "P";
+    grid[9][3] = "B";
+    grid[9][4] = "o";
+    grid[9][5] = "S";
+    grid[9][6] = "$";
+    grid[9][7] = "H";
+    grid[9][8] = "O";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 5, originY: 6, pc: 5, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const rawMap = new BridgeCore(host.asHost()).mapText(true);
+    // Default (points off): never produces a Points line.
+    expect(narrowGrids(rawMap)).not.toContain("Points:");
+    // Enabled: lists only seen targets, hiding unseen ones.
+    const text = narrowGrids(rawMap, { points: true });
+    expect(text).toContain("Points: I (8,8); S (12,9); $ (9,8); H (10,8); O (11,8).");
+    expect(text).not.toMatch(/\(5,6\)|\(5,8\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)|\(11,15\)|\(12,15\)|\(13,15\)/);
+  });
+
+  it("emits no Points line in a dark cave even when narrowGrids({ points: true }) is enabled", async () => {
+    // @ts-expect-error plain ESM module without type declarations
+    const { narrowGrids } = await import("../../mcp-server/format.mjs");
+    const grid = Array.from({ length: 9 }, () => Array<string>(10).fill("."));
+    grid[4][4] = "@";
+    grid[4][5] = "I";
+    grid[3][4] = "S";
+    const host = new FakeHost(layout, [{ rows: screenRows() }], {
+      position: { inWorld: true, map: MAP, x: 10, y: 10 },
+      view: { grid, originX: 6, originY: 6, pc: 4, pr: 4 },
+      seen: new SeenMaps(),
+    });
+    const core = new BridgeCore(host.asHost());
+    core.dark = () => true;
+    core.screenPixels = () => new Uint8ClampedArray(160 * 144 * 4);
+    const text = narrowGrids(core.mapText(true), { points: true });
+    expect(text).toMatch(/^It.s dark/);
+    expect(text).not.toContain("Points:");
+  });
 });
 
 describe("BridgeCore.noteSeen: the run's memory as the player moves", () => {
