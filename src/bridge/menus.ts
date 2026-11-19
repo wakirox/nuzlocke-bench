@@ -223,24 +223,29 @@ export class Menus {
       ...Array<Button>(3).fill("up"), ...Array<Button>(3).fill("down"), "left",
     ];
     const label = menuLabel(option);
-    const sweep = async (exact: boolean) => {
-      let found = this.cursorOn(label, exact);
+    const sweep = async (exact: boolean, want = label) => {
+      let found = this.cursorOn(want, exact);
       // To the top first, however far down the list the cursor is; stop once nothing moves.
       for (let i = 0; i < 20 && !found; i++) {
         const moved = await this.menuStep("up");
-        found = this.cursorOn(label, exact);
+        found = this.cursorOn(want, exact);
         if (!moved) break;
       }
       for (const step of plan) {
         if (found) break;
         await this.menuStep(step);
-        found = this.cursorOn(label, exact);
+        found = this.cursorOn(want, exact);
       }
       return found;
     };
+    // A list of Pokémon shows each one's level beside the name ("STINGER 24", as results put it), but
+    // on the Game Boy the level sits apart, so only the name can be matched: tried last, as a name
+    // that ends in a number ("BOX 2") is matched whole first (choose "STINGER 24" failed, 2026-11-19).
+    const levelless = label.replace(/\s+\d{1,3}$/, "");
     // The option itself first, anywhere in the list: one that only starts with it (BERRY JUICE for
     // BERRY) can be on screen while the option is further down. Then one that runs on ("POKé").
-    const found = (await sweep(true)) || (!opts.exact && (await sweep(false)));
+    const found = (await sweep(true)) || (!opts.exact && (await sweep(false))) ||
+      (levelless !== label && (await sweep(true, levelless)));
     if (!found) throw new Error(`Couldn't put the cursor on "${option}". Screen:\n${this.core.screenText().join("\n")}`);
     await this.core.tap("a", 4, 20);
     const after = await this.advanceText(30);

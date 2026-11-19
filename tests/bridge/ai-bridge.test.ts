@@ -55,6 +55,18 @@ describe("AiBridge.dispatch", () => {
     expect(r.chose).toBe("GAMMA");
   });
 
+  it("choose finds a Pokémon named with its level, as lists show it, by its name", async () => {
+    // A box list: the levels sit apart from the names on screen ("STINGER 24" in results).
+    const menu = (at: number) => screenRows({ 2: `${at === 0 ? "▶" : " "}STINGER`, 3: "        24", 4: `${at === 1 ? "▶" : " "}FANG`, 5: "        24" });
+    const { call } = bridgeFor([
+      { rows: menu(1), on: { up: 1 } },
+      { rows: menu(0), on: { down: 0, a: 2 } },
+      { rows: screenRows({ 8: "Chosen." }) },
+    ]);
+    const r = await call("choose", { option: "STINGER 24" });
+    expect(r.chose).toBe("STINGER 24");
+  });
+
   it("press name:NAME types the letters on the keyboard and confirms with start", async () => {
     const { lettersPerRow, nameRow } = layout.keyboard;
     let row = 0;
