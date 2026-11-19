@@ -537,13 +537,15 @@ export class Travel {
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map
       // that names a square it doesn't show reads as wrong (a boulder below the screen, 2026-11-08).
+      // Not for a square not seen yet (nothing to show there), and never past what the run has seen
+      // (seenPart): unseen rows out to the map's edge would give its size away.
       const screen = this.core.screenView();
       const sx1 = screen.originX + (screen.grid[0]?.length ?? 1) - 1, sy1 = screen.originY + screen.grid.length - 1;
       const xs = [x, ...(by ? [by.x] : [])], ys = [y, ...(by ? [by.y] : [])];
-      const offScreen = at != null && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
+      const offScreen = at != null && at !== "?" && xs.some((px, i) => px < screen.originX || px > sx1 || ys[i] < screen.originY || ys[i] > sy1);
       const shown = offScreen
-        ? cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
-          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1)))
+        ? seenPart(cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
+          Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1))))
         : screen;
       throw new Error(`No path to ${this.core.at(x, y)}: ${why}.\n${renderView(this.core.shownView(shown))}`);
     }
