@@ -29,9 +29,12 @@ const RECONNECT_MAX_MS = 5000;
 
 /** Tools that walk the player around (they need the game world loaded). */
 const MOVES = new Set(["walk", "walk_to", "travel", "exit_map", "go_to", "fight_trainer", "hunt"]);
-/** They find their own way on the map, which a player in the dark can't. */
-const NEEDS_SIGHT = new Set(["walk_to", "travel", "exit_map", "go_to", "fight_trainer", "hunt"]);
-const TOO_DARK = "It's too dark to find the way from here: walk and press still move you.";
+/**
+ * They need to see a trainer, which a player in the dark can't (trainers are black sprites there).
+ * Walks find their way in the dark too, over the squares the run has seen there (BridgeCore.view).
+ */
+const NEEDS_SIGHT = new Set(["fight_trainer"]);
+const TOO_DARK = "It's too dark to see a trainer from here: walk to them, or walk and press.";
 
 type Status = "off" | "connecting" | "connected" | "error";
 
@@ -138,6 +141,9 @@ export class AiBridge {
       || (method === "walk" && /^@(cut|field)\b/i.test(String(p.path ?? "").trim()));
     switch (method) {
       case "get_state":
+        // Settled: a map the run has just come to (a resumed save, a field move) gets its origin, so
+        // the location has coordinates.
+        this.core.noteSeen(true);
         this.core.host.refresh();
         return this.core.host.summary();
       case "hint_facts": {
@@ -178,9 +184,9 @@ export class AiBridge {
         const errand = /^@(goto|cut|field|fight|hunt)\b\s*(.*)$/i.exec(path);
         if (errand) {
           const [, what, arg] = errand;
-          if (/goto|fight|hunt/i.test(what) && this.core.dark()) throw new Error(TOO_DARK);
+          if (/fight/i.test(what) && this.core.dark()) throw new Error(TOO_DARK);
           if (/fight/i.test(what)) {
-            const [x, y] = arg.split(/[\s,]+/).map(Number);
+            const [x, y] = this.core.fromShown(...(arg.split(/[\s,]+/).map(Number) as [number, number]));
             return this.travel.fightTrainer(x, y);
           }
           if (/hunt/i.test(what)) return this.travel.hunt(clamp(Number(arg) || 300, 10, 2000));
@@ -197,7 +203,7 @@ export class AiBridge {
       case "use_item":
         return this.menus.useItem(String(p.item ?? ""), p.pokemon ? String(p.pokemon) : null, p.move ? String(p.move) : null);
       case "fight_trainer":
-        return this.travel.fightTrainer(Number(p.x), Number(p.y));
+        return this.travel.fightTrainer(...this.core.fromShown(Number(p.x), Number(p.y)));
       case "hunt":
         return this.travel.hunt(clamp(Number(p.max_steps) || 300, 10, 2000));
       case "policies":
@@ -216,11 +222,11 @@ export class AiBridge {
         const door = p.door as { x?: number; y?: number } | undefined;
         const link = this.core.routes.note(from, to, {
           exit: p.exit != null ? String(p.exit) : undefined,
-          door: door ? [Number(door.x), Number(door.y)] : undefined,
+          door: door ? this.core.fromShownOn(from, Number(door.x), Number(door.y)) : undefined,
           push: p.push != null ? String(p.push) : undefined,
         });
         void kv.set(KEYS.routes, this.core.routes.routes);
-        return { noted: describeLink(from, to, link), routes: this.core.routes.list().length };
+        return { noted: describeLink(from, to, link, this.core.shownOn), routes: this.core.routes.list().length };
       }
       case "forget_route": {
         const from = String(p.from ?? "").toUpperCase();
@@ -230,11 +236,12 @@ export class AiBridge {
         return { forgot, routes: this.core.routes.list().length };
       }
       case "routes":
-        return { routes: this.core.routes.list() };
+        return { routes: this.core.routes.list(this.core.shownOn) };
       case "travel":
         return this.core.withTrainers(p.trainers, () => this.travel.travel(String(p.direction) as Dir, clamp(Number(p.max_legs) || 12, 1, 40), clamp(Number(p.maps) || 1, 1, 6)));
       case "walk_to": {
-        const [x, y, interact] = [Number(p.x), Number(p.y), Boolean(p.interact)];
+        const [x, y] = this.core.fromShown(Number(p.x), Number(p.y));
+        const interact = Boolean(p.interact);
         // A PC (P on the map) answers only when faced from the square below it.
         if (interact && this.core.mapChar(x, y) === "P") return this.core.withTrainers(p.trainers, () => this.travel.usePc(x, y));
         return this.core.withTrainers(p.trainers, () => this.travel.walkTo(x, y, interact));

@@ -1,7 +1,7 @@
 // Closed patches of a cave's lower floor: drawn as rock on a whole map, kept everywhere else.
 
 import { describe, expect, it } from "vitest";
-import { renderDarkView, renderView, sealFromWholeMap, sealedLowerFloor, type OverworldView } from "../../src/bridge/overworld";
+import { darkSquares, renderView, sealFromWholeMap, sealedLowerFloor, type OverworldView } from "../../src/bridge/overworld";
 
 // Tile 5 is the lower floor (as lowerCaveFloor says), tile 9 the upper floor; a step between 5 and 9 is a cliff.
 const cliff = (a: number, b: number) => (a === 5 && b === 9) || (a === 9 && b === 5);
@@ -73,9 +73,9 @@ describe("closed patches of a cave's lower floor", () => {
   it("draws them as rock in the dark too, not as lower floor", () => {
     const lit = [[true, true, false, false], [true, true, false, false], [true, true, false, false]];
     const screen = sealFromWholeMap(screenOf(grid, tiles), view(grid, tiles));
-    expect(renderDarkView(screen, lit).split("\n").slice(1)).toEqual(["# # ? ?", "# # @ ?", "# # ? ?"]);
+    expect(darkSquares(screen, lit).map((r) => r.join(" "))).toEqual(["# # ? ?", "# # @ ?", "# # ? ?"]);
     // Without the whole map the strip reads as floor the player could step onto.
-    expect(renderDarkView(screenOf(grid, tiles), lit).split("\n")[1]).toBe(", # ? ?");
+    expect(darkSquares(screenOf(grid, tiles), lit)[0].join(" ")).toBe(", # ? ?");
   });
 
   it("leaves a screen alone when the whole map seals nothing", () => {

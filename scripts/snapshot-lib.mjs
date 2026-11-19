@@ -1,11 +1,22 @@
 // The pure parts of scripts/snapshot-run.mjs: reading a run-log line, and choosing the poll
 // of a replay that stands for the end of a logged tool call.
 
-/** "CAVE (2) [CAVE_1F] x6 y25 facing up | battle: none" -> its parts (x/y missing in the dark and in battle). */
+/** "CAVE (2) [CAVE_1F] x6 y25 facing up | battle: none" -> its parts (x/y missing in battle, and in the dark before 0.3.0). */
 export function parseWhere(where) {
-  const m = /\[([A-Z0-9_]+)\](?: x(\d+) y(\d+))?(?: facing (\w+))?\s*\|\s*battle: (\w+)/.exec(where ?? "");
+  const m = /\[([A-Z0-9_]+)\](?: x(-?\d+) y(-?\d+))?(?: facing (\w+))?\s*\|\s*battle: (\w+)/.exec(where ?? "");
   if (!m) return null;
   return { mapConst: m[1], x: m[2] == null ? null : Number(m[2]), y: m[3] == null ? null : Number(m[3]), facing: m[4] ?? null, battle: m[5] };
+}
+
+/**
+ * Where a logged call left the player, in the map's own coordinates (what a replay reads): the
+ * log's `pos` since 0.3.0, when the 📍 line counts from where the run arrived on the map; the 📍
+ * line's own x/y before that.
+ */
+export function placeOf(entry) {
+  const where = parseWhere(entry.where);
+  if (!where) return null;
+  return Array.isArray(entry.pos) ? { ...where, x: entry.pos[0], y: entry.pos[1] } : where;
 }
 
 /** "2:19:02" -> seconds. */
@@ -27,7 +38,7 @@ export const battleName = (b) => BATTLE_NAMES[b] ?? String(b);
  * this second, this map, this x/y, this battle. Polls are the app's own (every 6 frames).
  */
 export function callTarget(entry) {
-  const where = parseWhere(entry.where);
+  const where = placeOf(entry);
   if (!where || !entry.playTime) throw new Error(`Call ${entry.n} has no location or game time in the run log.`);
   return { ...where, sec: parsePlayTime(entry.playTime), n: entry.n };
 }
@@ -52,7 +63,7 @@ export function firstMatch(target, samples) {
 
 /** The log's own numbers a snapshot can be checked against: [label, logged, found]. */
 export function compareWithLog(entry, found) {
-  const where = parseWhere(entry.where);
+  const where = placeOf(entry);
   const rows = [
     ["game time", entry.playTime, found.playTime],
     ["map", where?.mapConst, found.mapConst],

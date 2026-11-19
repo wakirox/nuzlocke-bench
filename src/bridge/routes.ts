@@ -12,10 +12,13 @@ export type Routes = Record<string, Record<string, Link>>;
 
 const DIRS: Dir[] = ["up", "down", "left", "right"];
 
-export function describeLink(from: string, to: string, l: Link): string {
-  return "exit" in l
-    ? `${from} → ${to}: ${l.exit} edge`
-    : `${from} → ${to}: door (${l.door[0]},${l.door[1]})${l.push ? ` then ${l.push}` : ""}`;
+/** A door's square on map `from` as the model sees it (BridgeCore.shown); the book keeps the map's own. */
+export type ShownSquare = (from: string, x: number, y: number) => [number, number];
+
+export function describeLink(from: string, to: string, l: Link, shown: ShownSquare = (_, x, y) => [x, y]): string {
+  if ("exit" in l) return `${from} → ${to}: ${l.exit} edge`;
+  const [x, y] = shown(from, l.door[0], l.door[1]);
+  return `${from} → ${to}: door (${x},${y})${l.push ? ` then ${l.push}` : ""}`;
 }
 
 export class RouteBook {
@@ -61,8 +64,8 @@ export class RouteBook {
   }
 
   /** Every link, one per line (empty when nothing is noted yet). */
-  list(): string[] {
-    return Object.entries(this.routes).flatMap(([from, tos]) => Object.entries(tos).map(([to, l]) => describeLink(from, to, l)));
+  list(shown?: ShownSquare): string[] {
+    return Object.entries(this.routes).flatMap(([from, tos]) => Object.entries(tos).map(([to, l]) => describeLink(from, to, l, shown)));
   }
 
   /** Shortest chain of noted links from `from` to `to` (maps after `from`), or null. */

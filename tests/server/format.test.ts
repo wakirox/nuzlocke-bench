@@ -401,3 +401,55 @@ describe("legendFor", () => {
     expect(wideGrids(dark, { points: true })).toBe(dark);
   });
 });
+
+describe("grids with negative x (0.3.0: coordinates count from where the run arrived)", () => {
+  const map = (x0: number) => renderView({ grid: [[..."#.@."], [..."...."]], originX: x0, originY: -1, pc: 2, pr: 0 });
+
+  it("narrow: a - in the tens row while x stays above -10, as before", () => {
+    const lines = narrowGrids(map(-3)).split("\n");
+    expect(lines.slice(0, 2)).toEqual(["      - - -  ", "      3 2 1 0"]);
+    expect(lines[2]).toBe("y -1  # . @ .");
+  });
+
+  it("narrow: a sign row over the tens and ones once x goes below -9", () => {
+    const lines = narrowGrids(map(-11)).split("\n");
+    expect(lines.slice(0, 3)).toEqual(["      - - - -", "      1 1    ", "      1 0 9 8"]);
+  });
+
+  it("wide: the bridge widens the columns so an x of three characters doesn't run into the next", () => {
+    const lines = map(-11).split("\n");
+    expect(lines[0]).toBe("      -11 -10  -9  -8");
+    expect(lines[1]).toBe("y -1    #   .   @   .");
+    expect(wideGrids(map(-11))).toBe(map(-11));
+    // Columns of two characters at most stay 3 wide, as before.
+    expect(map(-3).split("\n")[0]).toBe("      -3 -2 -1  0");
+  });
+
+  it("reaches -100 on a tall or wide map entered at its far end: wider labels, parsed by every grid", () => {
+    const far = renderView({ grid: [[..."#.@"], [..."..."]], originX: -101, originY: -100, pc: 2, pr: 0 });
+    const lines = far.split("\n");
+    expect(lines[0]).toBe("       -101 -100  -99");
+    expect(lines[1]).toBe("y-100     #    .    @");
+    expect(lines[2]).toBe("y -99     .    .    .");
+    expect(narrowGrids(far).split("\n")).toEqual([
+      "       - - -",
+      "       1 1  ",
+      "       0 0 9",
+      "       1 0 9",
+      "y-100  # . @",
+      "y -99  . . .",
+    ]);
+    // -100 starts a 5-column block: a space before it.
+    expect(compactGrids(far)).toMatch(/^y-100 +# \.@$/m);
+    expect(wideGrids(far, { points: true })).toContain(far);
+  });
+
+  it("compact: rulers and row ranges take negative coordinates", () => {
+    const out = compactGrids(renderView({ grid: [[..."..@...."], [..."......."], [..."......."]], originX: -12, originY: -5, pc: 2, pr: 0 }));
+    const lines = out.split("\n");
+    // -12 and -11 have no room for a label of their own before -10's block (as with any x).
+    expect(lines[0].trim().split(/ +/).map(Number)).toEqual([-10]);
+    expect(lines[1]).toBe("y -5   .. @....");
+    expect(lines[2]).toMatch(/^y\s*-4--3 +\.\. \.\.\.\.\.$/);
+  });
+});

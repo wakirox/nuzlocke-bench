@@ -37,7 +37,7 @@ const SYMBOLS: Record<string, [string, string]> = {
   "↑": ["#d500f9", "spinner"], "↓": ["#d500f9", "spinner"], "←": ["#d500f9", "spinner"], "→": ["#d500f9", "spinner"], "+": ["#d500f9", "spinner"],
 };
 
-/** A dark map shows only what's lit, and its text says so (renderDarkView): no coordinates to hover. */
+/** A dark map shows only what the run has seen in the dark, and its text says so (DARK_HEADER). */
 const DARK_SYMBOLS: Record<string, [string, string]> = {
   "#": ["#6f7f78", "rock"],
   ".": ["#3b4a44", "floor"],
@@ -75,12 +75,19 @@ const CLIFF_COLOUR = "#c2185b";
 export function findGrid(lines: string[]): Grid | null {
   const dark = lines.findIndex((l) => DARK_HEAD.test(l));
   if (dark >= 0) {
+    // Before 0.3.0 the dark view had no coordinates: rows of squares only.
     let last = dark + 1;
     while (last < lines.length && DARK_ROW.test(lines[last])) last++;
-    if (last === dark + 1) return null;
-    const cells = lines.slice(dark + 1, last).map((l) => l.split(" "));
-    return { cells, ys: [], x0: 0, start: dark + 1, end: last, dark: true };
+    if (last > dark + 1) return { cells: lines.slice(dark + 1, last).map((l) => l.split(" ")), ys: [], x0: 0, start: dark + 1, end: last, dark: true };
+    // Since then it's a map like any other, in the dark's colours.
+    const grid = codedGrid(lines);
+    return grid && { ...grid, dark: true };
   }
+  return codedGrid(lines);
+}
+
+/** A map grid with coordinates (header rows + "y N" rows), or null. */
+function codedGrid(lines: string[]): Grid | null {
   const first = lines.findIndex((l) => ROW.test(l));
   if (first < 0) return null;
   let rowsEnd = first;
@@ -92,8 +99,9 @@ export function findGrid(lines: string[]): Grid | null {
   const rows = lines.slice(first, rowsEnd);
   const head = lines.slice(start, first);
   const rowBody = (l: string) => l.replace(ROW_TAG, "");
+  // The compact grid's ruler is one line; a narrow header with long row labels (y-100) is several.
   const isCompact = rows.some((l) => /^y\s*-?\d+--?\d+ /.test(l) || /\S{2}/.test(rowBody(l)))
-    || (rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
+    || (head.length <= 1 && rows.every((l) => (ROW_TAG.exec(l)?.[0].length ?? 0) >= 7) && !rowBody(rows[0]).includes("  "));
   if (isCompact) {
     const cells: string[][] = [];
     const ys: number[] = [];
@@ -115,15 +123,17 @@ export function findGrid(lines: string[]): Grid | null {
   }
   const cells = rows.map((l) => l.slice(5).trim().split(/\s+/));
   const ys = rows.map((l) => Number(l.slice(1, 5)));
-  // x of the first column: the wide header is numbers; the narrow one is tens over ones.
+  // x of the first column: the wide header is numbers (its columns widen for -10 and beyond); the
+  // narrow one is digits read down each column, with a sign row on top when x goes below -9 and a
+  // hundreds row for 100 or more (0.3.0: coordinates count from where the run arrived).
   let x0 = 0;
-  if (head.length === 1 && /\d\s{1,2}\d/.test(head[0]) && head[0].trim().split(/\s+/).length === cells[0].length) x0 = Number(head[0].trim().split(/\s+/)[0]);
+  const numbers = head.length === 1 ? head[0].trim().split(/\s+/) : [];
+  if (numbers.length === cells[0].length && numbers.every((n) => /^-?\d+$/.test(n))) x0 = Number(numbers[0]);
   else if (head.length) {
-    const ones = head[head.length - 1];
-    const tens = head.length > 1 ? head[head.length - 2] : "";
-    const col = ones.search(/[\d]/);
-    const t = (tens[col] ?? " ").trim();
-    x0 = t === "-" ? -Number(ones[col]) : Number(`${t}${ones[col]}`);
+    // The first column read top to bottom: a - (in a sign row, or in the tens row) and its digits.
+    const col = head[head.length - 1].search(/\d/);
+    const down = head.map((row) => row[col] ?? " ").join("");
+    x0 = (down.includes("-") ? -1 : 1) * Number(down.replace(/\D/g, ""));
   }
   return { cells, ys, x0, start, end, cliffs: cliffsOf(lines) };
 }
@@ -158,7 +168,7 @@ function gridCanvas(grid: Grid): { canvas: HTMLCanvasElement; used: Set<string>;
     const c = Math.floor(((ev.clientX - rect.left) / rect.width) * w);
     const r = Math.floor(((ev.clientY - rect.top) / rect.height) * h);
     const ch = grid.cells[r]?.[c];
-    canvas.title = !ch ? "" : grid.dark ? symbols[ch]?.[1] ?? ch : `(${grid.x0 + c}, ${grid.ys[r]}) ${symbols[ch]?.[1] ?? ch}`;
+    canvas.title = !ch ? "" : !grid.ys.length ? symbols[ch]?.[1] ?? ch : `(${grid.x0 + c}, ${grid.ys[r]}) ${symbols[ch]?.[1] ?? ch}`;
   });
   return { canvas, used, w, h };
 }

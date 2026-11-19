@@ -8,7 +8,7 @@ import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import type { Menus } from "../../src/bridge/menus";
 import { gen1Adapter } from "../../src/games/gen1";
-import { FakeHost, screenRows, type FakeHostOptions } from "../harness/fake-bridge";
+import { FakeHost, screenRows, seenFrom0, type FakeHostOptions } from "../harness/fake-bridge";
 
 // walkStraight reads document.hidden to decide whether to yield to rendering: no document here.
 beforeAll(() => vi.stubGlobal("document", { hidden: true }));
@@ -34,7 +34,7 @@ describe("walk_to through the fog", () => {
   // A corridor of 16 squares: the run has seen columns 0–7 and 10–15, so columns 8 and 9 are "?".
   const corridor = ["################", "................", "################"];
   const seenWithGap = () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 2, 1);
     seen.sawScreen(MAP, 14, 1);
     return seen;
@@ -85,7 +85,7 @@ describe("walk_to through the fog", () => {
 
   it("with no fog, a target no walk reaches is refused as before, with no guess", async () => {
     // Every square is seen (the screen around (4,1) covers 0–9), so no guess is made.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 4, 1);
     const wall = ["##########", "....#.....", "##########"];
     const { travel } = fakeWorld(wall, [1, 1], seen);
@@ -97,7 +97,7 @@ describe("walk_to through the fog", () => {
     // sealedLowerFloor seals all 5 squares to '#' on the raw map before fogging.
     // Screens seen around (1,1) (x <= 6) and (18,1) (x >= 14) leave x = 7..13 unseen ('?').
     const cave = ["################", "....#.....#....#", "################"];
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 1, 1);
     seen.sawScreen(MAP, 18, 1);
     const { host, travel } = fakeWorld(cave, [1, 1], seen);
@@ -132,7 +132,7 @@ describe("exit_map through the fog", () => {
   it("walks a guessed way up to an edge the run hasn't seen, and says so first", async () => {
     // The top of the tower is unseen (the screen around (5,8) covers rows 4–12 only), so no seen way
     // reaches the top edge; the shaft through the unseen rows is the guess.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 8);
     const { core, travel } = fakeWorld(TOWER, [5, 8], seen, { exits: ["up"] });
     const r = (await travel.exitMap("up")) as { walk: string };
@@ -143,7 +143,7 @@ describe("exit_map through the fog", () => {
 
   it("still throws when there's no way to the edge and no fog to guess through", async () => {
     // Fully seen (the screens around (4,2) and (4,8) cover all of the tower), with the top walled off.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 4, 2);
     seen.sawScreen(MAP, 4, 8);
     const walled = ["##########", "##########", "##########", "##########", ...TOWER.slice(4)];
@@ -154,7 +154,7 @@ describe("exit_map through the fog", () => {
   it("with no edge exits and no door in sight, heads the way asked and says so", async () => {
     // The map has no edge exits and no door seen while the view has "?": look for a way out the way
     // asked (a cave's exit_map up goes up, not down).
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 8);
     const { core, travel } = fakeWorld(TOWER, [5, 8], seen, { exits: [], doors: [] });
     const r = (await travel.exitMap("down")) as { walk: string };
@@ -170,7 +170,7 @@ describe("a guessed way is walked in legs, re-planned as it's seen", () => {
 
   it("walk_to reaches a far seen target over an unseen corridor in several legs", async () => {
     // The screen around (36,1) is seen too (x 32–41), so (34,1) is a seen target; x 8–31 is unseen.
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 2, 1);
     seen.sawScreen(MAP, 36, 1);
     const { core, travel } = fakeWorld(LONG, [2, 1], seen);
@@ -181,7 +181,7 @@ describe("a guessed way is walked in legs, re-planned as it's seen", () => {
   });
 
   it("exit_map walks an unseen corridor to its far edge in several legs", async () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 2, 1);
     const { core, travel } = fakeWorld(LONG, [2, 1], seen, { exits: ["right"] });
     const legs = legsOf(travel);
@@ -201,7 +201,7 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
   const DOORS = [{ x: 5, y: 8, to: "VIRIDIAN_POKECENTER", tx: 3, ty: 7 }];
 
   it("heads the way asked, then goes through the door that came into sight", async () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 2);
     const { core, travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
     const r = (await travel.exitMap("down")) as { walk: string };
@@ -210,8 +210,23 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
   });
 
+  it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
+    // This map's (0,0) at its corner; the next map's elsewhere: the door's square is said before going through.
+    const seen = new SeenMaps({ squares: {}, doors: {}, origins: { [MAP]: [0, 0], [MAP + 1]: [3, 3] } });
+    seen.sawScreen(MAP, 5, 2);
+    const { host, travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
+    const walkTo = travel.walkTo.bind(travel);
+    vi.spyOn(travel, "walkTo").mockImplementation(async (x, y, interact) => {
+      const out = await walkTo(x, y, interact);
+      host.moveTo({ map: MAP + 1, x: 4, y: 4 }); // through the door
+      return out;
+    });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk).toContain("out through the door at (5, 8) to VIRIDIAN_POKECENTER");
+  });
+
   it("with no door in sight after heading that way, says so and doesn't look again", async () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 2);
     const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: [] });
     const r = (await travel.exitMap("down")) as { walk: string };
@@ -220,7 +235,7 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
   });
 
   it("with explored set and still no door in sight, throws rather than heading off again", async () => {
-    const seen = new SeenMaps();
+    const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 2);
     const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
     await expect(travel.exitMap("down", true)).rejects.toThrow(/No door in sight yet that way/);

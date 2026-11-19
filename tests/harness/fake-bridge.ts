@@ -9,7 +9,16 @@ import type { AiHost } from "../../src/bridge/ai-bridge";
 import type { GameAdapter, ScreenLayout } from "../../src/games/adapter";
 import type { Position } from "../../src/games/types";
 import type { Dir, Door, OverworldView } from "../../src/bridge/overworld";
-import type { SeenMaps } from "../../src/bridge/seen";
+import { SeenMaps } from "../../src/bridge/seen";
+
+/**
+ * The run's memory with every map's (0,0) at the map's own corner: for tests written in the map's
+ * coordinates. Since 0.3.0 the model's coordinates count from where the run first arrived on a map
+ * (tests/bridge/origins.test.ts tests that).
+ */
+export function seenFrom0(): SeenMaps {
+  return new SeenMaps({ squares: {}, doors: {}, origins: Object.fromEntries(Array.from({ length: 256 }, (_, m) => [m, [0, 0]])) });
+}
 
 export const COLS = 20;
 export const ROWS = 18;

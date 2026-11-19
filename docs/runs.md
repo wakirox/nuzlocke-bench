@@ -15,9 +15,11 @@ earlier runs: only runs whose `agent.json` is written, and the plain file goes o
 ## Run log
 
 Every tool call is appended to `runs/<start time>.jsonl` (`NUZLOCKE_RUN_LOG=<file>` to choose, `off` to disable):
-call number, time, duration, tool, arguments, error, location (`where`), badges, deaths, violations, the
-in-game clock (`playTime`) and the run outcome when it ends —
-enough to count steps, time and deaths per run and compare runs. Both `runs/` and `saves-headless/` are git-ignored.
+call number, time, duration, tool, arguments, error, location (`where`, the 📍 line the model saw), badges,
+deaths, violations, the in-game clock (`playTime`) and the run outcome when it ends —
+enough to count steps, time and deaths per run and compare runs. Since 0.3.0 `where`'s coordinates count from
+where the run arrived on the map, as the model sees them; `pos` keeps the map's own x, y (for replaying a run),
+and `dark` marks a call made in the dark (the 📍 line has coordinates there too now). Both `runs/` and `saves-headless/` are git-ignored.
 
 ## Checking a run
 

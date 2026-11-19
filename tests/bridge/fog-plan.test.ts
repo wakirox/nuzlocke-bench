@@ -33,8 +33,8 @@ describe("seenSteps", () => {
 });
 
 describe("a guess through unseen squares", () => {
-  // Travel's planTo reads only the trainers' sight from the core.
-  const travel = () => new Travel({ sight: () => ({ avoidSight: false }) } as unknown as BridgeCore, {} as Menus);
+  // Travel's planTo reads only the trainers' sight from the core, and whether it's dark (no guessing then).
+  const travel = (dark = false) => new Travel({ sight: () => ({ avoidSight: false }), dark: () => dark } as unknown as BridgeCore, {} as Menus);
   const planTo = (t: Travel, v: OverworldView, x: number, y: number) =>
     (t as unknown as { planTo(v: OverworldView, x: number, y: number): { dirs: Dir[] } | null }).planTo(v, x, y);
 
@@ -47,6 +47,13 @@ describe("a guess through unseen squares", () => {
   it("takes unseen squares as land when not surfing, so no way crosses the water beyond", () => {
     // Land then water: a surfer can't get back onto water from land, but a walker can't cross water at all.
     expect(planTo(travel(), view(["@?~."]), OX + 3, OY)).toBeNull();
+  });
+
+  it("never guesses in the dark: a player can't see where an unseen way would go", () => {
+    expect(planTo(travel(), view(["@?."]), OX + 2, OY)?.dirs).toEqual(["right", "right"]);
+    expect(planTo(travel(true), view(["@?."]), OX + 2, OY)).toBeNull();
+    // A way over squares seen in the dark is walked as anywhere else.
+    expect(planTo(travel(true), view(["@.."]), OX + 2, OY)?.dirs).toEqual(["right", "right"]);
   });
 });
 

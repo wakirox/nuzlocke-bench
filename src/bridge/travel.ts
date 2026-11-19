@@ -116,7 +116,7 @@ export class Travel {
       if (here === target) return;
       const plan = this.core.routes.plan(here, target);
       if (!plan) {
-        const known = this.core.routes.list();
+        const known = this.core.routes.list(this.core.shownOn);
         throw new Error(
           `No noted route from ${here} to ${target}${log.length > 1 ? ` (got as far as ${log.join(" → ")})` : ""}. ` +
           `go_to only follows routes you noted with note_route. Known: ${known.length ? known.join("; ") : "none yet"}.`,
@@ -154,7 +154,7 @@ export class Travel {
           throw new Error(`Stopped on the way (${where}): ${stop}. The route itself is fine: deal with that, then go_to again. The walk: ${walked}.`);
         }
         throw new Error(
-          `Your route ${describeLink(here, next, link)} didn't get there (${where}). ` +
+          `Your route ${describeLink(here, next, link, this.core.shownOn)} didn't get there (${where}). ` +
           `The walk: ${walked || "nothing"}. If the route is wrong, fix it with note_route or forget_route.`,
         );
       }
@@ -451,7 +451,7 @@ export class Travel {
             if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
             if (stopped === "arrived" && held >= 90) {
               const at = this.core.host.position();
-              const where = at.x !== last.x || at.y !== last.y ? `; it moved you to (${at.x}, ${at.y})` : "";
+              const where = at.x !== last.x || at.y !== last.y ? `; it moved you to ${this.core.at(at.x, at.y)}` : "";
               stopped = this.core.host.position().scripted
                 ? `a scene has the controls (still going after ${Math.round(held / 60)} s) — wait, then walk again`
                 : `a scene had the controls for ${Math.round(held / 60)} s${where}; it's over — walk again`;
@@ -513,20 +513,27 @@ export class Travel {
     const startMap = here.map;
     // Plan on the whole map; re-plan if someone walks into the way (people are only known on screen).
     const full = this.core.view(true);
-    const ledge = ledgeTarget(full, x, y);
+    // Messages name squares in the model's coordinates: worked out on the view moved into them.
+    const [sx, sy] = this.core.shown(x, y);
+    const ledge = ledgeTarget(this.core.shownView(full), sx, sy);
     if (ledge) throw new Error(ledge);
     const toHole = full.grid[y - full.originY]?.[x - full.originX] === "O";
     let route = this.planTo(full, x, y);
     const guessed = Boolean(route?.guessed);
     const crossed = route?.crosses ?? [];
+    // Said now, on this map: the walk may end through a door, on the next one.
+    const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
     if (!route) {
       // Say which kind of "no": a wall, off the map, or walkable but in a part you can't walk to from here.
       const at = full.grid[y - full.originY]?.[x - full.originX];
       // Past the map's edge, but never on screen: a player can't tell that from a square not seen yet
       // (saying "outside this map" would let walk_to measure the map).
+      // In the dark, "seen" is what the dark view showed (SeenMaps.dark), not the lit memory.
       const seen = this.core.host.seen?.();
-      const unseenOutside = at == null && !!seen && !seen.has(startMap, x, y);
-      const by = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(full, x, y);
+      const sawIt = seen && (this.core.dark() ? seen.sawInDark(startMap, x, y) : seen.has(startMap, x, y));
+      const unseenOutside = at == null && !!seen && !sawIt;
+      const blocker = at == null || at === "#" || at === "?" || (at === "~" && !full.surfing) ? null : wayBlocker(this.core.shownView(full), sx, sy);
+      const by = blocker && { what: blocker.what, x: blocker.x + x - sx, y: blocker.y + y - sy };
       const why = unseenOutside || at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
         : at == null ? "it's outside this map"
         : at === "#" ? "that square is solid"
@@ -544,7 +551,7 @@ export class Travel {
         ? seenPart(cropView(full, Math.min(screen.originX, ...xs.map((px) => px - 1)), Math.min(screen.originY, ...ys.map((py) => py - 1)),
           Math.max(sx1, ...xs.map((px) => px + 1)), Math.max(sy1, ...ys.map((py) => py + 1))))
         : screen;
-      throw new Error(`No path to (${x}, ${y}): ${why}.\n${renderView(shown)}`);
+      throw new Error(`No path to ${this.core.at(x, y)}: ${why}.\n${renderView(this.core.shownView(shown))}`);
     }
     let report = "already there";
     // A guessed way (through unseen squares) can run into a wall the walk then sees: re-plan more often.
@@ -581,7 +588,7 @@ export class Travel {
     if (route?.sightStop) {
       const [sx, sy] = route.sightStop;
       return this.core.result({
-        walk: `${route.dirs.length ? report.replace(/ — arrived$/, "") + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at (${sx}, ${sy})${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
+        walk: `${route.dirs.length ? report.replace(/ — arrived$/, "") + " — " : ""}stopped short: the only way on crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or choose another target.`,
         map: this.core.mapText(),
       });
     }
@@ -631,7 +638,6 @@ export class Travel {
         messages = (await this.menus.advanceText(30)).messages;
       }
     }
-    const sightNote = crossed.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(crossed)})` : "";
     const guessNote = guessed ? " (no seen way there, so it tried a way through squares you hadn't seen)" : "";
     return this.core.result({ walk: report + sightNote + guessNote, messages, map: this.core.mapText() });
   }
@@ -643,7 +649,7 @@ export class Travel {
    * blocked). Never to an unseen square itself.
    */
   private planTo(v: AnyOverworldView, x: number, y: number) {
-    return planFrontierTarget(v, x, y, this.core.sight());
+    return planFrontierTarget(v, x, y, this.core.sight(), !this.core.dark());
   }
 
   /**
@@ -680,8 +686,10 @@ export class Travel {
         break;
       }
       const crosses = this.core.sight().avoidSight ? [] : sightCrossings(view, route);
+      // Said before the leg: it may cross into the next map.
+      const crossed = crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : "";
       const report = await this.walkSegments(toSegments(route));
-      legs.push(report.replace(/ — arrived$/, "") + (crosses.length ? ` (crossed the sight of ${this.describeCrossings(crosses)})` : ""));
+      legs.push(report.replace(/ — arrived$/, "") + crossed);
       if (!report.endsWith("arrived")) {
         const stop = report.split(" — stopped: ")[1];
         why = stop === "entered a new map" || stop === "a battle started" ? stop : `stopped: ${stop ?? "?"}`;
@@ -733,10 +741,12 @@ export class Travel {
       if (places.length === 1 && places[0] !== "?" && oneSpot) {
         const here = this.core.host.position();
         const door = [...doors].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
+        // Said in this map's coordinates: once through the door the player is on the next map.
+        const doorAt = this.core.at(door.x, door.y);
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;
-        return { ...out, walk: `no edge exits here, so out through the door at (${door.x}, ${door.y}) to ${places[0]}: ${String(out.walk ?? "")}` };
+        return { ...out, walk: `no edge exits here, so out through the door at ${doorAt} to ${places[0]}: ${String(out.walk ?? "")}` };
       }
-      throw new Error(`This map has no exit ${dir}: leave through a door (D) — walk_to its square to go through it. Doors: ${doors.map((d) => `(${d.x},${d.y}) → ${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`).join("; ") || "none seen"}.`);
+      throw new Error(`This map has no exit ${dir}: leave through a door (D) — walk_to its square to go through it. Doors: ${(this.core.shownView({ ...full, doors }).doors ?? []).map((d) => `(${d.x},${d.y}) → ${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`).join("; ") || "none seen"}.`);
     }
     if (full.exits && !full.exits.includes(dir)) {
       throw new Error(`This map has no exit ${dir}. Exits: ${full.exits.join(", ")}.`);
@@ -746,13 +756,13 @@ export class Travel {
     // A wandering NPC can block the planned path: wait a moment and re-plan (a few times).
     for (let attempt = 0, legs = 0, first = true; attempt < 10; attempt++, first = false) {
       const view = first ? full : this.core.view(true);
-      const route = planFrontierEdge(view, dir, this.core.sight());
+      const route = planFrontierEdge(view, dir, this.core.sight(), !this.core.dark());
       if (!route) {
         if (!first) {
           if (!reports.length || reports[reports.length - 1].startsWith("(no seen way")) reports.push(`no way to the ${dir} edge found from here`);
           break;
         }
-        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(seenPart(view))}`);
+        throw new Error(`Can't reach the ${dir} edge from here.\n${renderView(this.core.shownView(seenPart(view)))}`);
       }
       if (route.guessed && !reports.length) reports.push(`(no seen way to the ${dir} edge: trying one through squares you hadn't seen)`);
       if (route.sightStop) {
@@ -764,7 +774,7 @@ export class Travel {
           reports.push(walked.replace(/ — $/, ""));
           continue;
         }
-        reports.push(`${walked}stopped short: the way ${dir} crosses an unbeaten trainer's sight at (${sx}, ${sy})${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or find another way.`);
+        reports.push(`${walked}stopped short: the way ${dir} crosses an unbeaten trainer's sight at ${this.core.at(sx, sy)}${this.whoWatches(sx, sy)}. walk_to that trainer (interact) to fight it on purpose, or find another way.`);
         break;
       }
       // A guessed way: walk only the part over seen squares (`route.legDirs`), then re-plan with what
@@ -781,11 +791,13 @@ export class Travel {
         await this.core.requireGb().runFrames(40, 8);
         continue;
       }
+      // Said before the walk: it crosses into the next map.
+      const crossed = route.crosses?.length ? ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(route.crosses)})` : "";
       let report = route.dirs.length ? await this.walkSegments(toSegments(route.dirs)) : "at the edge";
       if (report.endsWith("arrived") || report === "at the edge") {
         report += `; crossing: ${await this.walkSegments([[dir, 3]])}`;
       }
-      if (route.crosses?.length) report += ` (path crosses the sight of unbeaten trainers: ${this.describeCrossings(route.crosses)})`;
+      report += crossed;
       reports.push(report);
       const pos = this.core.host.position();
       if (pos.map !== startMap || pos.battle || !/blocked/.test(report)) break;
@@ -795,12 +807,15 @@ export class Travel {
     return this.core.result({ walk: reports.join(" | retry: "), map: this.core.mapText() });
   }
 
-  /** "(8,12) WALKER" for each crossing (names are known in the Nuzlocke). */
+  /**
+   * "(8,12) WALKER" for each crossing (names are known in the Nuzlocke), in this map's coordinates
+   * and with its trainers: say it before a walk that may leave the map (through a door, over an edge).
+   */
   private describeCrossings(crosses: [number, number][]): string {
     const known = this.core.host.mapTrainers();
     return crosses.map(([x, y]) => {
       const t = known.find((k) => k.x === x && k.y === y);
-      return `(${x},${y})${t ? ` ${t.name}` : ""}`;
+      return `${this.core.at(x, y, true)}${t ? ` ${t.name}` : ""}`;
     }).join(", ");
   }
 

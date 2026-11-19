@@ -136,18 +136,20 @@ function withFrontierLeg<T extends { dirs: Dir[]; sightStop?: [number, number]; 
 
 /**
  * Plans a walk to `(x, y)` on `view`: uses a seen route when one exists; otherwise (when `(x, y)`
- * itself is seen and `view` has fog) plans optimistically over `guessUnseenView(view)` and truncates
- * `legDirs` at the edge of known ground.
+ * itself is seen, `view` has fog and `guess` is on) plans optimistically over `guessUnseenView(view)`
+ * and truncates `legDirs` at the edge of known ground. In the dark there's no guessing: a player
+ * can't see where an unseen way would go.
  */
 export function planFrontierTarget(
   view: AnyOverworldView,
   x: number,
   y: number,
   sight: SightOptions,
+  guess = true,
 ): (FrontierPlan & { face: Dir | null }) | null {
   const seenRoute = findPath(view, x, y, sight);
   if (seenRoute) return withFrontierLeg(view, seenRoute, false);
-  if (view.grid[y - view.originY]?.[x - view.originX] === "?" || !hasFog(view)) return null;
+  if (!guess || view.grid[y - view.originY]?.[x - view.originX] === "?" || !hasFog(view)) return null;
   const guessedRoute = findPath(guessUnseenView(view), x, y, sight);
   return guessedRoute ? withFrontierLeg(view, guessedRoute, true) : null;
 }
@@ -161,10 +163,11 @@ export function planFrontierEdge(
   view: AnyOverworldView,
   dir: Dir,
   sight: SightOptions,
+  guess = true,
 ): FrontierPlan | null {
   const seenRoute = pathToEdge(view, dir, sight);
   if (seenRoute) return withFrontierLeg(view, seenRoute, false);
-  if (!hasFog(view)) return null;
+  if (!guess || !hasFog(view)) return null;
   const guessedRoute = pathToEdge(guessUnseenView(view), dir, sight);
   return guessedRoute ? withFrontierLeg(view, guessedRoute, true) : null;
 }

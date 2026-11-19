@@ -113,6 +113,11 @@ describe("run log", () => {
     expect(logEntry({ n: 2, name: "get_screen", args: {}, started: 0, ended: 1, result: shot })).toMatchObject({ images: 1, chars: 1 });
   });
 
+  it("marks a call made in the dark (the 📍 line has coordinates there too since 0.3.0)", () => {
+    expect(logEntry({ n: 1, name: "walk", args: {}, started: 0, ended: 1, result: text("x"), status: { dark: true } }).dark).toBe(true);
+    expect(logEntry({ n: 2, name: "walk", args: {}, started: 0, ended: 1, result: text("x"), status: {} }).dark).toBeUndefined();
+  });
+
   it("writes calls and results as a transcript the conversation panel reads, when asked (a client bench-run doesn't run)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "runlog-"));
     const transcript = join(dir, "transcript.jsonl");

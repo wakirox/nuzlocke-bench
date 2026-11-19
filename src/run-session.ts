@@ -230,11 +230,20 @@ export class RunSession {
   // ---- AiHost query projections ----
 
   summary(): unknown {
-    return this.state ? summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb) }) : null;
+    return this.state ? summarize(this.tracker, this.state, this.run, { menuCursor: this.adapter.menuCursor(this.gb), origin: this.origin() }) : null;
   }
 
   brief(): Brief | null {
-    return this.state ? brief(this.tracker, this.state) : null;
+    return this.state ? brief(this.tracker, this.state, this.origin()) : null;
+  }
+
+  /**
+   * (0,0) of the coordinates for the model on the map of the state summary() and brief() format
+   * (SeenMaps.origins; the bridge sets it on arrival), or null before. That state's map, not the
+   * live one: right after a map change they can differ until the next poll.
+   */
+  private origin(): [number, number] | null {
+    return this.state ? this.seen.origin(this.state.map) ?? null : null;
   }
 
   takeNewEvents(): string[] {

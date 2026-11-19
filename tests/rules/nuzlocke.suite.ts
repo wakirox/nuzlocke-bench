@@ -226,13 +226,22 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(brief(run.engine, run.s).lead).toMatch(/^SPIKE \(.+\) Lv\d+ \d+\/\d+HP \(being sent out\) \| moves: /);
       });
 
-      it("says which way the player faces, except in the dark or a battle", () => {
+      it("says where the player stands and faces, in the dark too (0.3.0), but not in a battle", () => {
         const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route).poll({ facing: "up" });
         expect(brief(run.engine, run.s).location).toMatch(/ x\d+ y\d+ facing up$/);
         run.poll({ dark: true });
-        expect(brief(run.engine, run.s).location).not.toMatch(/facing/);
+        expect(brief(run.engine, run.s).location).toMatch(/ x\d+ y\d+ facing up$/);
+        // The run log needs to know it was dark: the 📍 line doesn't say so any more.
+        expect(brief(run.engine, run.s)).toMatchObject({ dark: true });
         run.poll({ dark: false }).wildBattle(ids.wildA);
         expect(brief(run.engine, run.s).location).not.toMatch(/facing/);
+      });
+
+      it("counts the coordinates from the map's origin, and leaves them out while the map has none", () => {
+        const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route).poll({ facing: "up" });
+        const [x, y] = [run.s.x, run.s.y];
+        expect(brief(run.engine, run.s, [x - 2, y + 3]).location).toMatch(/ x2 y-3 facing up$/);
+        expect(brief(run.engine, run.s, null).location).not.toMatch(/ x-?\d/);
       });
 
       it("lists nobody as dead while nobody is", () => {

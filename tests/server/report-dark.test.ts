@@ -55,6 +55,12 @@ describe("darkTunnelOf", () => {
     const lit = at("ROCK_TUNNEL_1F", {}, " x15 y3");
     expect(darkTunnelOf([lit, PAST])).toMatchObject({ result: "lit tools" });
   });
+
+  it("reads the dark from the log's dark mark once the dark has coordinates too (0.3.0), negative ones included", () => {
+    const dark = at("ROCK_TUNNEL_1F", { dark: true }, " x-3 y-12");
+    expect(darkTunnelOf([OUTSIDE, dark, PAST])).toMatchObject({ result: "crossed in the dark" });
+    expect(darkTunnelOf([OUTSIDE, at("ROCK_TUNNEL_1F", {}, " x-3 y-12"), PAST])).toMatchObject({ result: "lit tools" });
+  });
 });
 
 describe("darkTunnelTable", () => {

@@ -25,7 +25,7 @@ const LEGEND = [
   ["#", "# blocked"],
   [".", ". walkable"],
   ["~", "~ water (Surf; walkable while surfing)"],
-  ["?", "? not seen yet (never on your screen: go there to see it; never a walk_to target, but a walk can try a way through it)"],
+  ["?", "? not seen yet (never on your screen: go there to see it; never a walk_to target, but a walk can try a way through it, except in the dark)"],
   ["*", "* ice (step on it and you slide that way until something stops you; walk_to plans the slides)"],
   ['"', '" tall grass'],
   ["v<>", "v < > one-way ledge (hop that way)"],
@@ -191,7 +191,7 @@ export function plainErrorScreen(text) {
 }
 
 /** With narrow grids (the default), said once in get_map's description. */
-export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones: read each column top to bottom (a - above a digit is a negative x, past the map's left edge).";
+export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones (with a hundreds row above them for x of 100 or more, and a sign row on top when x goes below -9): read each column top to bottom; a - above the digits is a negative x.";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
 export function compactGridNote({ boulderSwitch = false } = {}) {
@@ -213,16 +213,27 @@ const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
 
-/** Parses one wide map grid starting at `lines[i]`, or returns null if `lines[i]` isn't a wide x header. */
+/** A bridge map row's label ("y  5 ", "y-100 "). */
+const ROW_LABEL = /^y *-?\d+ /;
+
+/**
+ * Parses one wide map grid (the bridge's renderView) starting at `lines[i]`, or returns null if
+ * `lines[i]` isn't a wide x header. Columns are 3 wide and row labels "y" + 3, or wider when a
+ * coordinate needs it (since 0.3.0 they count from where the run arrived and can reach -100).
+ */
 function parseWideGrid(lines, i) {
-  if (!/^ {5}(?: *-?\d)+$/.test(lines[i]) || !/^y[ \d-]{3} /.test(lines[i + 1] ?? "")) return null;
-  const head = lines[i].slice(5);
-  const xs = Array.from({ length: head.length / 3 }, (_, k) => Number(head.slice(3 * k, 3 * k + 3)));
+  const label = ROW_LABEL.exec(lines[i + 1] ?? "");
+  if (!label || !/^ {5,}(?: *-?\d)+$/.test(lines[i])) return null;
+  const pre = label[0].length;
+  if (lines[i].slice(0, pre).trim()) return null;
+  const xs = lines[i].trim().split(/ +/).map(Number);
+  const w = (lines[i].length - pre) / xs.length;
+  if (!Number.isInteger(w) || w < 3) return null;
   let j = i + 1;
   const rawRows = [];
-  for (; j < lines.length && /^y[ \d-]{3} /.test(lines[j]); j++) {
-    const cells = Array.from({ length: xs.length }, (_, k) => lines[j][5 + 3 * k + 2]);
-    rawRows.push({ y: Number(lines[j].slice(1, 4)), prefix: lines[j].slice(0, 5), cells });
+  for (; j < lines.length && ROW_LABEL.exec(lines[j])?.[0].length === pre; j++) {
+    const cells = Array.from({ length: xs.length }, (_, k) => lines[j][pre + w * k + w - 1]);
+    rawRows.push({ y: Number(lines[j].slice(1, pre - 1)), prefix: lines[j].slice(0, pre), cells });
   }
   return { xs, rawRows, end: j };
 }
@@ -327,9 +338,18 @@ export function narrowGrids(text, { points = false } = {}) {
     const parsed = parseWideGrid(lines, i);
     if (!parsed) continue;
     const { xs, rawRows, end: j } = parsed;
-    const tens = xs.map((x) => ` ${x < 0 ? "-" : x >= 10 ? Math.floor(x / 10) % 10 : " "}`).join("");
+    // Coordinates count from where the run arrived (0.3.0), so x can be -10 or less: then the sign
+    // gets its own row on top. Without such an x, a - sits in the tens row as before. A hundreds
+    // row comes in only for an x of 100 or more either way (a tall or wide map).
+    const signRow = xs.some((x) => x <= -10);
+    const digit = (x, place) => (Math.abs(x) >= place ? Math.floor(Math.abs(x) / place) % 10 : " ");
+    const sign = signRow ? xs.map((x) => ` ${x < 0 ? "-" : " "}`).join("") : "";
+    const hundreds = xs.some((x) => Math.abs(x) >= 100) ? xs.map((x) => ` ${digit(x, 100)}`).join("") : "";
+    const tens = xs.map((x) => ` ${!signRow && x < 0 ? "-" : digit(x, 10)}`).join("");
     const ones = xs.map((x) => ` ${Math.abs(x) % 10}`).join("");
-    const header = [...(tens.trim() ? [`     ${tens}`] : []), `     ${ones}`];
+    // Indented like the row labels ("y  5 " or, past -99, "y-100 ").
+    const pad = " ".repeat(rawRows[0].prefix.length);
+    const header = [sign, hundreds, tens.trim() ? tens : ""].filter(Boolean).map((row) => pad + row).concat(pad + ones);
     const out = [
       ...header,
       ...rawRows.map((row) => row.prefix + row.cells.map((ch) => ` ${ch}`).join("")),

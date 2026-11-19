@@ -42,6 +42,9 @@ Language models playing these games isn't new ([related work](docs/related-work.
   ends the run. Knowing the rules and keeping to them is part of the test.
 - **Text, not pixels.** The map, menus and battles are read from RAM and given as text (a screenshot is one tool among
   many), so reading 8-bit graphics isn't what's measured.
+- **Only what a player would know.** A map shows only what the run has seen (fog of war), and its coordinates count
+  from the square where the run first arrived, so a map's layout and size are found by exploring. Dark caves show only
+  what the run has seen in the dark, and the map tools work there only over those squares.
 - **No help.** No hints, walkthroughs, routes or helper agents, the same tools for every model, one attempt, and the
   harness version in every run log. Models get stuck here where the stream's old hints pointed (the first cave, the
   ledges after it, the story step past the bridge), and the bench measures that instead of patching it. (For weaker

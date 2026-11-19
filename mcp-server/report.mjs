@@ -561,7 +561,9 @@ export function darkTunnelOf(calls, game = GEN1) {
   end = Math.max(end, start + 1);
   const inside = calls.slice(start, end);
   const flash = inside.find((c) => !c.error && game.darkMaps.has(mapOf(c)) && /FLASH/i.test(JSON.stringify(c.args ?? {})) && /field_move|do|walk/.test(c.tool));
-  const darkRules = inside.some((c) => game.darkMaps.has(mapOf(c)) && /battle: none/.test(c.where) && !/\bx\d+ y\d+/.test(c.where));
+  // Played in the dark: the log says so (since 0.3.0, when the dark has coordinates too); before,
+  // the dark was the 📍 line without them.
+  const darkRules = inside.some((c) => game.darkMaps.has(mapOf(c)) && /battle: none/.test(c.where) && (c.dark || !/\bx-?\d+ y-?\d+/.test(c.where)));
   const result = !darkRules ? "lit tools"
     : crossed ? (flash ? "crossed with light" : "crossed in the dark")
     : flash ? "not crossed, had light" : "not crossed";

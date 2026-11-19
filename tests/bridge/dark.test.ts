@@ -1,7 +1,7 @@
 // What the tools show in the dark tunnel: only what a player can see there.
 
 import { describe, expect, it } from "vitest";
-import { boxedSquares, litSquares, renderDarkView, type OverworldView } from "../../src/bridge/overworld";
+import { DARK_HEADER, boxedSquares, darkSquares, litSquares, type OverworldView } from "../../src/bridge/overworld";
 import { hideCoords } from "../../src/bridge/summary";
 import { gameFor } from "../../src/games";
 import { findGrid } from "../../src/ui/map-image";
@@ -11,41 +11,36 @@ function view(rows: string[], pc: number, pr: number): OverworldView {
 }
 
 const on = (rows: string[]) => rows.map((r) => [...r].map((ch) => ch === "x"));
+/** The dark screen's squares, a row a line. */
+const dark = (v: OverworldView, lit: boolean[][], covered?: boolean[][]) => darkSquares(v, lit, covered).map((row) => row.join(" "));
 
-describe("renderDarkView", () => {
+describe("darkSquares", () => {
   it("shows a lit square as what it is, black walls next to lit squares as rock, and the rest as black", () => {
     const v = view(["#.T", ".@D", "#D#"], 1, 1);
     // (0,0) and (2,0) are walls beside lit squares: edges a player can tell; the person at (0,2) is a black sprite.
-    expect(renderDarkView(v, on(["..x", "xx.", ".xx"])).split("\n").slice(1)).toEqual(["# ? ?", ". @ ?", "# D #"]);
+    expect(dark(v, on(["..x", "xx.", ".xx"]))).toEqual(["# ? ?", ". @ ?", "# D #"]);
   });
 
   it("marks a cave's lit lower floor as on the lit map, so a cliff between the levels isn't taken for a way", () => {
     // Two floor squares lit: one on the cave's lower floor (tile 5, as lowerCaveFloor says), one on the upper floor.
     const v = { grid: ["#..", "#@.", "###"], pc: 1, pr: 1, originX: 0, originY: 0, tiles: [[1, 5, 9], [1, 9, 9], [1, 1, 1]], lowerFloor: (t: number) => t === 5 } as unknown as OverworldView;
-    const text = renderDarkView(v, on(["xxx", "..x", "..."]));
-    expect(text.split("\n").slice(1)).toEqual(["# , .", "# @ .", "? ? #"]);  // walls touching nothing lit stay unknown
-    expect(text).toMatch(/, lower floor/);
+    expect(dark(v, on(["xxx", "..x", "..."]))).toEqual(["# , .", "# @ .", "? ? #"]);  // walls touching nothing lit stay unknown
+    expect(DARK_HEADER).toMatch(/, lower floor/);
   });
 
   it("keeps a black wall deep in the dark unknown", () => {
     const v = view(["###", "#@.", "..."], 1, 1);
-    expect(renderDarkView(v, on(["...", "...", "..."])).split("\n").slice(1)).toEqual(["? ? ?", "? @ ?", "? ? ?"]);
+    expect(dark(v, on(["...", "...", "..."]))).toEqual(["? ? ?", "? @ ?", "? ? ?"]);
   });
 
   it("doesn't call lit floor rock or a black wall open (the dark tunnel, 1F, where a model walked into a wall)", () => {
     // The real map around the player, and which squares were lit on that screen (rebuilt from a run's call).
     const real = ["##########", "##########", "#..##...#.", "#..######.", "#..#@...#.", "#..#.D..#.", "#..#....#.", "####....##", "#........."];
     const lit = on(["..........", "..........", "xxx.xxxxxx", "xxx.xxxxxx", "xxx.....xx", "xxx..x..xx", "xxx.....xx", "xxxx....xx", "xx........"]);
-    const rows = renderDarkView(view(real, 4, 4), lit).split("\n").slice(1);
+    const rows = dark(view(real, 4, 4), lit);
     expect(rows[4]).toBe("# . . # @ ? ? ? # .");  // (no tiles here: plain floor) floor at x1-2 shows; the black wall left of @ is the cliff's edge
     expect(rows[2]).toBe("# . . # # . . . # .");
     expect(rows.join(" ")).not.toMatch(/T/);
-  });
-
-  it("gives no coordinates", () => {
-    const text = renderDarkView(view(["##", "#@"], 1, 1), on(["xx", "xx"]));
-    expect(text).not.toMatch(/\b(40|41|20|21)\b/);
-    expect(text).not.toMatch(/\by\s*\d/);
   });
 });
 
@@ -118,19 +113,19 @@ describe("text boxes and menus over the dark view", () => {
 
   it("prints a covered square as ? even when it's lit", () => {
     const v = view(["#.", ".@"], 1, 1);
-    expect(renderDarkView(v, on(["xx", "xx"]), [[false, true], [false, false]]).split("\n").slice(1)).toEqual(["# ?", ". @"]);
+    expect(dark(v, on(["xx", "xx"]), [[false, true], [false, false]])).toEqual(["# ?", ". @"]);
   });
 
   it("prints a covered wall that touches a lit square as ?, not as rock", () => {
     const v = view(["#.", ".@"], 1, 1);
-    expect(renderDarkView(v, on([".x", "xx"])).split("\n").slice(1)).toEqual(["# .", ". @"]);
-    expect(renderDarkView(v, on([".x", "xx"]), [[true, false], [false, false]]).split("\n").slice(1)).toEqual(["? .", ". @"]);
+    expect(dark(v, on([".x", "xx"]))).toEqual(["# .", ". @"]);
+    expect(dark(v, on([".x", "xx"]), [[true, false], [false, false]])).toEqual(["? .", ". @"]);
   });
 
   it("doesn't light the wall beside a covered square", () => {
     // The wall at (0,0) is only drawn as rock because the square beside it is lit; covered, that square is dark.
     const v = view(["#.", "#@"], 1, 1);
-    expect(renderDarkView(v, on([".x", ".x"]), [[false, true], [false, false]]).split("\n").slice(1)).toEqual(["? ?", "# @"]);
+    expect(dark(v, on([".x", ".x"]), [[false, true], [false, false]])).toEqual(["? ?", "# @"]);
   });
 });
 
@@ -146,17 +141,26 @@ describe("isDark", () => {
 });
 
 describe("hideCoords", () => {
-  it("hides them in the dark and in any battle, and shows them otherwise", () => {
-    expect(hideCoords({ dark: true, battle: 0 })).toBe(true);
-    expect(hideCoords({ dark: false, battle: 1 })).toBe(true);
-    expect(hideCoords({ dark: false, battle: 2 })).toBe(true);
-    expect(hideCoords({ dark: false, battle: 0 })).toBe(false);
+  it("hides them in any battle, and shows them otherwise, the dark included (0.3.0: they count from where the run arrived)", () => {
+    expect(hideCoords({ battle: 1 })).toBe(true);
+    expect(hideCoords({ battle: 2 })).toBe(true);
+    expect(hideCoords({ battle: 0 })).toBe(false);
   });
 });
 
 describe("the model panel's picture of a dark map", () => {
-  it("finds the dark grid, with no coordinates", () => {
-    const text = renderDarkView(view(["#.", ".@"], 1, 1), on(["x.", ".x"])).split("\n");
+  it("finds a dark map with coordinates, in the dark's colours", () => {
+    const text = [DARK_HEADER, "     -1 0", "y -1  # ?", "y  0  ? @"];
+    const lines = ["📍 somewhere", "Map:", ...text, "Screen: no text"];
+    const grid = findGrid(lines);
+    expect(grid?.dark).toBe(true);
+    expect(grid?.cells).toEqual([["#", "?"], ["?", "@"]]);
+    expect(grid?.x0).toBe(-1);
+    expect(grid?.ys).toEqual([-1, 0]);
+  });
+
+  it("still finds a dark grid from before 0.3.0, which had no coordinates", () => {
+    const text = ["It's dark: you see only some squares. You are at @.", "# ?", "? @"];
     const lines = ["📍 somewhere", "Map:", ...text, "Screen: no text"];
     const grid = findGrid(lines);
     expect(grid?.dark).toBe(true);
@@ -169,5 +173,18 @@ describe("the model panel's picture of a dark map", () => {
     expect(grid?.dark).toBeUndefined();
     expect(grid?.x0).toBe(10);
     expect(grid?.ys).toEqual([5, 6]);
+  });
+
+  it("reads a narrow header with a sign row (x below -9), and with a hundreds row", () => {
+    expect(findGrid(["      - -", "      1 1", "      2 1", "y  5  # .", "y  6  . @"])?.x0).toBe(-12);
+    expect(findGrid(["       - -", "       1 1", "       0 0", "       1 0", "y-100  # .", "y -99  . @"])?.x0).toBe(-101);
+    expect(findGrid(["      - -", "      3 2", "y  5  # .", "y  6  . @"])?.x0).toBe(-3);
+  });
+
+  it("reads a wide header whose columns widened for -10 and beyond", () => {
+    const grid = findGrid(["      -12 -11 -10  -9", "y -1    #   .   @   .", "y  0    .   .   .   ."]);
+    expect(grid?.x0).toBe(-12);
+    expect(grid?.ys).toEqual([-1, 0]);
+    expect(grid?.cells[0]).toEqual(["#", ".", "@", "."]);
   });
 });

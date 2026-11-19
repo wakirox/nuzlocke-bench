@@ -227,13 +227,13 @@ const DEFINITIONS = {
   note_route: {
     title: "Note a route",
     description: "Write down how to get from one map to a neighbouring one, so go_to can travel it later: either cross the map's edge " +
-      "(exit: up/down/left/right) or step on a door/warp square (door: {x, y} in the from-map's coordinates; push: a direction to step " +
+      "(exit: up/down/left/right) or step on a door/warp square (door: {x, y} in the from-map's coordinates, as get_map shows them there; push: a direction to step " +
       "after, for warps you leave by walking, like building exits). Map ids as in 📍 [BRACKETS]. Kept for this run; replaces an older note.",
     schema: {
       from: z.string().optional().describe("Map you leave from (default: the map you're on)"),
       to: z.string(),
       exit: DIR.optional(),
-      door: z.object({ x: z.number().int().min(0), y: z.number().int().min(0) }).optional(),
+      door: z.object({ x: z.number().int(), y: z.number().int() }).optional(),
       push: DIR.optional(),
     },
     run: passJson("note_route"),
@@ -260,7 +260,7 @@ const DEFINITIONS = {
     title: "Travel",
     description:
       "Head in a direction across a route or town: repeatedly walks to the furthest visible square that way (or, when the screen " +
-      "shows no way on, the furthest one on the whole map), routing around walls and ledges, until you enter a new map, a battle " +
+      "shows no way on, the furthest one on the map as far as you've seen it), routing around walls and ledges, until you enter a new map, a battle " +
       "starts, something scripted stops you, or it's a dead end. " +
       "maps=N keeps going the same way through up to N map changes in one call.",
     schema: {
@@ -277,7 +277,7 @@ const DEFINITIONS = {
     title: "Walk to",
     description:
       "Pathfind to map coordinate (x, y) anywhere on the current map (see get_map full=true) and walk there, re-planning around people. If the target is a person, " +
-      "sign or object, stops next to it and faces it; interact=true also presses A and reads the dialogue.",
+      "sign or object, stops next to it and faces it; interact=true also presses A and reads the dialogue. In the dark it goes only over squares you've seen there.",
     schema: {
       show_map: SHOW_MAP,
       x: z.number().int(),
@@ -291,11 +291,11 @@ const DEFINITIONS = {
   get_map: {
     title: "Map around you",
     description: ({ grid, boulderSwitch }) =>
-      "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the WHOLE current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
-      "Rows/columns are map coordinates for walk_to. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
+      "Text map from game memory. Default is the visible screen (10×9), or the whole map when it's small (a house, a shop, a Pokémon Center); full=true shows the current map plus its exits, as far as you've seen it: squares that were never on your screen are ?, and a door you haven't been through leads to ? (a Pokémon Center, Mart or Gym is known from outside). " +
+      "Rows/columns are map coordinates for walk_to, counted from where you first arrived on this map (0,0): left of it and above it they're negative. A map is shown only as far as you've seen it, so its size shows only once you've been to its edges. Dark maps show what you've seen in the dark, with the same coordinates. Maps in other results use the same symbols; legend=true adds the meaning of each symbol on that map to the result. " +
       mapLegend({ boulderSwitch }) + (grid === "compact" ? compactGridNote({ boulderSwitch }) : grid === "narrow" ? NARROW_GRID_NOTE : ""),
     schema: {
-      full: z.boolean().optional().describe("Whole current map instead of the screen"),
+      full: z.boolean().optional().describe("The current map as far as you've seen it, instead of the screen"),
       legend: z.boolean().optional().describe("Add what each symbol on this map means to the result"),
     },
     run: mapResult,
@@ -305,7 +305,7 @@ const DEFINITIONS = {
     title: "Exit map",
     description:
       "Walk to this map's edge in a direction and cross into the connected map. " +
-      "Pathfinds over the whole map. Fails if the map has no exit that way (then look for a door D).",
+      "Pathfinds over the map as far as you've seen it; with no seen way, tries one through unseen squares (not in the dark). Fails if the map has no exit that way (then look for a door D).",
     schema: { show_map: SHOW_MAP, direction: z.enum(["up", "down", "left", "right"]), trainers: TRAINERS },
     run: moveAction("exit_map"),
   },
@@ -381,7 +381,7 @@ const DEFINITIONS = {
 
   fight_trainer: {
     title: "Fight a trainer",
-    description: "Walk up to the trainer at (x, y), talk, and play through the intro to the battle menu.",
+    description: "Walk up to the trainer at (x, y) (map coordinates, as get_map shows them), talk, and play through the intro to the battle menu. Not in the dark: trainers can't be seen there.",
     schema: { x: z.number().int(), y: z.number().int() },
     run: action("fight_trainer"),
   },
