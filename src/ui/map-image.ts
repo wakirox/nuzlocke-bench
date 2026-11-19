@@ -51,7 +51,8 @@ const DARK_ROW = /^[#.,?D@]( [#.,?D@])*$/;
 
 const ROW = /^y\s*-?\d+(?:--?\d+)? /;
 const ROW_TAG = /^y\s*(-?\d+)(?:-(-?\d+))? +/;
-const HEADER = /^ {5}[ \d-]+$/;
+// The narrow header since 2026-11-19 starts with an "x" row (format.mjs narrowHeader).
+const HEADER = /^(?: {5}[ \d-]+|x {2,}[ \d-]+)$/;
 
 interface Grid { cells: string[][]; ys: number[]; x0: number; start: number; end: number; dark?: boolean; cliffs?: Cliff[] }
 
@@ -129,6 +130,8 @@ function codedGrid(lines: string[]): Grid | null {
   let x0 = 0;
   const numbers = head.length === 1 ? head[0].trim().split(/\s+/) : [];
   if (numbers.length === cells[0].length && numbers.every((n) => /^-?\d+$/.test(n))) x0 = Number(numbers[0]);
+  // Since 2026-11-19: an "x" row whose first number is the first column's x.
+  else if (head[0]?.startsWith("x")) x0 = Number(/-?\d+/.exec(head[0])?.[0] ?? 0);
   else if (head.length) {
     // The first column read top to bottom: a - (in a sign row, or in the tens row) and its digits.
     const col = head[head.length - 1].search(/\d/);

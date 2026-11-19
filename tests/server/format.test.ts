@@ -170,12 +170,22 @@ describe("battle notes", () => {
 
 describe("narrow grids", () => {
   it("put one space between squares and the x header in two rows, leaving other lines alone", () => {
+    // The "x" row: the first column's whole x and every multiple of 5, each ending over its column;
+    // under it, each column's last digit.
     const wide = ["Map exits: up.", "       8  9 10 11", "y  6   .  @  #  \"", "y  7   T  .  .  !", "Doors (D): (9,7) → HOUSE."].join("\n");
-    expect(narrowGrids(wide)).toBe(["Map exits: up.", "          1 1", "      8 9 0 1", "y  6  . @ # \"", "y  7  T . . !", "Doors (D): (9,7) → HOUSE."].join("\n"));
+    expect(narrowGrids(wide)).toBe(["Map exits: up.", "x     8  10", "      8 9 0 1", "y  6  . @ # \"", "y  7  T . . !", "Doors (D): (9,7) → HOUSE."].join("\n"));
   });
 
-  it("skip the tens row when every x is one digit, and mark negative columns", () => {
-    expect(narrowGrids("      -1  0  1\ny  0   #  @  .")).toBe("      -    \n      1 0 1\ny  0  # @ .");
+  it("writes negative columns whole on the x row, and the last digit under them", () => {
+    // 0 a column after -1: one space between them is enough.
+    expect(narrowGrids("      -1  0  1\ny  0   #  @  .")).toBe("x    -1 0\n      1 0 1\ny  0  # @ .");
+  });
+
+  it("leaves out a multiple of 5 that would touch the number before it", () => {
+    // -6 is the first column; -5 next to it would read as "-6-5": the next whole number is 0.
+    const xs = [-6, -5, -4, -3, -2, -1, 0, 1];
+    const wide = `     ${xs.map((x) => String(x).padStart(3)).join("")}\ny  0 ${xs.map(() => "  .").join("")}`;
+    expect(narrowGrids(wide).split("\n").slice(0, 2)).toEqual(["x    -6           0", "      6 5 4 3 2 1 0 1"]);
   });
 });
 
@@ -405,15 +415,16 @@ describe("legendFor", () => {
 describe("grids with negative x (0.3.0: coordinates count from where the run arrived)", () => {
   const map = (x0: number) => renderView({ grid: [[..."#.@."], [..."...."]], originX: x0, originY: -1, pc: 2, pr: 0 });
 
-  it("narrow: a - in the tens row while x stays above -10, as before", () => {
+  it("narrow: negative x written whole on the x row, the last digit under each column", () => {
     const lines = narrowGrids(map(-3)).split("\n");
-    expect(lines.slice(0, 2)).toEqual(["      - - -  ", "      3 2 1 0"]);
+    expect(lines.slice(0, 2)).toEqual(["x    -3     0", "      3 2 1 0"]);
     expect(lines[2]).toBe("y -1  # . @ .");
   });
 
-  it("narrow: a sign row over the tens and ones once x goes below -9", () => {
+  it("narrow: two-digit negative x the same way, -10 as a multiple of 5", () => {
     const lines = narrowGrids(map(-11)).split("\n");
-    expect(lines.slice(0, 3)).toEqual(["      - - - -", "      1 1    ", "      1 0 9 8"]);
+    // -11 is the first column: -10 next to it would touch it, so it's left out.
+    expect(lines.slice(0, 2)).toEqual(["x   -11", "      1 0 9 8"]);
   });
 
   it("wide: the bridge widens the columns so an x of three characters doesn't run into the next", () => {
@@ -432,9 +443,7 @@ describe("grids with negative x (0.3.0: coordinates count from where the run arr
     expect(lines[1]).toBe("y-100     #    .    @");
     expect(lines[2]).toBe("y -99     .    .    .");
     expect(narrowGrids(far).split("\n")).toEqual([
-      "       - - -",
-      "       1 1  ",
-      "       0 0 9",
+      "x   -101",
       "       1 0 9",
       "y-100  # . @",
       "y -99  . . .",
