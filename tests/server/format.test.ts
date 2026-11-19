@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGridNote, compactGrids, createFormatter, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences, wideGrids } from "../../mcp-server/format.mjs";
-import { renderView } from "../../src/bridge/overworld";
+import { COMPACT_GRID_NOTE, MAP_LEGEND, NAMING_HINT, compactGridNote, compactGrids, createFormatter, darkStepLabels, hideEffectiveness, mapLegend, mapOnRequest, json, legendFor, narrowGrids, plainErrorScreen, plainScreen, screenText, sentences, wideGrids } from "../../mcp-server/format.mjs";
+import { renderDarkView, renderView, type OverworldView } from "../../src/bridge/overworld";
 
 const SCREEN = ["┌──────────────────┐", "│Wild BASEMON      │", "│appeared!         │", "└──────────────────┘"];
 const text = (r: { content: { text: string }[] }) => r.content[0].text;
@@ -399,5 +399,40 @@ describe("legendFor", () => {
     const dark = "It's dark.\n? ? ?\n? @ ?\n? ? ?";
     expect(narrowGrids(dark, { points: true })).toBe(dark);
     expect(wideGrids(dark, { points: true })).toBe(dark);
+  });
+});
+
+describe("darkStepLabels (NUZLOCKE_DARK_STEPS)", () => {
+  // The dark tunnel around the player as a run saw it (tests/bridge/dark.test.ts), at made-up coordinates.
+  const real = ["##########", "##########", "#..##...#.", "#..######.", "#..#@...#.", "#..#.D..#.", "#..#....#.", "####....##", "#........."];
+  const lit = ["..........", "..........", "xxx.xxxxxx", "xxx.xxxxxx", "xxx.....xx", "xxx..x..xx", "xxx.....xx", "xxxx....xx", "xx........"].map((r) => [...r].map((ch) => ch === "x"));
+  const dark = renderDarkView({ grid: real, pc: 4, pr: 4, originX: 37, originY: 23 } as unknown as OverworldView, lit);
+
+  it("labels rows U4..0..D4 and columns L4..0..R5 around @, as walk takes steps, and keeps every square", () => {
+    const out: string[] = darkStepLabels(dark).split("\n");
+    const before = dark.split("\n");
+    expect(out[0]).toBe(`${before[0]} Rows and columns are labelled with the steps from you, as walk takes them (U2 R3 is 2 up, then 3 right).`);
+    expect(out[1]).toBe("   L4 L3 L2 L1  0 R1 R2 R3 R4 R5");
+    expect(out.slice(2).map((l) => l.slice(0, 3).trim())).toEqual(["U4", "U3", "U2", "U1", "0", "D1", "D2", "D3", "D4"]);
+    // The same squares, row by row, just three columns apart.
+    expect(out.slice(2).map((l) => l.slice(3).trim().split(/ +/).join(" "))).toEqual(before.slice(1));
+    expect(out[6]).toBe("0   #  .  .  #  @  ?  ?  ?  #  .");
+    // Still no coordinates: nothing of where the player is (41,27) or of the screen's corner (37,23).
+    expect(out.join("\n")).not.toMatch(/41|27|37|23/);
+  });
+
+  it("counts from @ wherever it is in the grid", () => {
+    const v = { grid: ["...", ".@.", "..."], pc: 1, pr: 1, originX: 0, originY: 0 } as unknown as OverworldView;
+    const out: string[] = darkStepLabels(renderDarkView(v, [[true, true, true], [true, true, true], [true, true, true]])).split("\n");
+    expect(out.slice(1)).toEqual(["   L1  0 R1", "U1  .  .  .", "0   .  @  .", "D1  .  .  ."]);
+  });
+
+  it("leaves lit maps and other text alone", () => {
+    const litMap = renderView({ grid: [[..."#.@."]], originX: 0, originY: 0, pc: 2, pr: 0 });
+    expect(darkStepLabels(litMap)).toBe(litMap);
+    const notADarkView = "It's dark.\n? ? ?\n? @ ?\n? ? ?";
+    expect(darkStepLabels(notADarkView)).toBe(notADarkView);
+    // A line after the grid that isn't one of its rows stays as it was.
+    expect(darkStepLabels(`${dark}\nA`).split("\n").at(-1)).toBe("A");
   });
 });

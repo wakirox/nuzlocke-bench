@@ -52,6 +52,8 @@ const BRIDGE_OPTIONS = {
 };
 // Coordinate lists for seen points under the map (and bottom x header on tall maps), off until an A/B decides.
 const MAP_POINTS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_MAP_POINTS ?? "");
+// Labelling the dark view's rows and columns with the steps from the player (U2, R3), off until an A/B decides.
+const DARK_STEPS = /^(1|true|yes|on)$/i.test(process.env.NUZLOCKE_DARK_STEPS ?? "");
 // Action results leave out the area's map: get_map shows it, and a moving tool does with show_map
 // (an A/B on 2026-11-07 found no difference in play at ~10% fewer tokens; the model asks when it needs one).
 // Results say how effective each move is against the foe only in the hints group: it's the answer to
@@ -232,6 +234,7 @@ const wrapLog = createToolLogger({
     maps: "ask",
     effectiveness: HIDE_EFFECTIVENESS ? "off" : "on",
     ...(MAP_POINTS ? { mapPoints: true } : {}),
+    ...(DARK_STEPS ? { darkSteps: true } : {}),
     ...optionsConfirmed,
     ...(optionsError ? { optionsError } : {}),
   }),
@@ -252,6 +255,7 @@ registerTools(server, {
   reportIssue: REPORT_ISSUE,
   grid: GRID_MODE,
   mapPoints: MAP_POINTS,
+  darkSteps: DARK_STEPS,
   hideEffectiveness: HIDE_EFFECTIVENESS,
   boulderSwitch: BOULDER_SWITCH,
   rulesetIds: RULESET_IDS,

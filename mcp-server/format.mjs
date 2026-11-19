@@ -379,6 +379,44 @@ export function wideGrids(text, { points = false } = {}) {
   return lines.join("\n");
 }
 
+const DARK_HEADER = /^It's dark: /;
+/** A dark view's row: single-square symbols, one space apart (renderDarkView). */
+const DARK_ROW = /^\S(?: \S)*$/;
+const DARK_STEPS_NOTE = "Rows and columns are labelled with the steps from you, as walk takes them (U2 R3 is 2 up, then 3 right).";
+
+/**
+ * Dark steps (NUZLOCKE_DARK_STEPS=1): labels the dark view's rows and columns with the steps from
+ * the player in walk's own terms (U2 … 0 … D2, L2 … 0 … R3), so a walk is read off the labels
+ * instead of counted across rows of `? ? ?`. They count from the player, not from the map's corner: still
+ * no coordinates, so nothing about where the player is.
+ */
+export function darkStepLabels(text) {
+  const lines = text.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (!DARK_HEADER.test(lines[i])) continue;
+    const width = lines[i + 1]?.length;
+    const rows = [];
+    let j = i + 1;
+    for (; j < lines.length && lines[j].length === width && DARK_ROW.test(lines[j]); j++) rows.push(lines[j].split(" "));
+    const pr = rows.findIndex((r) => r.includes("@"));
+    if (pr < 0) continue;
+    const pc = rows[pr].indexOf("@");
+    const steps = (d, back, ahead) => (d < 0 ? `${back}${-d}` : d > 0 ? `${ahead}${d}` : "0");
+    const colLabels = rows[0].map((_, c) => steps(c - pc, "L", "R"));
+    const rowLabels = rows.map((_, r) => steps(r - pr, "U", "D"));
+    const cw = Math.max(...colLabels.map((l) => l.length)) + 1;
+    const rw = Math.max(...rowLabels.map((l) => l.length));
+    const out = [
+      `${lines[i]} ${DARK_STEPS_NOTE}`,
+      " ".repeat(rw) + colLabels.map((l) => l.padStart(cw)).join(""),
+      ...rows.map((r, k) => rowLabels[k].padEnd(rw) + r.map((ch) => ch.padStart(cw)).join("")),
+    ];
+    lines.splice(i, j - i, ...out);
+    i += out.length - 1;
+  }
+  return lines.join("\n");
+}
+
 const NO_TEXT = /^\(No text on screen/;
 const BATTLE_MENU = [/FIGHT\W*PKMN/, /ITEM\W*RUN/];
 

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { BATCH_TOOLS, FINAL_READ_TOOLS, TOOL_CATALOG, stepToolError } from "./tool-catalog.mjs";
 import { normalizeStep, runBatch, stepSummary } from "./batch.mjs";
 import { UNCOUNTED_RESULT, withCallBudget } from "./call-budget.mjs";
-import { NARROW_GRID_NOTE, compactGridNote, compactGrids, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText, wideGrids } from "./format.mjs";
+import { NARROW_GRID_NOTE, compactGridNote, compactGrids, darkStepLabels, hideEffectiveness as stripEffectiveness, json, legendFor, mapLegend, narrowGrids, pickSections, plainErrorScreen, screenText, wideGrids } from "./format.mjs";
 import { applyPreset } from "./benchmark.mjs";
 import { entriesOf, NOTES_MAX, numbered, updateNotes } from "./notes.mjs";
 import { hintState, nextHint } from "./hints.mjs";
@@ -603,6 +603,7 @@ export function registerTools(server, {
   reportIssue = true,
   grid = /** @type {"wide" | "narrow" | "compact"} */ ("narrow"),
   mapPoints = false,
+  darkSteps = false,
   hideEffectiveness = true,
   boulderSwitch = false,
   rulesetIds = ["nuzlocke"],
@@ -618,7 +619,8 @@ export function registerTools(server, {
       : grid === "narrow"
         ? narrowGrids(text, { points: mapPoints })
         : wideGrids(text, { points: mapPoints });
-    return hideEffectiveness ? stripEffectiveness(t) : t;
+    const d = darkSteps ? darkStepLabels(t) : t;
+    return hideEffectiveness ? stripEffectiveness(d) : d;
   };
   const narrow = (r) => ({ ...r, content: r.content.map((c) => (c.type === "text" ? { ...c, text: shown(c.text) } : c)) });
 

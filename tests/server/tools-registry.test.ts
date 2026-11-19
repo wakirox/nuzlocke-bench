@@ -132,6 +132,29 @@ describe("tool catalog and registry", () => {
     expect(text).not.toContain("# blocked");
   });
 
+  it("labels the dark view's steps from the player only with darkSteps on, leaving the bridge's text as it was otherwise", async () => {
+    const dark = "It's dark: you see only some squares. # rock, . floor, , lower floor (a cliff between it and .), D ladder; ? is dark: rock or floor you can't see. You are at @.\n? # . #\n? # @ #\n? # . ?";
+    const getMap = async (darkSteps: boolean) => {
+      const server = fakeServer();
+      registerTools(server, {
+        call: async () => ({ status: { location: "AREA_1", battle: "none" }, map: dark, screenText: [] }),
+        link: { waitForReload: async () => {} },
+        autoStart: { pending: () => null },
+        formatter: createFormatter({ mapsOnRequest: true }),
+        notes: { read: () => "", write: () => {} },
+        wrapLog: (_n: string, h: Handler) => h,
+        darkSteps,
+      });
+      const res = await server.tools.get("get_map")!({});
+      return res.content.map((c) => c.text).join("\n");
+    };
+    const off = await getMap(false);
+    expect(off).toContain(dark);
+    expect(off).not.toContain("labelled with the steps");
+    const on = await getMap(true);
+    expect(on).toContain("   L2 L1  0 R1\nU1  ?  #  .  #\n0   ?  #  @  #\nD1  ?  #  .  ?");
+  });
+
   it("does not duplicate Points when both grid=compact and mapPoints=true are enabled", async () => {
     const map = [
       "       0  1  2  3  4  5",

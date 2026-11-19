@@ -127,6 +127,8 @@ describe("dashboardRuns", () => {
     expect(off({ mapPoints: true }, {}).notOfficial).toBe("map points shown");
     expect(off({}, { trainerFacing: true }).notOfficial).toBe("trainer facing shown");
     expect(off({ trainerFacing: true }, {}).notOfficial).toBe("trainer facing shown");
+    expect(off({}, { darkSteps: true }).notOfficial).toBe("dark steps shown");
+    expect(off({ darkSteps: true }, {}).notOfficial).toBe("dark steps shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
     expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");
