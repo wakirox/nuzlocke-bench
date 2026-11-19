@@ -149,9 +149,11 @@ describe("walk_to through the fog", () => {
     const row1 = errText.split("\n").find((l) => l.trimStart().startsWith("y  1")) ?? "";
     const cells = row1.trim().replace(/^y\s+\d+\s+/, "").split(/\s+/);
     // Seen part of the sealed patch (x=5, 6) shows as '#'; unseen part (x=7, 8, 9) must stay '?'.
-    expect(cells[5]).toBe("#");
+    // The first cell is the ring of '?' at x=-1 (seenPart).
+    expect(cells[0]).toBe("?");
     expect(cells[6]).toBe("#");
-    expect(cells.slice(7, 10)).toEqual(["?", "?", "?"]);
+    expect(cells[7]).toBe("#");
+    expect(cells.slice(8, 11)).toEqual(["?", "?", "?"]);
   });
 });
 
@@ -185,7 +187,7 @@ describe("exit_map through the fog", () => {
     seen.sawScreen(MAP, 5, 8);
     const { core, travel } = fakeWorld(TOWER, [5, 8], seen, { exits: [], doors: [] });
     const r = (await travel.exitMap("down")) as { walk: string };
-    expect(r.walk.startsWith("no door in sight yet, so heading down")).toBe(true);
+    expect(r.walk.startsWith("no door in sight yet down of you, so heading down")).toBe(true);
     expect(core.host.position().y).toBeGreaterThan(8);
   });
 });
@@ -232,9 +234,19 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     seen.sawScreen(MAP, 5, 2);
     const { core, travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: DOORS });
     const r = (await travel.exitMap("down")) as { walk: string };
-    expect(r.walk).toContain("no door in sight yet, so heading down");
+    expect(r.walk).toContain("no door in sight yet down of you, so heading down");
     expect(r.walk).toContain("; then no edge exits here, so out through the door at (5, 8) to VIRIDIAN_POKECENTER");
     expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
+  });
+
+  it("doesn't go back out the door behind you when asked the other way (a forest came into from the south)", async () => {
+    // The door the player came in by is right below; above is unseen. exit_map up used to take that door.
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 5, 7);
+    const { core, travel } = fakeWorld(ROOM, [5, 7], seen, { exits: [], doors: DOORS });
+    const r = (await travel.exitMap("up")) as { walk: string };
+    expect(r.walk).toMatch(/^no door in sight yet up of you, so heading up/);
+    expect(core.host.position().y).toBeLessThan(7);
   });
 
   it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
@@ -257,7 +269,7 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     seen.sawScreen(MAP, 5, 2);
     const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: [] });
     const r = (await travel.exitMap("down")) as { walk: string };
-    expect(r.walk.startsWith("no door in sight yet, so heading down")).toBe(true);
+    expect(r.walk.startsWith("no door in sight yet down of you, so heading down")).toBe(true);
     expect(r.walk).not.toContain("; then");
   });
 

@@ -4,7 +4,7 @@
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { Travel } from "../../src/bridge/travel";
-import type { BridgeCore } from "../../src/bridge/bridge-core";
+import { BridgeCore } from "../../src/bridge/bridge-core";
 import type { Menus } from "../../src/bridge/menus";
 
 beforeAll(() => vi.stubGlobal("document", { hidden: true }));
@@ -46,8 +46,10 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     // The fog of war's memory is not what these walks are about: nothing to remember here.
     noteSeen: () => {},
     result: (r: object) => ({ ...r }),
+    // The real wait for a move to end (and a warp to load), on this world's frames.
+    settleMove: BridgeCore.prototype.settleMove,
   } as unknown as BridgeCore;
-  return { travel: new Travel(core, {} as Menus), pos, frames: () => frame };
+  return { travel: new Travel(core, {} as Menus), core, pos, frames: () => frame };
 }
 
 const walk = async (t: Travel, path: string) => ((await t.walkPath(path)) as { walk: string }).walk;
@@ -92,6 +94,35 @@ describe("walk: when the player stops moving", () => {
     expect(await walk(travel, "up 2")).toBe("up 2/2 — stopped: entered a new map");
     expect(pos.map).toBe(2);
     expect(frames() - arrivedAt).toBeGreaterThanOrEqual(120);
+  });
+
+  it("waits for a warp's new coordinates, which come in after its map id (press through a door)", async () => {
+    // As a gym's exit: the city's map id at once, the city's square 60 frames later (the fade).
+    const { core, pos } = setup({ wallAt: 0, tick: (f, p) => { if (f === 2) p.map = 2; if (f === 60) [p.x, p.y] = [12, 28]; } });
+    expect(await core.settleMove(1)).toBe(true);
+    expect([pos.map, pos.x, pos.y]).toEqual([2, 12, 28]);
+    // Nothing changed: it only waits for the player to stand still.
+    expect(await core.settleMove(2)).toBe(false);
+  });
+
+  it("stops on each poison hit until the model acks that Pokémon's poison, and again once it's cured", async () => {
+    // Gen 1: WINGS loses 1 HP every 4 squares walked while poisoned.
+    const { travel, core, pos } = setup({ wallAt: -40 });
+    let cured = false;
+    const poisoned = () => new Map(cured ? [] : [["w1", { slot: 0, hp: 30 - Math.floor((10 - pos.y) / 4), maxHp: 40 }]]);
+    Object.assign(core, {
+      game: { data: { poisonFaintsWhileWalking: true }, poisonedParty: poisoned },
+      summary: () => ({ party: [{ nickname: "WINGS", species: "MONA" }] }),
+    });
+    expect(await walk(travel, "up 8")).toMatch(/^up 4\/8 — stopped: WINGS is hurt by poison \(30→29\/40 HP; ack_poison/);
+    expect(() => travel.ackPoison("PIP")).toThrow(/No party Pokémon "PIP"/);
+    travel.ackPoison("wings");
+    expect(await walk(travel, "up 8")).toBe("up 8/8 — arrived"); // two hits on the way, no stop
+    cured = true;
+    expect(() => travel.ackPoison("1")).toThrow(/WINGS isn't poisoned/);
+    expect(await walk(travel, "up 1")).toBe("up 1/1 — arrived"); // the ack lapses: it was cured
+    cured = false;
+    expect(await walk(travel, "up 8")).toMatch(/stopped: WINGS is hurt by poison/);
   });
 
   it("gives up waiting on a scene after 30 s and says it's still going", async () => {

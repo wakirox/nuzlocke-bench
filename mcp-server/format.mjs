@@ -191,7 +191,7 @@ export function plainErrorScreen(text) {
 }
 
 /** With narrow grids (the default), said once in get_map's description. */
-export const NARROW_GRID_NOTE = " The x header is two rows, tens above ones (with a hundreds row above them for x of 100 or more, and a sign row on top when x goes below -9): read each column top to bottom; a - above the digits is a negative x.";
+export const NARROW_GRID_NOTE = " The x header is two rows: the x row gives the whole x of the first column and of every multiple of 5, each number ending over its column; under it is each column's last digit. Count from the nearest whole number (never more than 4 columns away).";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
 export function compactGridNote({ boulderSwitch = false } = {}) {
@@ -327,9 +327,34 @@ export function compactGrids(text) {
 }
 
 /**
+ * The narrow grid's x header, two rows indented like the row labels ("y  5 "): an "x" row with
+ * the whole x of the first column and of every multiple of 5, each ending over its column, and
+ * under it each column's last digit. Any column is then at most 4 from a whole number. Until
+ * 2026-11-19 it was each column's digits stacked in rows (sign, hundreds, tens, ones), read top
+ * to bottom: models doubted their reading by a column or two and took screenshots to check.
+ */
+export function narrowHeader(xs, indent) {
+  // Column c's digit is at indent + 2c + 1.
+  const at = (c) => indent + 2 * c + 1;
+  const label = [..."x".padEnd(at(xs.length - 1) + 1)];
+  let lastEnd = -1;
+  xs.forEach((x, c) => {
+    if (c > 0 && x % 5 !== 0) return;
+    const s = String(x);
+    const start = at(c) - s.length + 1;
+    // A gap of one space at least, so two numbers never read as one.
+    if (start <= lastEnd + 1) return;
+    for (let k = 0; k < s.length; k++) label[start + k] = s[k];
+    lastEnd = at(c);
+  });
+  const ones = " ".repeat(indent) + xs.map((x) => ` ${Math.abs(x) % 10}`).join("");
+  return [label.join("").trimEnd(), ones];
+}
+
+/**
  * The narrow grid: one space between squares instead of two. A square stays its own token (no
  * spaces at all would merge runs like "....." into one), at ~40% fewer tokens per map. The x
- * header becomes two rows, tens above ones, so it fits the narrower columns. With `points: true`
+ * header becomes two rows (narrowHeader) to fit the narrower columns. With `points: true`
  * (NUZLOCKE_MAP_POINTS=1), tall maps repeat the x header at the bottom and add the shared `Points:` line.
  */
 export function narrowGrids(text, { points = false } = {}) {
@@ -338,18 +363,7 @@ export function narrowGrids(text, { points = false } = {}) {
     const parsed = parseWideGrid(lines, i);
     if (!parsed) continue;
     const { xs, rawRows, end: j } = parsed;
-    // Coordinates count from where the run arrived (0.3.0), so x can be -10 or less: then the sign
-    // gets its own row on top. Without such an x, a - sits in the tens row as before. A hundreds
-    // row comes in only for an x of 100 or more either way (a tall or wide map).
-    const signRow = xs.some((x) => x <= -10);
-    const digit = (x, place) => (Math.abs(x) >= place ? Math.floor(Math.abs(x) / place) % 10 : " ");
-    const sign = signRow ? xs.map((x) => ` ${x < 0 ? "-" : " "}`).join("") : "";
-    const hundreds = xs.some((x) => Math.abs(x) >= 100) ? xs.map((x) => ` ${digit(x, 100)}`).join("") : "";
-    const tens = xs.map((x) => ` ${!signRow && x < 0 ? "-" : digit(x, 10)}`).join("");
-    const ones = xs.map((x) => ` ${Math.abs(x) % 10}`).join("");
-    // Indented like the row labels ("y  5 " or, past -99, "y-100 ").
-    const pad = " ".repeat(rawRows[0].prefix.length);
-    const header = [sign, hundreds, tens.trim() ? tens : ""].filter(Boolean).map((row) => pad + row).concat(pad + ones);
+    const header = narrowHeader(xs, rawRows[0].prefix.length);
     const out = [
       ...header,
       ...rawRows.map((row) => row.prefix + row.cells.map((ch) => ` ${ch}`).join("")),

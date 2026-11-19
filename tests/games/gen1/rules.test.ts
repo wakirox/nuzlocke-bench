@@ -16,8 +16,7 @@ describe("Gen 1 Nuzlocke quirks", () => {
 
   it("records each trainer battle: both teams as it began, and how it went", () => {
     const run = new Run(game).goTo(game.places.route)
-      .trainerBattle(SPECIES.WILD_A, 12)
-      .poll({ enemyTrainer: { trainerClass: 0x22, number: 1, party: [{ species: SPECIES.WILD_A, level: 12, hp: 30 }] } })
+      .trainerBattle(SPECIES.WILD_A, 12, { trainerClass: 0x22, number: 1 })
       .endBattle();
     const [fight] = run.engine.snap.trainerFights ?? [];
     expect(fight).toMatchObject({ trainerClass: 0x22, number: 1, badges: 0, result: "won", died: [] });

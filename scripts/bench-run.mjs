@@ -90,7 +90,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
                        (mcp-server/observers.mjs); recorded with the run, which stays official
   --grid <compact|wide>  map grid format: compact (5-square blocks), wide (two spaces), or narrow (default)
   --boulder-switch [on|off]  show a boulder on a previously seen uncovered floor switch as b (Gen 1 only; default: off; carried on --resume)
-  --map-points [on|off]  list coordinates of seen items, Cut trees, things to read or use, PCs, clerks, nurses, boulders, switches and holes under the map and repeat the x header at the bottom of tall maps (default: off; bare --map-points means on)
+  --map-points [on|off]  list coordinates of seen items, Cut trees, things to read or use, PCs, clerks, nurses, boulders, switches and holes under the map and repeat the x header at the bottom of tall maps (default: on with -o hints, off otherwise; bare --map-points means on)
   --trainer-facing     say which way on-screen trainers face on the Trainers (T) line (default: off)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
@@ -209,13 +209,14 @@ if (boulderSwitchVal !== "on" && boulderSwitchVal !== "off") {
   process.exit(1);
 }
 const boulderSwitch = boulderSwitchVal === "on";
-const rawMapPoints = opt("map-points", "off");
+// Not given: the server decides (on in the hints group only).
+const rawMapPoints = opt("map-points", null);
 const mapPointsVal = rawMapPoints === true ? "on" : rawMapPoints;
-if (mapPointsVal !== "on" && mapPointsVal !== "off") {
+if (mapPointsVal != null && mapPointsVal !== "on" && mapPointsVal !== "off") {
   console.error("--map-points takes on or off.");
   process.exit(1);
 }
-const mapPoints = mapPointsVal === "on";
+const mapPoints = mapPointsVal == null ? undefined : mapPointsVal === "on";
 const trainerFacing = argv.includes("--trainer-facing");
 
 // Driver workspace & CLI checks run before creating the run folder so refused setups leave runs/ clean.

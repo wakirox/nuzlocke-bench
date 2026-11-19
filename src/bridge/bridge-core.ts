@@ -234,6 +234,29 @@ export class BridgeCore {
     return this.screenText().slice(top, bottom + 1);
   }
 
+  /**
+   * Lets a move end before its result is read: the player stops moving (a step, a ledge hop, the
+   * step out of a door), and when the map has changed since `fromMap`, the warp finishes loading.
+   * Its new map id shows before the new map's coordinates and screen are in: read then, a press
+   * through a gym's door put the gym's square on the city (2026-11-19). True when the map changed.
+   */
+  async settleMove(fromMap: number): Promise<boolean> {
+    const gb = this.requireGb();
+    const still = async () => {
+      for (let i = 0, n = 0; i < 60 && n < 12 && !this.host.position().battle; i++) {
+        const before = this.host.position();
+        await gb.runFrames(2, 2);
+        const after = this.host.position();
+        n = before.x === after.x && before.y === after.y ? n + 2 : 0;
+      }
+    };
+    await still();
+    if (this.host.position().map === fromMap) return false;
+    await gb.runFrames(120);
+    await still();
+    return true;
+  }
+
   /** Lets letter-by-letter printing finish: waits until the screen stops changing. */
   async settledScreen(): Promise<string[]> {
     const gb = this.requireGb();

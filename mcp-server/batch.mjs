@@ -63,7 +63,9 @@ export function stopReason(r, step = null) {
   if (r.crashed) return "the game crashed";
   if (r.saveWarning) return "autosave is failing";
   if (s.battle && s.battle !== "none") return "in battle";
-  if (r.stopped) return `the step stopped early (${r.stopped})`;
+  // "No text on screen" is how text ends when it's all been read (a battle run from, a talk over):
+  // nothing is left to decide, so the next step goes on (a do after choose RUN stopped there, 2026-11-19).
+  if (r.stopped && !/^no text on screen/.test(r.stopped)) return `the step stopped early (${r.stopped})`;
   // The next steps were planned from where this one should have ended.
   const short = walkCutShort(r.walk);
   if (short) return `the walk stopped short (${short})`;

@@ -24,6 +24,17 @@ describe("cliffsOf", () => {
     expect(grid?.x0).toBe(10);
   });
 
+  it("reads the narrow header's x row (since 2026-11-19), negative and past -99 too", () => {
+    for (const [x0, y0] of [[-8, -7], [3, 0], [-101, -100]]) {
+      const text = narrowGrids(renderView({ grid: [[..."#.@.#.#"], [..."......."]], originX: x0, originY: y0, pc: 2, pr: 0 }));
+      const grid = findGrid(text.split("\n"))!;
+      expect(grid.x0).toBe(x0);
+      expect(grid.ys).toEqual([y0, y0 + 1]);
+      expect(grid.cells[0].join("")).toBe("#.@.#.#");
+      expect(grid.start).toBe(0);
+    }
+  });
+
   it("parses compact 5-square-block maps, expanding collapsed rows, bottom rulers and shorter Cliffs", () => {
     const lines = [
       "Map exits: up.",

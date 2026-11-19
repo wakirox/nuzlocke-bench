@@ -248,6 +248,8 @@ export class AiBridge {
       }
       case "fight":
         return this.battle.fight(p.move as string | number);
+      case "ack_poison":
+        return this.travel.ackPoison(String(p.pokemon ?? ""));
       case "wait": {
         await this.core.requireGb().runFrames(clamp(Number(p.frames) || 60, 1, 3600), 8);
         return this.core.result({});
@@ -305,6 +307,7 @@ export class AiBridge {
     const tokens = raw.map((t) => t.trim().toLowerCase()).filter(Boolean);
     if (!tokens.length) throw new Error("No buttons given.");
     if (tokens.length > 64) throw new Error("At most 64 inputs per call.");
+    const fromMap = this.core.host.position().map;
 
     for (const token of tokens) {
       const wait = token.match(/^wait[:=]?(\d+)$/);
@@ -338,17 +341,15 @@ export class AiBridge {
         else await this.core.tap(buttons, hold, gap);
       }
     }
+    // A press through a door: the new map loads before anything is read (its id shows first).
+    if (this.core.host.position().map !== fromMap) await this.core.settleMove(fromMap);
     // Outside battle and menus a player sees what the press did: the map answers that here too.
     const quiet = this.core.host.position().inWorld !== false && !this.core.host.position().battle
       && !this.core.textBox(this.core.screenText()).open && !this.core.screenText().some((l) => l.includes("▶"));
     if (!quiet) return this.core.result({});
-    // A step or a boulder push is still under way when the buttons are let go: report where it ends.
-    for (let i = 0, still = 0; i < 60 && still < 12 && !this.core.host.position().battle; i++) {
-      const before = this.core.host.position();
-      await gb.runFrames(2, 2);
-      const after = this.core.host.position();
-      still = before.x === after.x && before.y === after.y ? still + 2 : 0;
-    }
+    // A step or a boulder push is still under way when the buttons are let go: report where it
+    // ends, on the new map if that step was onto a door.
+    await this.core.settleMove(this.core.host.position().map);
     return this.core.result(this.core.host.position().battle ? {} : { map: this.core.mapText() });
   }
 

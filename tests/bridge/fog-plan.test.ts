@@ -67,6 +67,7 @@ describe("hunt on a fogged map", () => {
       view: () => ({ grid: seen, originX: 0, originY: 0, pc: 0, pr: 0, beyond: () => "." }),
       rawView: () => ({ grid: raw, originX: 0, originY: 0, pc: 0, pr: 0 }),
       sight: () => ({ avoidSight: false }),
+      dark: () => false,
       textBox: () => ({ open: false }),
       screenText: () => [],
       mapText: () => "map",
@@ -79,6 +80,59 @@ describe("hunt on a fogged map", () => {
     // The grass at (1,0) is on the whole map, but not in what's been seen: nothing to pace yet.
     const travel = onMap([["@", '"']], [["@", "?"]]);
     await expect(travel.hunt(10)).rejects.toThrow(/No tall grass seen yet/);
+  });
+
+  it("says walls or ledges are in the way, not a trainer's sight, when the grass can't be walked to", async () => {
+    // Grass behind a wall, no trainer anywhere (it used to blame a trainer's sight, 2026-11-19).
+    const grid = [["@", "#", '"', '"']];
+    await expect(onMap(grid, grid).hunt(10)).rejects.toThrow(/can be walked to from here: walls or one-way ledges are in the way/);
+  });
+
+  it("walks to seen grass through unseen squares when no seen way gets there, as walk_to does", async () => {
+    // The grass at (3,0) and (4,0) is seen; the only way there is through the unseen (1,0) and (2,0).
+    const travel = onMap([["@", ".", ".", '"', '"']], [["@", "?", "?", '"', '"']]);
+    const t = travel as unknown as Record<string, unknown>;
+    const to: [number, number][] = [];
+    t.walkTo = vi.fn(async (x: number, y: number) => { to.push([x, y]); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(to).toEqual([[3, 0]]);
+  });
+
+  it("blames a trainer's sight when the only way, through unseen squares, crosses it", async () => {
+    // The grass at (3,0) is reached only through the unseen (1,0) and the watched (2,0).
+    const travel = onMap([["@", ".", ".", '"', '"']], [["@", "?", ".", '"', '"']]);
+    const core = (travel as unknown as { core: Record<string, unknown> }).core;
+    const view = core.view as () => Record<string, unknown>;
+    core.view = () => ({ ...view(), watched: new Set([2]), watchers: new Map([[2, [[9, 9]]]]) });
+    core.sight = () => ({ avoidSight: true });
+    await expect(travel.hunt(10)).rejects.toThrow(/trainer's sight/);
+  });
+
+  it("goes on past the nearest grass it can't reach to grass it can", async () => {
+    // Fourteen pairs of grass shut in behind a wall are nearer than the two it can reach along the top.
+    const grid = [
+      ["@", ...Array<string>(20).fill("."), '"', '"'],
+      Array<string>(23).fill("#"),
+      ["#", ...Array<string>(14).fill('"'), ...Array<string>(8).fill("#")],
+    ];
+    const travel = onMap(grid, grid);
+    const t = travel as unknown as Record<string, unknown>;
+    const walked: unknown[] = [];
+    t.walkSegments = vi.fn(async (s: unknown) => { walked.push(s); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(walked).toEqual([[["right", 21]]]);
+  });
+
+  it("never paces on a door: standing on a cave's entrance mat, it walks to floor first", async () => {
+    // The player on the mat at (0,0) of a cave: pacing there would step back out through it.
+    const grid = [["@", ".", "."]];
+    const travel = onMap(grid, grid);
+    const t = travel as unknown as Record<string, unknown>;
+    (t.core as Record<string, unknown>).rawView = () => ({ grid, originX: 0, originY: 0, pc: 0, pr: 0, doors: [{ x: 0, y: 0, to: "OUTSIDE", tx: 1, ty: 1 }] });
+    const walked: unknown[] = [];
+    t.walkSegments = vi.fn(async (s: unknown) => { walked.push(s); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(walked).toEqual([[["right", 1]]]); // off the mat to (1,0), paced with (2,0)
   });
 
   it("paces floor on a map with no grass at all", async () => {

@@ -5,7 +5,7 @@
 // These check the *data* the harness reports (encounters, deaths, caps, violations). They
 // never check advice: deciding what to do with that data is the model's job.
 
-import { brief } from "../../src/bridge/summary";
+import { brief, staleFoe } from "../../src/bridge/summary";
 import { describe, expect, it } from "vitest";
 import type { GameFixture } from "../harness/game-fixture";
 import { Run } from "../harness/scenario";
@@ -218,6 +218,17 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(brief(run.engine, run.s).enemy).toMatch(/Lv9 100%HP/);
         run.s.enemy!.hp = 0; // a trainer's intro still holds the last battle's fainted foe
         expect(brief(run.engine, run.s).enemy).toMatch(/^none out right now/);
+      });
+
+      it("doesn't show the last battle's foe as a trainer's before the trainer sends one out", () => {
+        // A wild one caught at 16% HP, then a trainer whose only Pokémon is another species: memory still
+        // holds the caught one until the trainer's is sent out (2026-11-19).
+        const run = new Run(game).goTo(places.route).wildBattle(ids.wildA, 10).endBattle().trainerBattle(ids.wildB, 20);
+        run.poll({ enemy: game.battleMon({ species: ids.wildA, level: 10, hp: 3, maxHp: 20 }) });
+        expect(brief(run.engine, run.s).enemy).toMatch(/^none out right now/);
+        expect(staleFoe(run.s)).toBe(true); // get_state leaves it out too
+        run.poll({ enemy: game.battleMon({ species: ids.wildB, level: 20, hp: 20, maxHp: 20 }) }); // sent out
+        expect(brief(run.engine, run.s).enemy).toMatch(/Lv20 100%HP/);
       });
 
       it("shows the Pokémon about to be sent out, with its moves, before the game fills in the battle slot", () => {

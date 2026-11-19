@@ -55,6 +55,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     }).filter(Boolean);
 
   const inBattle = s.battle > 0;
+  const foe = inBattle && !staleFoe(s) ? s.enemy : null;
   const active = inBattle && s.battleMon ? s.battleMon : s.party[0];
   const activeParty = s.party[inBattle ? s.activeIndex : 0] ?? s.party[0];
   const leadSp = active ? sp(active.species) : undefined;
@@ -75,7 +76,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     stats: active.stats,
     statStages: inBattle && s.battleMon ? stagesObj(s.battleMon.stages) : undefined,
     expToNextLevel: activeParty ? Math.max(0, G.expForLevel(leadSp.curve, activeParty.level + 1) - activeParty.exp) : undefined,
-    moves: describeMoves(active, inBattle && s.enemy ? s.enemy.species : null),
+    moves: describeMoves(active, foe ? foe.species : null),
     newMoves: leadSp.learnset.filter(([l]) => l > active.level).map(([l, m]) => `Lv${l} ${t.moveName(m)}`),
     evolutions: leadSp.evolutions.map((e) => ({
       method: e.method, level: e.level, item: e.item != null ? t.itemName(e.item) : undefined,
@@ -84,8 +85,8 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
   } : null;
 
   let enemy = null;
-  if (inBattle && s.enemy) {
-    const e = s.enemy;
+  if (foe) {
+    const e = foe;
     const esp = sp(e.species);
     const myTypes = active ? sp(active.species)?.types ?? [] : [];
     enemy = {
@@ -127,7 +128,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     party: s.party.map((m, i) => ({ slot: i + 1, species: t.name(m.species), nickname: m.nickname, level: m.level, hp: m.hp, maxHp: m.maxHp, status: G.statusName(m.status),
       dead: t.isDead(m), overLevelCap: cap ? m.level > cap.level : undefined,
       expToNextLevel: t.data.species[m.species] ? Math.max(0, G.expForLevel(t.data.species[m.species].curve, m.level + 1) - m.exp) : undefined,
-      types: sp(m.species)?.types, stats: m.stats, moves: describeMoves(m, inBattle && s.enemy ? s.enemy.species : null).flatMap((mv) => (mv ? [moveLine(mv)] : [])) })),
+      types: sp(m.species)?.types, stats: m.stats, moves: describeMoves(m, foe ? foe.species : null).flatMap((mv) => (mv ? [moveLine(mv)] : [])) })),
     nuzlocke: {
       levelCap: cap,
       thisArea: (() => {
@@ -148,6 +149,16 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     catches: t.snap.catches.map((c) => ({ species: t.name(c.species), level: c.level, map: t.data.mapNames[c.map] || c.mapConst, gift: c.gift })),
     recentRuleEvents: t.snap.events.slice(-8).map((e) => `[${e.severity}] ${e.text}`),
   };
+}
+
+/**
+ * True while battle memory still holds the last battle's foe at the start of a trainer battle: the game
+ * loads the trainer's first Pokémon only as it's sent out, so a foe that isn't in this trainer's party
+ * isn't theirs (a wild one just caught was shown as a trainer's, 2026-11-19).
+ */
+export function staleFoe(s: Pick<GameState, "battle" | "enemy" | "enemyTrainer">): boolean {
+  const e = s.enemy;
+  return s.battle === 2 && !!e?.species && !s.enemyTrainer?.party.some((m) => m.species === e.species && m.level === e.level);
 }
 
 /**
@@ -191,7 +202,7 @@ export function brief(t: Tracker, s: GameState, origin?: [number, number] | null
     m && m.species && m.maxHp > 0 ? `${nick && nick !== t.name(m.species) ? `${nick} (${t.name(m.species)})` : t.name(m.species)} Lv${m.level} ${m.hp}/${m.maxHp}HP${G.statusName(m.status) ? " " + G.statusName(m.status) : ""}` : null;
   // At 0 HP the foe in memory is the one that just fainted, or the last battle's while the next
   // isn't sent out yet: none is out, so it isn't named or rated.
-  const foeOut = s.battle > 0 && !!s.enemy?.species && s.enemy.hp > 0;
+  const foeOut = s.battle > 0 && !!s.enemy?.species && s.enemy.hp > 0 && !staleFoe(s);
   const enemy = s.battle > 0 && !foeOut ? "none out right now (fainted, or the next not sent out yet)"
     : foeOut && s.enemy
     ? `${s.battle === 1 ? "wild " : ""}${t.name(s.enemy.species)} Lv${s.enemy.level} ${s.enemy.maxHp ? Math.round((s.enemy.hp / s.enemy.maxHp) * 100) : 0}%HP${G.statusName(s.enemy.status) ? " " + G.statusName(s.enemy.status) : ""}`

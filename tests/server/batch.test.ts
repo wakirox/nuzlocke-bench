@@ -59,6 +59,12 @@ describe("do (batched actions)", () => {
     expect(stopReason(ok({}, { outcome: "victory: won the first badge" }))).toBe("the run ended");
   });
 
+  it("goes on after text that was all read (choose RUN, then a walk), and stops at a choice", () => {
+    expect(stopReason(ok({ messages: ["Got away safely!"], stopped: "no text on screen" }))).toBeNull();
+    expect(stopReason(ok({ stopped: "a menu or choice is waiting for input" }))).toBe("the step stopped early (a menu or choice is waiting for input)");
+    expect(stopReason(ok({ stopped: "press limit reached" }))).toBe("the step stopped early (press limit reached)");
+  });
+
   it("summarizes each step without the screen", () => {
     expect(stepSummary(0, { tool: "advance_text", result: ok({ messages: ["Hi!"], events: ["[info] Got a badge"] }) }))
       .toBe("1. advance_text ✓\n   • Hi!\n   📋 [info] Got a badge");

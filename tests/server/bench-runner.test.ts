@@ -64,6 +64,9 @@ describe("bench runner", () => {
     // A playtest gets an inbox beside its run log; a benchmark run never has one.
     const playtest = mcpConfig({ node: "node", server: "s.mjs", rom: "r.gb", preset: "p", port: 7890, savesDir: "sv", runLog: "runs/r1/run-log.jsonl", playtest: true }).mcpServers["nuzlocke-bench"].env;
     expect(playtest).toMatchObject({ NUZLOCKE_PLAYTEST: "1", NUZLOCKE_PLAYTEST_INBOX: "runs/r1/inbox.txt" });
+    // Map points: given on or off, the server is told; not given, it decides (on in the hints group).
+    const points = (mapPoints?: boolean) => mcpConfig({ node: "node", server: "s.mjs", rom: "r.gb", preset: "p", port: 7890, savesDir: "sv", runLog: "l.jsonl", mapPoints }).mcpServers["nuzlocke-bench"].env.NUZLOCKE_MAP_POINTS;
+    expect([points(true), points(false), points()]).toEqual(["1", "0", undefined]);
   });
 
   it("shows who played, the nudges and the tokens in the report", () => {

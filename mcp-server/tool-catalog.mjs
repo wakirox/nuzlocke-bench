@@ -45,6 +45,7 @@ export const TOOL_CATALOG = [
   { name: "switch_pokemon", batch: "step", batchOrder: 18 },
   { name: "throw_ball", batch: "step", batchOrder: 19 },
   { name: "use_item", batch: "step", batchOrder: 11 },
+  { name: "ack_poison", batch: "step", batchOrder: 20 },
   { name: "fight_trainer", batch: "step", batchOrder: 15 },
   { name: "hunt", batch: "step", batchOrder: 16 },
   { name: "policies", read: true, batch: "none" },

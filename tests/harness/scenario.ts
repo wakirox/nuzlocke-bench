@@ -64,14 +64,17 @@ export class Run {
     return this.startBattle(1, species, level);
   }
 
-  trainerBattle(species: number, level = 5): this {
-    return this.startBattle(2, species, level);
+  /** A trainer (class 1, number 1 unless given) whose one Pokémon is `species` at `level`. */
+  trainerBattle(species: number, level = 5, trainer = { trainerClass: 1, number: 1 }): this {
+    return this.startBattle(2, species, level, trainer);
   }
 
-  private startBattle(kind: 1 | 2, species: number, level: number): this {
+  private startBattle(kind: 1 | 2, species: number, level: number, trainer?: { trainerClass: number; number: number }): this {
     const lead = this.s.party[0];
     return this.poll({
       battle: kind,
+      // A trainer's party is in memory from the battle's start, as the game loads it.
+      ...(trainer ? { enemyTrainer: { ...trainer, party: [{ species, level, hp: 20 }] } } : {}),
       enemy: this.game.battleMon({ species, level, hp: 20, maxHp: 20 }),
       battleMon: this.game.battleMon(lead),
       activeIndex: 0,

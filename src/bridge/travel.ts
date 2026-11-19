@@ -49,6 +49,13 @@ export function huntableIn(note: string): { land: boolean; water: boolean } {
 }
 
 export class Travel {
+  /**
+   * Poisoned Pokémon (by uid) the model has acknowledged with ack_poison: walks go on through their
+   * poison until it's cured or they faint (a stop every 4 steps cost a call each, 2026-11-19). Each
+   * tick is still in the result's Poison line.
+   */
+  private poisonAcked = new Set<string>();
+
   constructor(private core: BridgeCore, private menus: Menus) {}
 
   /**
@@ -238,7 +245,13 @@ export class Travel {
    * no balls), run from it. Returns the species fled from, or null (it counts, or no escape).
    */
   private async tryAutoRun(): Promise<string | null> {
-    const s = this.core.summary();
+    // A walk stops the moment the game is in a battle (or as its last step lands, walkStraight);
+    // which kind it is (wild, trainer) can show a few frames later: wait for it before deciding.
+    let s = this.core.summary();
+    for (let f = 0; f < 60 && s?.battle !== "wild" && s?.battle !== "trainer"; f += 6) {
+      await this.core.requireGb().runFrames(6, 6);
+      s = this.core.summary();
+    }
     if (s?.run?.ruleset !== "nuzlocke" || s.battle !== "wild") return null;
     await this.menus.advanceText(20); // the intro, up to the battle menu
     const now = this.core.summary();
@@ -299,7 +312,12 @@ export class Travel {
       throw new Error("No tall grass seen yet on this map: explore further first, then hunt.");
     }
     const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
-    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
+    // Never pace on a door or warp: stepping on (or off, at a mat on the map's edge) takes you away
+    // (hunt right after coming into a cave paced on its entrance mat and walked back out, 2026-11-19).
+    // The map's own doors: a mechanics read, not shown to the model.
+    const warps = new Set((this.core.rawView(true).doors ?? []).map((d) => `${d.x - v.originX},${d.y - v.originY}`));
+    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !warps.has(`${c},${r}`) &&
+      !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
     // Both ways across: a cliff edge (or Crystal's one-sided wall) between two floor squares can't be paced.
     const paced = (c: number, r: number, nc: number, nr: number) => ok(nc, nr) && !pairBlocked(v, c, r, nc, nr) && !pairBlocked(v, nc, nr, c, r);
@@ -318,15 +336,38 @@ export class Travel {
       const cands: [number, number][] = [];
       for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (pairAt(c, r)) cands.push([c, r]);
       cands.sort((a, b) => Math.abs(a[0] - vv.pc) + Math.abs(a[1] - vv.pr) - (Math.abs(b[0] - vv.pc) + Math.abs(b[1] - vv.pr)));
+      // Nearest first, and on until one is reachable: the nearest can all be behind a one-way ledge
+      // with reachable grass further off (only the 12 nearest were tried, 2026-11-19).
       let reached = false;
-      for (const [c, r] of cands.slice(0, 12)) {
+      let sightInTheWay = false;
+      for (const [c, r] of cands.slice(0, 200)) {
         const route = findPath(vv, c + vv.originX, r + vv.originY, this.core.sight());
+        if (route?.sightStop) sightInTheWay = true;
         if (!route || route.sightStop) continue;
         log = await this.walkSegments(toSegments(route.dirs, vv));
         reached = true;
         break;
       }
-      if (!reached) throw new Error(this.core.sight().avoidSight ? "No grass (or cave floor) reachable without crossing a trainer's sight (trainers: avoid)." : "No grass (or cave floor) reachable.");
+      // No seen way to any of it: try one through unseen squares, as walk_to does (never in the
+      // dark). hunt refused grass that walk_to then reached that way (2026-11-19).
+      if (!reached) {
+        for (const [c, r] of cands.slice(0, 50)) {
+          const [gx, gy] = [c + vv.originX, r + vv.originY];
+          const guess = planFrontierTarget(vv, gx, gy, this.core.sight(), !this.core.dark());
+          if (guess?.sightStop) sightInTheWay = true;
+          if (!guess || guess.sightStop) continue;
+          log = String(((await this.walkTo(gx, gy, false)) as { walk?: string }).walk ?? "");
+          reached = true;
+          break;
+        }
+      }
+      // Why not, as it is: a trainer's sight only when one was in the way (it was said for walls
+      // and ledges too, with no trainer on the map).
+      if (!reached) {
+        throw new Error(sightInTheWay
+          ? "No grass (or cave floor) reachable without crossing a trainer's sight (trainers: avoid)."
+          : "No grass (or cave floor) you've seen can be walked to from here: walls or one-way ledges are in the way.");
+      }
       if (this.core.host.position().battle) {
         // Ran from one that doesn't count on the way (flee_uncounted): keep going to the grass.
         const out = await this.huntBattle(log, 0, fled);
@@ -393,9 +434,11 @@ export class Travel {
     let idle = 0;
     let stopped = "arrived";
     // The screen flashes each time poison hurts a Pokémon while walking: where poison can make it
-    // faint (Gen 1), every flash stops the walk and says so, as a player sees each one. Where it
-    // can't (Crystal: it stops at 1 HP), the walk goes on and the result's Poison line has the damage.
+    // faint (Gen 1), every flash stops the walk and says so, as a player sees each one, until the
+    // model acknowledges that Pokémon's poison (ack_poison; it lapses once cured or fainted). Where
+    // it can't (Crystal: it stops at 1 HP), the walk goes on and the result's Poison line has the damage.
     const poisonAtStart = this.core.game.data.poisonFaintsWhileWalking ? this.poisoned() : new Map();
+    this.dropLapsedAcks();
     gb.setButton(dir, true);
     let drawn = performance.now();
     try {
@@ -417,11 +460,11 @@ export class Travel {
           moved += Math.abs(p.x - last.x) + Math.abs(p.y - last.y);
           idle = 0;
           last = p;
-          const hurt = [...this.poisoned()].find(([uid, now]) => now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
+          const hurt = [...this.poisoned()].find(([uid, now]) => !this.poisonAcked.has(uid) && now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
           if (hurt) {
             const [uid, now] = hurt;
             const name = this.core.summary()?.party?.[now.slot]?.nickname ?? `party slot ${now.slot + 1}`;
-            stopped = `${name} is hurt by poison (${poisonAtStart.get(uid)!.hp}→${now.hp}/${now.maxHp} HP)`;
+            stopped = `${name} is hurt by poison (${poisonAtStart.get(uid)!.hp}→${now.hp}/${now.maxHp} HP; ack_poison and walks go on through it)`;
             // The step that hurt can be the one onto a ladder or door: let that warp happen, so the
             // walk ends on the new map (the damage is in the result's Poison line either way).
             gb.setButton(dir, false);
@@ -474,27 +517,14 @@ export class Travel {
     } finally {
       gb.setButton(dir, false);
     }
-    // Warps fade out/in and load the new map; give that time to finish so the
+    // Ledge hops finish on their own, a door walks you one step out, and a warp (also one that
+    // starts after the last step, onto a door the game walks you to) loads the new map: the
     // returned coordinates and map view are the new map's.
-    await gb.runFrames(stopped === "entered a new map" ? 120 : 4);
-    // Wait until the player stops moving: ledge hops finish on their own, and
-    // leaving through a door the game walks you one step out.
-    const settle = async () => {
-      for (let i = 0, still = 0; i < 60 && still < 12; i++) {
-        const before = this.core.host.position();
-        await gb.runFrames(2, 2);
-        const after = this.core.host.position();
-        still = before.x === after.x && before.y === after.y ? still + 2 : 0;
-      }
-    };
-    await settle();
-    // A warp can start after the last step (a door the game walks you onto): its new map id shows
-    // before the map has loaded. Wait for it, so the result shows the new map, not half of each.
-    if (stopped !== "entered a new map" && this.core.host.position().map !== last.map) {
-      stopped = "entered a new map";
-      await gb.runFrames(120);
-      await settle();
-    }
+    await gb.runFrames(4);
+    if (await this.core.settleMove(last.map)) stopped = "entered a new map";
+    // A wild battle can start as the last step lands, after the loop's last look: the leg said
+    // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
+    if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
     return { moved, stopped };
   }
 
@@ -733,8 +763,11 @@ export class Travel {
     return this.core.result({ walk: `${legs.length} legs → ${why}`, map: this.core.mapText() });
   }
 
-  /** Walks to the map's edge in `dir` and steps across into the connected map. */
-  async exitMap(dir: Dir, explored = false): Promise<unknown> {
+  /**
+   * Walks to the map's edge in `dir` and steps across into the connected map. `explored`: a second
+   * look after heading that way; `from`: where the player asked from (which doors are that way).
+   */
+  async exitMap(dir: Dir, explored = false, from?: { x: number; y: number }): Promise<unknown> {
     if (!["up", "down", "left", "right"].includes(dir)) throw new Error("direction must be up, down, left or right");
     await this.core.alignToVBlank();
     if (this.core.host.position().battle) throw new Error("Can't walk during a battle.");
@@ -743,18 +776,24 @@ export class Travel {
     if (full.exits && !full.exits.length) {
       // No edges, only doors. When they all lead to the same place there's nothing to choose:
       // leave through the nearest one. Otherwise which door is the player's call.
-      const doors = full.doors ?? [];
-      // No door in sight yet (fog of war, e.g. a run resumed inside): head the way asked through
-      // what's been seen, looking as you go, as a player would; then, if that brought a way out into
-      // sight, take it (once: no second look-around).
+      // While part of the map is unseen, only the doors the way asked count: the one seen may be the
+      // one the player came in by, behind them (exit_map up in a forest took the south door back
+      // out, 2026-11-19). With the whole map seen, every door (a building's one way out).
+      const here0 = from ?? this.core.host.position();
+      const ahead = (d: { x: number; y: number }) =>
+        dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x;
+      const doors = hasFog(full) ? (full.doors ?? []).filter(ahead) : full.doors ?? [];
+      // No door in sight yet that way (fog of war, e.g. a run resumed inside): head the way asked
+      // through what's been seen, looking as you go, as a player would; then, if that brought a way
+      // out into sight, take it (once: no second look-around).
       if (!doors.length && hasFog(full)) {
         if (explored) throw new Error(`No door in sight yet that way: look around (walk, travel) and try exit_map again.`);
         const out = (await this.travel(dir, 12, 1)) as Record<string, unknown>;
-        const head = `no door in sight yet, so heading ${dir}: ${String(out.walk ?? "")}`;
+        const head = `no door in sight yet ${dir} of you, so heading ${dir}: ${String(out.walk ?? "")}`;
         const now = this.core.host.position();
         if (now.battle || now.map !== startMapOf || !this.core.view(true).doors?.length) return { ...out, walk: head };
         try {
-          const through = (await this.exitMap(dir, true)) as Record<string, unknown>;
+          const through = (await this.exitMap(dir, true, here0)) as Record<string, unknown>;
           return { ...through, walk: `${head}; then ${String(through.walk ?? "")}` };
         } catch {
           return { ...out, walk: head };
@@ -862,6 +901,32 @@ export class Travel {
     const v = this.core.view(true);
     const w = v.watchers?.get((y - v.originY) * (v.grid[0]?.length ?? 0) + (x - v.originX)) ?? [];
     return w.length ? ` (watched by the trainer at ${this.describeCrossings(w)})` : "";
+  }
+
+  /**
+   * ack_poison: the model knows this party Pokémon (nickname, species or slot 1-6) is poisoned, so
+   * walks stop no more for its poison until it's cured or faints.
+   */
+  ackPoison(who: string | number): unknown {
+    this.dropLapsedAcks();
+    const party = this.core.summary()?.party ?? [];
+    const key = String(who).trim().toUpperCase();
+    const index = /^[1-6]$/.test(key) ? Number(key) - 1
+      : party.findIndex((m) => m.nickname?.toUpperCase() === key || m.species?.toUpperCase() === key);
+    const mon = party[index];
+    if (!mon) throw new Error(`No party Pokémon "${who}": give its nickname, species or slot (1-6).`);
+    const name = mon.nickname ?? mon.species;
+    const hit = [...this.poisoned()].find(([, p]) => p.slot === index && p.hp > 0);
+    if (!hit) throw new Error(`${name} isn't poisoned.`);
+    this.poisonAcked.add(hit[0]);
+    return this.core.result({ note: `Walks won't stop for ${name}'s poison until it's cured or faints (each hit still shows in the Poison line).` });
+  }
+
+  /** Acks lapse once the Pokémon is cured or has fainted (no longer poisoned with HP left). */
+  private dropLapsedAcks(): void {
+    if (!this.poisonAcked.size) return;
+    const now = this.poisoned();
+    for (const uid of this.poisonAcked) if (!now.get(uid)?.hp) this.poisonAcked.delete(uid);
   }
 
   /**
