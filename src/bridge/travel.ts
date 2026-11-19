@@ -238,7 +238,13 @@ export class Travel {
    * no balls), run from it. Returns the species fled from, or null (it counts, or no escape).
    */
   private async tryAutoRun(): Promise<string | null> {
-    const s = this.core.summary();
+    // A walk stops the moment the game is in a battle (or as its last step lands, walkStraight);
+    // which kind it is (wild, trainer) can show a few frames later: wait for it before deciding.
+    let s = this.core.summary();
+    for (let f = 0; f < 60 && s?.battle !== "wild" && s?.battle !== "trainer"; f += 6) {
+      await this.core.requireGb().runFrames(6, 6);
+      s = this.core.summary();
+    }
     if (s?.run?.ruleset !== "nuzlocke" || s.battle !== "wild") return null;
     await this.menus.advanceText(20); // the intro, up to the battle menu
     const now = this.core.summary();
@@ -510,6 +516,9 @@ export class Travel {
       await gb.runFrames(120);
       await settle();
     }
+    // A wild battle can start as the last step lands, after the loop's last look: the leg said
+    // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
+    if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
     return { moved, stopped };
   }
 
