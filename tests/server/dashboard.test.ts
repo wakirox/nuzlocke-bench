@@ -116,6 +116,8 @@ describe("dashboardRuns", () => {
     expect(off({}, { via: "api" }).notOfficial).toBe("run through the API");
     expect(off({}, { model: "claude-sonnet-5-5[1m]" }).notOfficial).toBe("1M-token context");
     expect(off({}, { effectiveness: "on" }).notOfficial).toBe("effectiveness shown");
+    expect(off({}, { trainerFacing: true }).notOfficial).toBe("trainer facing shown");
+    expect(off({ trainerFacing: true }, {}).notOfficial).toBe("trainer facing shown");
     expect(off({}, { reportIssue: false }).notOfficial).toBe("report_issue off");
     expect(off({}, { grid: "wide" }).notOfficial).toBe("other grid");
     expect(off({}, { grid: "compact" }).notOfficial).toBe("other grid");

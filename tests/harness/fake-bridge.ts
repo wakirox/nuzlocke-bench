@@ -49,7 +49,7 @@ export interface FakeHostOptions {
   /** What the run has seen of each map (the host's seen()); null or absent: nothing hidden. */
   seen?: SeenMaps | null;
   /** Trainers on the map (mapTrainers). */
-  trainers?: { x: number; y: number; name: string; beaten: boolean }[];
+  trainers?: { x: number; y: number; name: string; beaten: boolean; facing?: Dir }[];
   /** The current map's size in squares (mapSize; 10×9 by default, a screen). */
   mapSize?: { w: number; h: number };
   /**
@@ -185,7 +185,8 @@ export class FakeHost {
       fontSignature: () => null,
       beatenTrainers: () => [],
       seen: () => this.opts.seen ?? null,
-      mapTrainers: () => this.opts.trainers ?? [],
+      mapTrainers: (includeFacing = false) =>
+        (this.opts.trainers ?? []).map((t) => (includeFacing && !t.beaten ? t : { x: t.x, y: t.y, name: t.name, beaten: t.beaten })),
       // A world's whole map is read through the ROM path (readFullMap); any non-null ROM will do.
       rom: () => (this.opts.world ? new Uint8Array(0) : null),
       canvas: this.canvas,

@@ -2,7 +2,7 @@
 // walks by (BridgeCore.view), and the renderings and paths that read it.
 
 import { describe, expect, it } from "vitest";
-import { findPath, renderView, type Door, type OverworldView } from "../../src/bridge/overworld";
+import { findPath, renderView, trainerFacing, type Door, type OverworldView, type TrainerSprite } from "../../src/bridge/overworld";
 import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import { gen1Adapter } from "../../src/games/gen1";
@@ -313,6 +313,35 @@ describe("BridgeCore.view: what the player is shown and walks by", () => {
     expect(compact).not.toMatch(/\(5,6\)|\(7,15\)|\(8,15\)|\(9,15\)|\(10,15\)/);
     // Unseen row y=15 and unseen column x=5 stay as ? (not trimmed like rock #).
     expect(compact).toContain("y 15   ?????");
+  });
+
+  it("shows facing only when trainerFacing is enabled, and only for unbeaten seen on-screen sprites", () => {
+    const seen = new SeenMaps();
+    // An earlier screen around (16,10) was seen, so (16,10) is seen on the full map while now off screen.
+    seen.sawScreen(MAP, 16, 10);
+    // Build trainers through trainerFacing from real sprite vectors (off-screen SAILOR has a non-zero
+    // vector too, so this test fails if trainerFacing stops checking onScreen).
+    const sprites: (TrainerSprite & { name: string; beaten: boolean })[] = [
+      { index: 1, x: 8, y: 8, dx: 0, dy: 1, onScreen: true, sight: true, name: "HIKER", beaten: false },
+      { index: 2, x: 9, y: 8, dx: -1, dy: 0, onScreen: true, sight: true, name: "GUARD", beaten: true },
+      { index: 3, x: 16, y: 10, dx: 0, dy: -1, onScreen: false, sight: true, name: "SAILOR", beaten: false },
+      { index: 4, x: 5, y: 7, dx: 1, dy: 0, onScreen: true, sight: true, name: "LASS", beaten: false },
+    ];
+    const trainers = sprites.map((s) => {
+      const facing = !s.beaten ? trainerFacing(s) : undefined;
+      return { x: s.x, y: s.y, name: s.name, beaten: s.beaten, ...(facing ? { facing } : {}) };
+    });
+    const core = coreFor(seen, trainers);
+    // Default (trainerFacing off): no facing emitted at all.
+    expect(core.mapText(true)).toContain("Trainers (T): (8,8) HIKER; (9,8) GUARD [beaten]; (16,10) SAILOR.");
+    // Enabled: only unbeaten seen on-screen HIKER gets facing; beaten GUARD and off-screen SAILOR omit it; unseen LASS stays hidden.
+    core.trainerFacing = true;
+    const text = core.mapText(true);
+    expect(text).toContain("Trainers (T): (8,8) HIKER facing down; (9,8) GUARD [beaten]; (16,10) SAILOR.");
+    expect(text).not.toContain("facing left");
+    expect(text).not.toContain("facing up");
+    expect(text).not.toContain("LASS");
+    expect(text).not.toContain("facing right");
   });
 });
 

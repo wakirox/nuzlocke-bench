@@ -10,6 +10,7 @@
 //        [--playtest]           test the tools: the model is asked to look for what lets it down (not a benchmark result)
 //        [--no-report]          without report_issue (on by default: the model reports tools that let it down)
 //        [--grid compact|wide]  map grid format: compact 5-square blocks, wide, or narrow (default)
+//        [--trainer-facing]     say which way on-screen trainers face on the Trainers (T) line (default off)
 //        [--effectiveness on|off]  whether results say how effective each move is (default: only with -o hints)
 // Needs npm run build, Playwright (see mcp-server/headless.mjs) and the claude CLI (CLAUDE_BIN to
 // choose one), or agy for --agent agy (AGY_BIN to choose the binary, AGY_WORKSPACE for its dedicated
@@ -86,6 +87,7 @@ Usage: npm run bench -- --rom path/to/red.gb [options]
   --observer <module>  a watch-only observer: an outside module that may look at the run, never play it
                        (mcp-server/observers.mjs); recorded with the run, which stays official
   --grid <compact|wide>  map grid format: compact (5-square blocks), wide (two spaces), or narrow (default)
+  --trainer-facing     say which way on-screen trainers face on the Trainers (T) line (default: off)
   --effectiveness <on|off>  whether results say how effective each move is against the foe. Default: off,
                        on with -o hints (it's help: the game itself only says "super effective" after a hit)
   --no-report          leave out report_issue (by default every run has it and is asked to report tools that let it down)
@@ -196,6 +198,7 @@ if (grid !== undefined && grid !== "narrow" && grid !== "wide" && grid !== "comp
   console.error("--grid takes compact, wide or narrow (the default).");
   process.exit(1);
 }
+const trainerFacing = argv.includes("--trainer-facing");
 
 // Driver workspace & CLI checks run before creating the run folder so refused setups leave runs/ clean.
 try {
@@ -227,6 +230,7 @@ writeFileSync(run.player, JSON.stringify({
   preset,
   resumedFrom: resumed?.name ?? null,
   playtest,
+  ...(trainerFacing ? { trainerFacing: true } : {}),
   ...(experimental ? { experimental } : {}),
   ...(observers ? { observers } : {}),
 }));
@@ -245,6 +249,7 @@ const config = mcpConfig({
   playtest,
   grid,
   effectiveness,
+  trainerFacing,
   report,
   observer,
 });
@@ -351,6 +356,7 @@ player.onExit((code) => {
     maxNudges,
     maxTokens,
     ...(grid ? { grid } : {}),
+    ...(trainerFacing ? { trainerFacing: true } : {}),
     ...(observers ? { observers } : {}),
     // Maps on request (get_map, or show_map on a move): recorded so reports can tell runs from before apart.
     maps: "ask",

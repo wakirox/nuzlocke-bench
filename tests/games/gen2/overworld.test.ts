@@ -1,7 +1,8 @@
 // Crystal's text map: squares by collision type, and trainer parties from the ROM's trainer groups.
 
 import { describe, expect, it } from "vitest";
-import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty } from "../../../src/games/gen2/overworld";
+import { trainerFacing } from "../../../src/bridge/overworld";
+import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
 import { A } from "../../../src/games/gen2/ram";
 
 /** A ROM with CollisionPermissionTable (bank $13) saying water for $29 and wall for $07, land otherwise. */
@@ -201,5 +202,41 @@ describe("Crystal people on screen", () => {
   it("off screen keep their flag's word", () => {
     const loaded = { x: 5, y: 5, hidden: false, loaded: true };
     expect(hideUnloadedOnScreen([loaded, { ...clerk, x: 40, y: 0 }], 5, 5).map((o) => o.hidden)).toEqual([false, false]);
+  });
+
+  it("trainerFacing uses the same loaded-struct onScreen condition as sight lines", () => {
+    const ram = new Uint8Array(0x10000);
+    ram[A.xCoord] = 10;
+    ram[A.yCoord] = 10;
+    ram[OW.objectEventCount] = 2;
+    // Object 1: loaded struct #1 at (16, 10) (just past the 10x9 screen edge, still loaded) facing right (0x0c).
+    const m1 = OW.mapObjects + 16;
+    ram[m1] = 1; // structId
+    ram[m1 + 1] = 1; // sprite
+    ram[m1 + 2] = 14; ram[m1 + 3] = 20;
+    ram[m1 + 6] = 0xff; ram[m1 + 7] = 0xff; // always on
+    ram[m1 + 8] = 2; // OBJECTTYPE.TRAINER
+    ram[m1 + 9] = 3; // sightRange
+    ram[m1 + 12] = 0xff; ram[m1 + 13] = 0xff; // no hide flag
+    const s1 = OW.objectStructs + 1 * 40;
+    ram[s1] = 1; // sprite loaded
+    ram[s1 + 0x08] = 0x0c; // facing right
+    ram[s1 + 0x10] = 20; // x + 4 = 20 -> x = 16
+    ram[s1 + 0x11] = 14; // y + 4 = 14 -> y = 10
+    // Object 2: unloaded (structId = 0xff) far off screen at (30, 10).
+    const m2 = OW.mapObjects + 32;
+    ram[m2] = 0xff;
+    ram[m2 + 1] = 1;
+    ram[m2 + 2] = 14; ram[m2 + 3] = 34;
+    ram[m2 + 6] = 0xff; ram[m2 + 7] = 0xff;
+    ram[m2 + 8] = 2;
+    ram[m2 + 9] = 3;
+    ram[m2 + 12] = 0xff; ram[m2 + 13] = 0xff;
+    const mem = { read8: (a: number) => ram[a], read16be: () => 0, readBytes: () => new Uint8Array() };
+    const sprites = trainerSprites(mem, 10, 10);
+    expect(sprites.map((s) => ({ x: s.x, onScreen: s.onScreen, facing: trainerFacing(s) }))).toEqual([
+      { x: 16, onScreen: true, facing: "right" },
+      { x: 30, onScreen: false, facing: undefined },
+    ]);
   });
 });

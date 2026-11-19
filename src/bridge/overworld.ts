@@ -80,6 +80,12 @@ const FACINGS: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
 
 export interface TrainerSprite { index: number; x: number; y: number; dx: number; dy: number; onScreen: boolean; sight: boolean }
 
+/** Which way an on-screen trainer faces, from the same TrainerSprite vector markWatched uses; undefined off screen (not updated). */
+export function trainerFacing(s: Pick<TrainerSprite, "dx" | "dy" | "onScreen">): Dir | undefined {
+  if (!s.onScreen) return undefined;
+  return STEPS.find(([, dx, dy]) => dx === s.dx && dy === s.dy)?.[0];
+}
+
 /**
  * Marks what each unbeaten trainer can see: straight ahead until a wall or person, at most `reach`
  * squares (how far the game's trainers can spot you).
@@ -254,13 +260,16 @@ function oneTilePerChar(line: string): string {
     .replace(/(?<=[A-Za-z0-9é♂♀])'[dlmrstv]/g, TILE);
 }
 
+export interface MapTrainer { x: number; y: number; name: string; beaten: boolean; facing?: Dir }
+
 /**
- * The trainers a map shows, as a player knows them: where they are, what they look like, and who's
- * been beaten. Not their teams: those stay unknown until the fight.
+ * The trainers a map shows, as a player knows them: where they are, what they look like, which way
+ * unbeaten on-screen ones face (when enabled), and who's been beaten. Not their teams: those stay
+ * unknown until the fight.
  */
-export function trainerList(trainers: { x: number; y: number; name: string; beaten: boolean }[]): string {
+export function trainerList(trainers: MapTrainer[]): string {
   if (!trainers.length) return "";
-  return `\nTrainers (T): ${trainers.map((t) => `(${t.x},${t.y}) ${t.name}${t.beaten ? " [beaten]" : ""}`).join("; ")}.`;
+  return `\nTrainers (T): ${trainers.map((t) => `(${t.x},${t.y}) ${t.name}${t.facing && !t.beaten ? ` facing ${t.facing}` : ""}${t.beaten ? " [beaten]" : ""}`).join("; ")}.`;
 }
 
 /**

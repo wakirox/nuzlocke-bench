@@ -156,4 +156,18 @@ describe("a new map's first full view", () => {
     core.mapAsked = false;
     expect(core.result({ map: "short" }).map).toBe("short");
   });
+
+  it("gates trainer facing in the bridge via set_options (off by default)", async () => {
+    const { call } = bridgeFor([{ rows: screenRows() }], {
+      position: { inWorld: true, map: 7, x: 0, y: 0 },
+      view: { grid: [["@", "T"]], originX: 0, originY: 0, pc: 0, pr: 0 },
+      trainers: [{ x: 1, y: 0, name: "SCOUT", beaten: false, facing: "left" }],
+    });
+    const off = await call("get_map", { full: true });
+    expect(String(off.map)).toContain("Trainers (T): (1,0) SCOUT.");
+    expect(String(off.map)).not.toContain("facing left");
+    await call("set_options", { trainerFacing: true });
+    const on = await call("get_map", { full: true });
+    expect(String(on.map)).toContain("Trainers (T): (1,0) SCOUT facing left.");
+  });
 });
