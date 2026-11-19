@@ -102,6 +102,18 @@ describe("hunt on a fogged map", () => {
     expect(walked).toEqual([[["right", 21]]]);
   });
 
+  it("never paces on a door: standing on a cave's entrance mat, it walks to floor first", async () => {
+    // The player on the mat at (0,0) of a cave: pacing there would step back out through it.
+    const grid = [["@", ".", "."]];
+    const travel = onMap(grid, grid);
+    const t = travel as unknown as Record<string, unknown>;
+    (t.core as Record<string, unknown>).rawView = () => ({ grid, originX: 0, originY: 0, pc: 0, pr: 0, doors: [{ x: 0, y: 0, to: "OUTSIDE", tx: 1, ty: 1 }] });
+    const walked: unknown[] = [];
+    t.walkSegments = vi.fn(async (s: unknown) => { walked.push(s); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(walked).toEqual([[["right", 1]]]); // off the mat to (1,0), paced with (2,0)
+  });
+
   it("paces floor on a map with no grass at all", async () => {
     // No grass anywhere, so the floor is what to pace: the walk right and back, then the encounter.
     const travel = onMap([["@", ".", "."]], [["@", ".", "."]]);

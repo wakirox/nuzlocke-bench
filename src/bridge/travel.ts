@@ -299,7 +299,12 @@ export class Travel {
       throw new Error("No tall grass seen yet on this map: explore further first, then hunt.");
     }
     const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
-    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
+    // Never pace on a door or warp: stepping on (or off, at a mat on the map's edge) takes you away
+    // (hunt right after coming into a cave paced on its entrance mat and walked back out, 2026-11-19).
+    // The map's own doors: a mechanics read, not shown to the model.
+    const warps = new Set((this.core.rawView(true).doors ?? []).map((d) => `${d.x - v.originX},${d.y - v.originY}`));
+    const ok = (c: number, r: number) => r >= 0 && r < H && c >= 0 && c < W && encounterSquare(c, r) && !warps.has(`${c},${r}`) &&
+      !(this.core.sight().avoidSight && v.watched?.has(r * W + c));
     const DIRS: [Dir, number, number][] = [["left", -1, 0], ["right", 1, 0], ["up", 0, -1], ["down", 0, 1]];
     // Both ways across: a cliff edge (or Crystal's one-sided wall) between two floor squares can't be paced.
     const paced = (c: number, r: number, nc: number, nr: number) => ok(nc, nr) && !pairBlocked(v, c, r, nc, nr) && !pairBlocked(v, nc, nr, c, r);
