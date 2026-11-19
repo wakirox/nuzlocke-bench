@@ -4,7 +4,7 @@
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { Travel } from "../../src/bridge/travel";
-import type { BridgeCore } from "../../src/bridge/bridge-core";
+import { BridgeCore } from "../../src/bridge/bridge-core";
 import type { Menus } from "../../src/bridge/menus";
 
 beforeAll(() => vi.stubGlobal("document", { hidden: true }));
@@ -46,8 +46,10 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     // The fog of war's memory is not what these walks are about: nothing to remember here.
     noteSeen: () => {},
     result: (r: object) => ({ ...r }),
+    // The real wait for a move to end (and a warp to load), on this world's frames.
+    settleMove: BridgeCore.prototype.settleMove,
   } as unknown as BridgeCore;
-  return { travel: new Travel(core, {} as Menus), pos, frames: () => frame };
+  return { travel: new Travel(core, {} as Menus), core, pos, frames: () => frame };
 }
 
 const walk = async (t: Travel, path: string) => ((await t.walkPath(path)) as { walk: string }).walk;
@@ -92,6 +94,15 @@ describe("walk: when the player stops moving", () => {
     expect(await walk(travel, "up 2")).toBe("up 2/2 — stopped: entered a new map");
     expect(pos.map).toBe(2);
     expect(frames() - arrivedAt).toBeGreaterThanOrEqual(120);
+  });
+
+  it("waits for a warp's new coordinates, which come in after its map id (press through a door)", async () => {
+    // As a gym's exit: the city's map id at once, the city's square 60 frames later (the fade).
+    const { core, pos } = setup({ wallAt: 0, tick: (f, p) => { if (f === 2) p.map = 2; if (f === 60) [p.x, p.y] = [12, 28]; } });
+    expect(await core.settleMove(1)).toBe(true);
+    expect([pos.map, pos.x, pos.y]).toEqual([2, 12, 28]);
+    // Nothing changed: it only waits for the player to stand still.
+    expect(await core.settleMove(2)).toBe(false);
   });
 
   it("gives up waiting on a scene after 30 s and says it's still going", async () => {

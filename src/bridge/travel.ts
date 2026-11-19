@@ -507,27 +507,11 @@ export class Travel {
     } finally {
       gb.setButton(dir, false);
     }
-    // Warps fade out/in and load the new map; give that time to finish so the
+    // Ledge hops finish on their own, a door walks you one step out, and a warp (also one that
+    // starts after the last step, onto a door the game walks you to) loads the new map: the
     // returned coordinates and map view are the new map's.
-    await gb.runFrames(stopped === "entered a new map" ? 120 : 4);
-    // Wait until the player stops moving: ledge hops finish on their own, and
-    // leaving through a door the game walks you one step out.
-    const settle = async () => {
-      for (let i = 0, still = 0; i < 60 && still < 12; i++) {
-        const before = this.core.host.position();
-        await gb.runFrames(2, 2);
-        const after = this.core.host.position();
-        still = before.x === after.x && before.y === after.y ? still + 2 : 0;
-      }
-    };
-    await settle();
-    // A warp can start after the last step (a door the game walks you onto): its new map id shows
-    // before the map has loaded. Wait for it, so the result shows the new map, not half of each.
-    if (stopped !== "entered a new map" && this.core.host.position().map !== last.map) {
-      stopped = "entered a new map";
-      await gb.runFrames(120);
-      await settle();
-    }
+    await gb.runFrames(4);
+    if (await this.core.settleMove(last.map)) stopped = "entered a new map";
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
