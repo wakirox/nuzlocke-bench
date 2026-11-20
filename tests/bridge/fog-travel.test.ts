@@ -249,6 +249,21 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(core.host.position().y).toBeLessThan(7);
   });
 
+  it("goes out through the doormat you stand on when the way asked is the map's edge (a Crystal room)", async () => {
+    // Arrived on the doormat on the bottom row; the rest of the room unseen. Down from it is off the map.
+    const MAT = [...ROOM.slice(0, 8), "............", ".....D......"];
+    const doors = [{ x: 5, y: 9, to: "VIOLET_CITY", tx: 3, ty: 7 }];
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 5, 9);
+    const { core, travel } = fakeWorld(MAT, [5, 9], seen, { exits: [], doors });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk).toContain("no edge exits here, so out through the door at (5, 9) to VIOLET_CITY");
+    expect(core.host.position()).toMatchObject({ x: 5, y: 9 });
+    // Up from the same doormat is open floor: that's not the way out, so it heads up instead.
+    const up = fakeWorld(MAT, [5, 9], (() => { const s = seenFrom0(); s.sawScreen(MAP, 5, 9); return s; })(), { exits: [], doors });
+    expect(((await up.travel.exitMap("up")) as { walk: string }).walk).toMatch(/^no door in sight yet up of you, so heading up/);
+  });
+
   it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
     // This map's (0,0) at its corner; the next map's elsewhere: the door's square is said before going through.
     const seen = new SeenMaps({ squares: {}, doors: {}, origins: { [MAP]: [0, 0], [MAP + 1]: [3, 3] } });

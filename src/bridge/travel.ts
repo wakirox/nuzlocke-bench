@@ -826,8 +826,15 @@ export class Travel {
       // one the player came in by, behind them (exit_map up in a forest took the south door back
       // out, 2026-11-19). With the whole map seen, every door (a building's one way out).
       const here0 = from ?? this.core.host.position();
-      const ahead = (d: { x: number; y: number }) =>
-        dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x;
+      // The door underfoot counts too when the way asked is a wall or the map's edge from it: then a
+      // step that way can only go through it (Crystal's rooms are seldom seen whole on arrival, and
+      // you arrive on the doormat). Not when that way is open (the forest's south door, asked up).
+      const [sx, sy] = dir === "up" ? [0, -1] : dir === "down" ? [0, 1] : dir === "left" ? [-1, 0] : [1, 0];
+      const beyond = (x: number, y: number) => full.grid[y - full.originY]?.[x - full.originX];
+      const underfoot = (d: { x: number; y: number }) =>
+        d.x === here0.x && d.y === here0.y && [undefined, "#"].includes(beyond(d.x + sx, d.y + sy));
+      const ahead = (d: { x: number; y: number }) => underfoot(d) ||
+        (dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x);
       const doors = hasFog(full) ? (full.doors ?? []).filter(ahead) : full.doors ?? [];
       // No door in sight yet that way (fog of war, e.g. a run resumed inside): head the way asked
       // through what's been seen, looking as you go, as a player would; then, if that brought a way
