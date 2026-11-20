@@ -1,7 +1,7 @@
 // What the tools show in the dark tunnel: only what a player can see there.
 
 import { describe, expect, it } from "vitest";
-import { DARK_HEADER, boxedSquares, darkSquares, litSquares, type OverworldView } from "../../src/bridge/overworld";
+import { DARK_HEADER, boxedSquares, darkSquares, litSquares, windowSquares, type OverworldView } from "../../src/bridge/overworld";
 import { hideCoords } from "../../src/bridge/summary";
 import { gameFor } from "../../src/games";
 import { findGrid } from "../../src/ui/map-image";
@@ -104,6 +104,23 @@ describe("text boxes and menus over the dark view", () => {
     expect(shown(boxedSquares(party, true))).toEqual([...Array(6).fill("xxxxxxxxxx"), ...Array(3).fill("..........")]);
     // Not where map tiles can read as letters (Crystal): there only framed boxes count.
     expect(shown(boxedSquares(party))).toEqual(Array(9).fill(".........."));
+  });
+
+  it("covers what the window layer covers: Crystal's place-name sign over the bottom two rows", () => {
+    // As read in Crystal on arriving in a dark cave: LCDC e3 (screen and window on), WY 0x70, WX 7.
+    expect(shown(windowSquares(0xe3, 0x70, 7))).toEqual([...Array(7).fill(".........."), ...Array(2).fill("xxxxxxxxxx")]);
+    // Sliding in: a square partly under it is covered too.
+    expect(shown(windowSquares(0xe3, 0x78, 7)).slice(6)).toEqual(["..........", "xxxxxxxxxx", "xxxxxxxxxx"]);
+    // Across: from pixel column WX−7. WX 87 starts at pixel 80, the right half (squares 5-9); WX 167
+    // is past the screen's right edge.
+    expect(shown(windowSquares(0xe3, 0x70, 87)).slice(6)).toEqual(["..........", ".....xxxxx", ".....xxxxx"]);
+    expect(shown(windowSquares(0xe3, 0x70, 167))).toEqual(Array(9).fill(".........."));
+    // Hidden below the screen (WY 0x90), window off (bit 5) or screen off (bit 7): nothing covered.
+    for (const [lcdc, wy] of [[0xe3, 0x90], [0xc3, 0x70], [0x63, 0x70]]) expect(shown(windowSquares(lcdc, wy, 7))).toEqual(Array(9).fill(".........."));
+    // Squares under the sign stay dark although the sign lights them.
+    const lit = Array.from({ length: 9 }, (_, r) => Array.from({ length: 10 }, (_, c) => r >= 7 || (r === 4 && c === 4)));
+    const v = { grid: Array.from({ length: 9 }, () => Array<string>(10).fill(".")), pr: 4, pc: 4 } as unknown as OverworldView;
+    expect(darkSquares(v, lit, windowSquares(0xe3, 0x70, 7)).slice(7).map((row) => row.join(""))).toEqual(["??????????", "??????????"]);
   });
 
   it("covers only the squares of a small menu box", () => {

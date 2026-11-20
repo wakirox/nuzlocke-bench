@@ -7,7 +7,7 @@ import type { ChallengeMode } from "../rulesets";
 import type { GameAdapter, ScreenLayout } from "../games/adapter";
 import type { BattlerHp, Position } from "../games/types";
 import { asRawView } from "./map-lens";
-import { DARK_HEADER, boxedSquares, caveFloor, darkSquares, exitsLine, litSquares, trainerList, renderView, sealFromWholeMap, seenPart, type AnyOverworldView, type Door, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
+import { DARK_HEADER, boxedSquares, caveFloor, darkSquares, exitsLine, litSquares, trainerList, renderView, sealFromWholeMap, seenPart, windowSquares, type AnyOverworldView, type Door, type FoggedView, type MapTrainer, type RawOverworldView, type SightOptions } from "./overworld";
 import { RouteBook } from "./routes";
 import type { SeenMaps } from "./seen";
 
@@ -410,8 +410,14 @@ export class BridgeCore {
     const raw = this.rawView(false);
     const whole = this.host.rom() ? this.rawView(true) : null;
     const sealed = whole ? sealFromWholeMap(raw, whole) : raw;
-    // A box or menu over the cave hides what's under it: those squares are dark, not lit.
-    const now = darkSquares(sealed, litSquares(this.screenPixels()), boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots));
+    // A box or menu over the cave hides what's under it: those squares are dark, not lit. So does
+    // the window layer: Crystal's place-name sign slides up over the bottom two rows on arrival,
+    // a lit box that isn't framed text (the cave under it was noted as seen, 2026-11-20).
+    const gb = this.requireGb();
+    const boxed = boxedSquares(this.screenText(), !!this.layout.mapTilesReadAsDots);
+    const win = windowSquares(gb.read8(0xff40), gb.read8(0xff4a), gb.read8(0xff4b));
+    const covered = boxed.map((row, r) => row.map((on, c) => on || win[r][c]));
+    const now = darkSquares(sealed, litSquares(this.screenPixels()), covered);
     const pos = this.host.position();
     // The view shows @ where the player stands, but they know what's under them: a ladder (they
     // came by it: stepping onto one takes you away), else floor. Without it, where each move
