@@ -853,10 +853,13 @@ export class Travel {
         }
       }
       // Out of a building means outdoors: where some of its known doors lead to a town or route and
-      // others don't (a Crystal Pokémon Center's stairs up), only those count. A gate, both of whose
-      // doors lead out, stays the player's call.
+      // others don't (a Crystal Pokémon Center's stairs up), only those count.
       const outdoors = doors.filter((d) => d.outside && d.to !== "?");
-      const ways = outdoors.length && outdoors.length < doors.length ? outdoors : doors;
+      const out = outdoors.length && outdoors.length < doors.length ? outdoors : doors;
+      // Still more than one place (a gate, out to a town one side and a route the other): the doors the
+      // way asked, when they all lead to one place. A gate seen whole counted both sides.
+      const towards = out.filter((d) => dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x);
+      const ways = new Set(out.map((d) => d.to)).size > 1 && towards.length && new Set(towards.map((d) => d.to)).size === 1 ? towards : out;
       const places = [...new Set(ways.map((d) => d.to))];
       // One way out only if every door lands on the same spot (a building's doormat, maybe two squares
       // wide). A cave's ladders can all go to the next floor, but to parts of it that don't connect.

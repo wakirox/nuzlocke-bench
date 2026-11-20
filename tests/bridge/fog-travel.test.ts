@@ -278,10 +278,27 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     const r = (await travel.exitMap("down")) as { walk: string };
     expect(r.walk).toContain("out through the door at (5, 9) to VIOLET_CITY");
     expect(core.host.position()).toMatchObject({ x: 5, y: 9 });
-    // A gate, both of whose doors lead outdoors (to different places): still the player's call.
+    // Doors that all lead outdoors to different places, all of them the way asked: still the player's call.
     const gate = doors.map((d) => ({ ...d, outside: true }));
     const g = fakeWorld(CENTER.map((r) => r.replace("S", "D")), [5, 5], (() => { const s = seenFrom0(); s.sawScreen(MAP, 5, 5); return s; })(), { exits: [], doors: gate });
     await expect(g.travel.exitMap("down")).rejects.toThrow(/This map has no exit down/);
+  });
+
+  it("in a gate seen whole, takes the side asked (a town one way, a route the other)", async () => {
+    const GATE = ["##########", "D........D", "##########"];
+    const doors = [
+      { x: 0, y: 1, to: "VIOLET_CITY", tx: 39, ty: 24, outside: true },
+      { x: 9, y: 1, to: "ROUTE_31", tx: 4, ty: 7, outside: true },
+    ];
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 4, 1); // the screen around (4,1) is the whole gate
+    // Came through it from the route's side, and been out to the town before: both doors known.
+    seen.wentThrough(MAP, 0, 1, MAP + 1, 39, 24);
+    seen.wentThrough(MAP, 9, 1, MAP + 2, 4, 7);
+    const { core, travel } = fakeWorld(GATE, [4, 1], seen, { exits: [], doors });
+    const r = (await travel.exitMap("left")) as { walk: string };
+    expect(r.walk).toContain("out through the door at (0, 1) to VIOLET_CITY");
+    expect(core.host.position()).toMatchObject({ x: 0, y: 1 });
   });
 
   it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
