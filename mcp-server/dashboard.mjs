@@ -19,6 +19,19 @@ const RULE_ENDINGS = new Set(["victory", "wipe", "lost", "disqualified", "out of
 const recordOf = (leg) => leg.agent ?? leg.player ?? null;
 
 /**
+ * Legs recorded under other rules than they count under, each decided by the owner with the reason
+ * (docs/scoring.md, "Exceptions"). The record stays as it was; only the leaderboard reads it otherwise.
+ * @type {Record<string, string>}
+ */
+export const LEG_RULES_EXCEPTIONS = {
+  // Gemini 4 Neon low's last leg (Lance and the Champion, via agy): the agy-bench script passed --preset
+  // on --resume, so the leg was recorded without +firstrival+hardcap. Neither came into play: the
+  // League lets levels pass the cap, the leg used no Rare Candies and went over no cap, and the first
+  // rival fight was long past. The script is fixed. The owner's decision, 2026-11-20.
+  "2026-11-20T06-20-39-677Z": OFFICIAL.preset,
+};
+
+/**
  * Why a run isn't an official result, or null when it is (docs/scoring.md): the official rules and
  * game on every leg (a continued leg can be given other options), a new game (every leg of a
  * continued run on record), ended by the rules, nothing that helps or steers the model.
@@ -26,7 +39,7 @@ const recordOf = (leg) => leg.agent ?? leg.player ?? null;
 export function notOfficial({ date, preset, game, outcome, first, legs }) {
   if (isExperimental(game)) return "experimental game";
   if (date < OFFICIAL.since) return "before official runs";
-  if (preset !== OFFICIAL.preset || legs.some((l) => (l.preset ?? preset) !== OFFICIAL.preset)) return "other rules";
+  if (preset !== OFFICIAL.preset || legs.some((l) => (LEG_RULES_EXCEPTIONS[l.name] ?? l.preset ?? preset) !== OFFICIAL.preset)) return "other rules";
   if (game !== OFFICIAL.game) return "other game";
   if (recordOf(first)?.resumedFrom) return "not from a new game";
   if (legs.some((l) => recordOf(l)?.playtest)) return "playtest";
