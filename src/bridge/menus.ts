@@ -640,7 +640,7 @@ export class Menus {
   }
 
   /** Closes the start menu and anything open on top of it. */
-  private async closeMenus(): Promise<void> {
+  async closeMenus(): Promise<void> {
     for (let i = 0, clear = 0; i < 12 && clear < 2; i++) {
       await this.core.requireGb().runFrames(10, 8);
       // Mid-fade no menu shows, but one may come back when it ends (the bag, after the party screen).

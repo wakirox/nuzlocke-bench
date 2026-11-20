@@ -146,13 +146,17 @@
   },
   {
     "name": "field_move",
-    "description": "Use a field move (CUT, SURF, STRENGTH, FLASH…) from whichever party Pokémon knows it. Face the tree/water first.",
+    "description": "Use a field move (CUT, SURF, STRENGTH, FLASH, FLY…) from whichever party Pokémon knows it. Face the tree/water first. FLY with to (a town you've been to, as the town map names it) flies there and returns once you've landed; without to, it leaves the town map open for you to pick.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "move": {
           "type": "string",
           "description": "e.g. \"CUT\""
+        },
+        "to": {
+          "description": "FLY only: the town to fly to, e.g. \"CELADON CITY\"",
+          "type": "string"
         }
       },
       "required": [
