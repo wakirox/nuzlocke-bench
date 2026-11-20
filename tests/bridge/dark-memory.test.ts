@@ -134,6 +134,19 @@ describe("BridgeCore: the dark map", () => {
     expect(seen.origin(MAP)).toEqual([26, 4]);
   });
 
+  it("doesn't take a flight picked on the town map, landing a call later, for a door", () => {
+    const { host, core, seen } = darkCave();
+    host.moveTo({ map: MAP + 1, x: 20, y: 4 });
+    core.noteSeen();
+    core.flightCalls = 2; // FLY left the town map open; a press picks the place
+    host.moveTo({ map: MAP, x: 26, y: 4 });
+    core.noteSeen(true);
+    expect(seen.data.doors[MAP] ?? []).toEqual([]);
+    expect(seen.data.doors[MAP + 1] ?? []).toEqual([]);
+    expect(core.flightCalls).toBe(0); // landed: the next map change is a door again
+    expect(seen.origin(MAP)).toEqual([26, 4]);
+  });
+
   it("remembers the squares walked over mid-walk as floor, though the screen is read only at the end", () => {
     const { host, core, seen } = darkCave();
     core.mapText(); // the first look, at (5,4)

@@ -139,6 +139,8 @@ export class AiBridge {
     // Field moves and items change maps without a door (Dig, Teleport, Fly, an Escape Rope).
     this.core.mapChangeIsNoDoor = method === "field_move" || method === "use_item"
       || (method === "walk" && /^@(cut|field)\b/i.test(String(p.path ?? "").trim()));
+    // A flight picked on the town map by presses lands within a few calls, or never (cancelled).
+    if (this.core.flightCalls > 0 && method !== "field_move") this.core.flightCalls--;
     switch (method) {
       case "get_state":
         // Settled: a map the run has just come to (a resumed save, a field move) gets its origin, so
@@ -211,7 +213,7 @@ export class AiBridge {
       case "set_options":
         return this.setOptions(p);
       case "field_move":
-        return this.travel.fieldMove(String(p.move ?? "CUT").toUpperCase());
+        return this.travel.fieldMove(String(p.move ?? "CUT").toUpperCase(), p.to == null ? null : String(p.to));
       case "go_to":
         return this.core.withTrainers(p.trainers, () => this.travel.goTo(String(p.map ?? "").toUpperCase()));
       case "note_route": {

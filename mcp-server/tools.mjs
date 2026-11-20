@@ -420,8 +420,12 @@ const DEFINITIONS = {
 
   field_move: {
     title: "Field move",
-    description: "Use a field move (CUT, SURF, STRENGTH, FLASH…) from whichever party Pokémon knows it. Face the tree/water first.",
-    schema: { move: z.string().describe('e.g. "CUT"') },
+    description: "Use a field move (CUT, SURF, STRENGTH, FLASH, FLY…) from whichever party Pokémon knows it. Face the tree/water first. " +
+      "FLY with to (a town you've been to, as the town map names it) flies there and returns once you've landed; without to, it leaves the town map open for you to pick.",
+    schema: {
+      move: z.string().describe('e.g. "CUT"'),
+      to: z.string().optional().describe('FLY only: the town to fly to, e.g. "CELADON CITY"'),
+    },
     run: action("field_move"),
   },
 

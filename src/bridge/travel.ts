@@ -60,9 +60,10 @@ export class Travel {
 
   /**
    * Uses a field move (CUT, SURF, STRENGTH, FLASH, FLY…) from the party menu: tries
-   * each Pokémon's submenu until one lists it. Face the tree / water first.
+   * each Pokémon's submenu until one lists it. Face the tree / water first. FLY with `to` picks
+   * that town on the town map and lands there.
    */
-  async fieldMove(move: string): Promise<unknown> {
+  async fieldMove(move: string, to: string | null = null): Promise<unknown> {
     if (this.core.host.position().battle) throw new Error("Field moves are used outside battle.");
     const party = (this.core.host.summary() as { party?: unknown[] } | null)?.party ?? [];
     await this.menus.openStartMenu();
@@ -98,7 +99,9 @@ export class Travel {
           await this.core.awaitWarp();
         } else if (PICKS_A_PLACE.has(move) && !this.core.layout.texts.notNow.test(messages.join(" ")) && !/BADGE/i.test(messages.join(" "))) {
           // The town map is open, its cursor a picture (no ▶ for choose): the place is the player's pick.
-          return this.core.result({ messages, stopped: "the town map is open to pick where to fly: press up/down to move between places (the name shows on screen), a to fly there, b to cancel" });
+          if (to) return this.flyTo(to, messages);
+          this.core.flightCalls = 4;
+          return this.core.result({ messages, stopped: "the town map is open to pick where to fly: press up/down to move between places (the name shows on screen), a to fly there, b to cancel (or field_move FLY with to, the town's name)" });
         } else if (this.menus.partyCursorRow() >= 0 && this.core.screenText().some((l) => l.includes("▶"))) {
           // A move used on a party member (sharing HP) asks for which one.
           return this.core.result({ messages, stopped: "the party list is open for the move's target: press up/down to the Pokémon, then a (b cancels)" });
@@ -109,6 +112,39 @@ export class Travel {
     }
     for (let i = 0; i < 4; i++) await this.core.tap("b", 4, 20);
     throw new Error(`Nobody in the party can use ${move} here.`);
+  }
+
+  /**
+   * On FLY's town map: steps through the places (down) until `to`'s name shows, flies there and
+   * waits for the landing. The places are the towns the run has been to; one not among them is
+   * said, with the ones that are, and the map is closed.
+   */
+  private async flyTo(to: string, messages: string[]): Promise<unknown> {
+    const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const want = norm(to);
+    // The town map's line reads "To·PALLET TOWN    ▶▼": the place's name between the two.
+    const place = async () => {
+      const line = (await this.core.settledScreen()).find((l) => /[A-Z]/.test(l)) ?? "";
+      return line.replace(/^\W*To\W+/, "").replace(/[^A-Za-z0-9.é']+$/, "").trim();
+    };
+    const seenPlaces: string[] = [];
+    let here = await place();
+    for (let i = 0; i < 16 && !norm(here).includes(want); i++) {
+      if (here && !seenPlaces.includes(here)) seenPlaces.push(here);
+      else if (here && seenPlaces[0] === here && i > 0) break; // round the list once
+      await this.core.tap("down", 4, 12);
+      here = await place();
+    }
+    if (!want || !norm(here).includes(want)) {
+      // Out of the town map, then the party screen and the start menu, back to walking.
+      // Out of the town map, then the party screen and the start menu (each fades), back to walking.
+      await this.core.tap("b", 4, 20);
+      await this.menus.closeMenus();
+      throw new Error(`Can't fly to "${to}": the places you can fly to are ${seenPlaces.join(", ") || "none"}.`);
+    }
+    await this.core.tap("a", 4, 20);
+    await this.core.awaitWarp();
+    return this.core.result({ messages, note: `Flew to ${here}.` });
   }
 
   /** Follows the routes the model noted, one map at a time, to `target`. Logs the hops. */

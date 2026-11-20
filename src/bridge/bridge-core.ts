@@ -171,8 +171,11 @@ export class BridgeCore {
     const last = this.seenAt;
     this.seenAt = { map: p.map, x: p.x, y: p.y };
     if (last && last.map !== p.map) {
-      // A field move or an item (Dig, Teleport, Fly, an Escape Rope) changes the map without a door.
-      if (this.mapChangeIsNoDoor) {
+      // A field move or an item (Dig, Teleport, Fly, an Escape Rope) changes the map without a door,
+      // also when the flight it started lands in a later call (the town map left open: flightCalls).
+      const flown = this.flightCalls > 0;
+      this.flightCalls = 0;
+      if (this.mapChangeIsNoDoor || flown) {
         this.warpedFrom = null;
       } else {
         // Just warped: the coordinates and screen may not be the new map's yet, so the arrival is
@@ -213,6 +216,12 @@ export class BridgeCore {
   private warpedFrom: { map: number; x: number; y: number } | null = null;
   /** The call being answered changes maps by a field move or an item, not a door (set per call). */
   mapChangeIsNoDoor = false;
+  /**
+   * Calls left in which a map change is a flight, not a door: FLY left its town map open for the
+   * model to pick a place with presses, and the flight lands a call or two later (Neon flew from
+   * the town map with a press, and both ends were noted as doors, 2026-11-20). Cleared on landing.
+   */
+  flightCalls = 0;
 
   /** The bottom text box (Gen 1: rows 12–17) if one is on screen, as its text lines. */
   textBox(lines: string[]): { open: boolean; lines: string[] } {
