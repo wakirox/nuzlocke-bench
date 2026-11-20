@@ -9,12 +9,14 @@ import { stateOutcome } from "./run-log.mjs";
 /** The whole prompt: what to do, nothing about how. */
 export const PROMPT =
   "You are playing a Pokémon benchmark run through the nuzlocke-bench tools. Start by reading the rules with get_rules, " +
-  "then play until the run is over (won or lost). Every decision is yours; nobody will answer questions, so don't stop to ask — keep playing.";
+  "then play until the run is over (won or lost). Use only the nuzlocke-bench tools: calling any other tool ends the run. " +
+  "Every decision is yours; nobody will answer questions, so don't stop to ask — keep playing.";
 
 /** The prompt for a run continued from another's saves (--resume): the same, plus where to look first. */
 export const RESUME_PROMPT =
   "You are continuing a Pokémon benchmark run already in progress, through the nuzlocke-bench tools. Read the rules with get_rules, " +
   "see where things stand with get_state and your notes, then play until the run is over (won or lost). " +
+  "Use only the nuzlocke-bench tools: calling any other tool ends the run. " +
   "Every decision is yours; nobody will answer questions, so don't stop to ask — keep playing.";
 
 /**

@@ -86,7 +86,8 @@ and scoring aren't settled yet.
   compacted with the model's own summary at `--compact-window` (thousands of tokens; set it below the server's context
   limit). Key: `BENCH_API_KEY` (not needed for Ollama). Reports group these runs apart ("via API").
 
-- **The prompt** says what to do, not how: read the rules with `get_rules`, then play until the run is over;
+- **The prompt** says what to do, not how: read the rules with `get_rules`, then play until the run is over,
+  using only the nuzlocke-bench tools (any other tool ends the run: an agy model sees agy's built-ins too);
   nobody will answer questions.
 - **Only the game's tools**: no shell, no files, no other MCP servers, no settings. Each run starts in its
   own empty folder with auto-memory off and the session not saved, so nothing from the repo or an earlier
