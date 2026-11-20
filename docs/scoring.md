@@ -27,6 +27,18 @@ Only these runs make the leaderboard (`OFFICIAL` in `mcp-server/benchmark.mjs`, 
 
 Watching a run (`--headed`, `--watch`) or a watch-only observer doesn't change it.
 
+### Exceptions
+
+A leg recorded under other rules can still count when the owner decides the difference never came
+into play; each one is listed in `LEG_RULES_EXCEPTIONS` (`mcp-server/dashboard.mjs`) with its reason,
+and its record stays as it was.
+
+- **Gemini 4 Neon low, 2026-11-19 (its last leg, `2026-11-20T06-20-39-677Z`):** continued after its first
+  leg was stopped from outside mid-League, by a script that passed `--preset` on `--resume`, so the leg
+  was recorded without `+firstrival+hardcap`. Neither mattered there: the League lets levels pass the
+  cap, the leg used no Rare Candies and went over no cap, and the first rival fight was long past. The
+  script is fixed.
+
 The dashboard shows these runs only, one game at a time; test runs stay in `npm run bench:report`.
 
 The published results are these runs alone: `npm run bench:results` keeps one file per benchmark version,

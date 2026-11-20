@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { capturesOf, dashboardRuns, joinHardAreas, fightsOf, outcomeKind, renderDashboard, throwsOf } from "../../mcp-server/dashboard.mjs";
+import { LEG_RULES_EXCEPTIONS, capturesOf, dashboardRuns, joinHardAreas, fightsOf, outcomeKind, renderDashboard, throwsOf } from "../../mcp-server/dashboard.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { OFFICIAL } from "../../mcp-server/benchmark.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -105,6 +105,14 @@ describe("dashboardRuns", () => {
     expect(reason([off("2026-11-08T10-00", { agent: { ...agent, narrated: true } })])).toBe("narrated");
     expect(reason([off("2026-11-08T10-00", { agent: { ...agent, stopped: "stopped by hand (SIGTERM)" }, outcome: "unfinished" })])).toBe("stopped by hand");
     expect(reason([off("2026-11-08T10-00", { outcome: "unfinished" })])).toBe("unfinished");
+  });
+
+  it("counts a leg listed in LEG_RULES_EXCEPTIONS under the official rules, and no other leg recorded under others", () => {
+    const first = (name: string) => row(name, { preset: OFFICIAL.preset, game: OFFICIAL.game, outcome: "unfinished", agent: { ...agent, stopped: "stopped by hand (SIGTERM)" } });
+    const last = (name: string, from: string) => row(name, { preset: "hardcore-nuzlocke", game: OFFICIAL.game, outcome: "victory: X", agent: { ...agent, resumedFrom: from } });
+    const listed = Object.keys(LEG_RULES_EXCEPTIONS)[0];
+    expect(dashboardRuns([first("2026-11-19T23-25-58-767Z"), last(listed, "2026-11-19T23-25-58-767Z")])[0].notOfficial).toBeNull();
+    expect(dashboardRuns([first("2026-11-19T10-00"), last("2026-11-19T11-00", "2026-11-19T10-00")])[0].notOfficial).toBe("other rules");
   });
 
   it("isn't official off the runner's defaults, or on a harness that isn't a clean commit", () => {
