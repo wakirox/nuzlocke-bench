@@ -301,6 +301,21 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(core.host.position()).toMatchObject({ x: 0, y: 1 });
   });
 
+  it("in a gate on a first visit, doesn't walk back out the way in: the far door is unknown", async () => {
+    const GATE = ["##########", "D........D", "##########"];
+    const doors = [
+      { x: 0, y: 1, to: "VIOLET_CITY", tx: 39, ty: 24, outside: true },
+      { x: 9, y: 1, to: "ROUTE_31", tx: 4, ty: 7, outside: true },
+    ];
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 4, 1);
+    seen.wentThrough(MAP, 9, 1, MAP + 2, 4, 7); // came in from the route's side only
+    const { core, travel } = fakeWorld(GATE, [4, 1], seen, { exits: [], doors });
+    // The far (left) door leads somewhere the run hasn't been: the player's to find out, not a walk back.
+    await expect(travel.exitMap("left")).rejects.toThrow(/This map has no exit left/);
+    expect(core.host.position()).toMatchObject({ x: 4, y: 1 });
+  });
+
   it("names that door in the coordinates of the map it's on, not the one it leads to", async () => {
     // This map's (0,0) at its corner; the next map's elsewhere: the door's square is said before going through.
     const seen = new SeenMaps({ squares: {}, doors: {}, origins: { [MAP]: [0, 0], [MAP + 1]: [3, 3] } });

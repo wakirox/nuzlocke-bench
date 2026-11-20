@@ -852,10 +852,11 @@ export class Travel {
           return { ...out, walk: head };
         }
       }
-      // Out of a building means outdoors: where some of its known doors lead to a town or route and
-      // others don't (a Crystal Pokémon Center's stairs up), only those count.
+      // Out of a building means outdoors: where some of its known doors lead to a town or route, the
+      // known ones that don't (a Crystal Pokémon Center's stairs up) drop out. A door the run doesn't
+      // know ("?") stays: it may be the way out (a gate's far side on a first visit).
       const outdoors = doors.filter((d) => d.outside && d.to !== "?");
-      const out = outdoors.length && outdoors.length < doors.length ? outdoors : doors;
+      const out = outdoors.length ? doors.filter((d) => d.outside || d.to === "?") : doors;
       // Still more than one place (a gate, out to a town one side and a route the other): the doors the
       // way asked, when they all lead to one place. A gate seen whole counted both sides.
       const towards = out.filter((d) => dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x);

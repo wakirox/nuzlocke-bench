@@ -56,8 +56,10 @@ export type UnfoggedView = OverworldView<"raw" | undefined>;
 /** Views safe to print as a lit map or exits line (`KnownOverworldView` or untagged test fixtures; rejects `"raw"`/`"guessed"`). */
 export type FoggedView = OverworldView<"known" | undefined>;
 
-/** A door or warp. `push`: the way to press while standing on it to go through (a warp mat), when the game says so. */
-/** A warp on the map. `outside`: it leads outdoors (a town or route; Crystal's map headers say so). */
+/**
+ * A door or warp. `push`: the way to press while standing on it to go through (a warp mat), when the
+ * game says so. `outside`: it leads outdoors (a town or route; Crystal's map headers say so).
+ */
 export interface Door { x: number; y: number; to: string; tx: number | null; ty: number | null; push?: Dir; outside?: boolean }
 
 /** Whether the step from square (c, r) to (nc, nr) crosses a tile-pair edge (a cliff edge). */

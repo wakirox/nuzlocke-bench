@@ -5,6 +5,9 @@
 import { maskView } from "./map-lens";
 import { STAIRS, type AnyOverworldView, type Door, type KnownOverworldView } from "./overworld";
 
+/** A door the run doesn't know: where it leads (and whether that's outdoors) stays hidden. */
+const unknownDoor = ({ x, y, push }: Door): Door => ({ x, y, to: "?", tx: null, ty: null, ...(push ? { push } : {}) });
+
 /** The screen around the player: 10×9 squares, the player at column 4, row 4 (both games). */
 const SCREEN = { left: 4, right: 5, up: 4, down: 4 };
 
@@ -187,7 +190,7 @@ export class SeenMaps {
       mapCell: (ch, x, y) => (ch === "b" && !(opts?.boulderSwitch && this.hasSwitch(map, x, y)) ? "B" : ch),
       mapDoors: (inSight) => {
         const known = inSight.filter((k) => this.knowsDoor(map, k, bottomRow));
-        return inSight.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
+        return inSight.map((d) => (known.includes(d) || known.some((k) => sameDoor(k, d)) ? d : unknownDoor(d)));
       },
     });
   }
@@ -214,7 +217,7 @@ export class SeenMaps {
       mapDoors: (inSight) => {
         const doors = inSight.filter((d) => known[`${d.x},${d.y}`] === "D");
         const knownDoors = doors.filter((k) => this.knowsDoor(map, k, bottomRow));
-        return doors.map((d) => (knownDoors.includes(d) || knownDoors.some((k) => sameDoor(k, d)) ? d : { ...d, to: "?", tx: null, ty: null }));
+        return doors.map((d) => (knownDoors.includes(d) || knownDoors.some((k) => sameDoor(k, d)) ? d : unknownDoor(d)));
       },
     });
   }

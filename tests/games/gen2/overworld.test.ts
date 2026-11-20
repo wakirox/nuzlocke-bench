@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { trainerFacing } from "../../../src/bridge/overworld";
-import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
+import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, isOutdoorMap, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
 import { A } from "../../../src/games/gen2/ram";
 
 /** A ROM with CollisionPermissionTable (bank $13) saying water for $29 and wall for $07, land otherwise. */
@@ -44,6 +44,26 @@ describe("Crystal trainer parties", () => {
   it("has no party for class or number 0", () => {
     expect(trainerParty(rom, 0, 1)).toBeNull();
     expect(trainerParty(rom, 1, 0)).toBeNull();
+  });
+});
+
+describe("Crystal map environments", () => {
+  // MapGroupPointers (bank $25's start) → group 10's headers at $6000, 9 bytes each, environment third.
+  const rom = new Uint8Array(0x100000);
+  const pointers = 0x25 * 0x4000;
+  rom[pointers + 9 * 2] = 0x00; rom[pointers + 9 * 2 + 1] = 0x60;
+  const headers = 0x25 * 0x4000 + 0x2000;
+  [1, 2, 3, 6].forEach((environment, i) => { rom[headers + i * 9 + 2] = environment; }); // town, route, indoor, gate
+  const map = (number: number) => (10 << 8) | number;
+
+  it("counts towns and routes as outdoors, not buildings or gates", () => {
+    expect([1, 2, 3, 4].map((n) => isOutdoorMap(rom, map(n)))).toEqual([true, true, false, false]);
+  });
+
+  it("isn't outdoors for a number that isn't a map", () => {
+    expect(isOutdoorMap(rom, 0)).toBe(false); // group 0
+    expect(isOutdoorMap(rom, 10 << 8)).toBe(false); // number 0
+    expect(isOutdoorMap(rom, (27 << 8) | 1)).toBe(false); // past the 26 groups
   });
 });
 
