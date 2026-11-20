@@ -178,14 +178,21 @@ describe("narrow grids", () => {
 
   it("writes negative columns whole on the x row, and the last digit under them", () => {
     // 0 a column after -1: one space between them is enough.
-    expect(narrowGrids("      -1  0  1\ny  0   #  @  .")).toBe("x    -1 0\n      1 0 1\ny  0  # @ .");
+    expect(narrowGrids("      -1  0  1\ny  0   #  @  .")).toBe("x    -1 0 1\n      1 0 1\ny  0  # @ .");
+  });
+
+  it("writes the last column's whole x too, when it doesn't touch the one before", () => {
+    // A wide map past its last multiple of 5: x8 was read as x18 after the 0 column (2026-11-20).
+    const xs = Array.from({ length: 20 }, (_, i) => i - 10);
+    const wide = `     ${xs.map((x) => String(x).padStart(4)).join("")}\ny  0 ${xs.map(() => "   .").join("")}`;
+    expect(narrowGrids(wide).split("\n")[0]).toBe("x   -10        -5         0         5       9");
   });
 
   it("leaves out a multiple of 5 that would touch the number before it", () => {
     // -6 is the first column; -5 next to it would read as "-6-5": the next whole number is 0.
     const xs = [-6, -5, -4, -3, -2, -1, 0, 1];
     const wide = `     ${xs.map((x) => String(x).padStart(3)).join("")}\ny  0 ${xs.map(() => "  .").join("")}`;
-    expect(narrowGrids(wide).split("\n").slice(0, 2)).toEqual(["x    -6           0", "      6 5 4 3 2 1 0 1"]);
+    expect(narrowGrids(wide).split("\n").slice(0, 2)).toEqual(["x    -6           0 1", "      6 5 4 3 2 1 0 1"]);
   });
 });
 
@@ -423,8 +430,8 @@ describe("grids with negative x (0.3.0: coordinates count from where the run arr
 
   it("narrow: two-digit negative x the same way, -10 as a multiple of 5", () => {
     const lines = narrowGrids(map(-11)).split("\n");
-    // -11 is the first column: -10 next to it would touch it, so it's left out.
-    expect(lines.slice(0, 2)).toEqual(["x   -11", "      1 0 9 8"]);
+    // -11 is the first column: -10 next to it would touch it, so it's left out. -8 is the last column.
+    expect(lines.slice(0, 2)).toEqual(["x   -11    -8", "      1 0 9 8"]);
   });
 
   it("wide: the bridge widens the columns so an x of three characters doesn't run into the next", () => {
@@ -443,7 +450,7 @@ describe("grids with negative x (0.3.0: coordinates count from where the run arr
     expect(lines[1]).toBe("y-100     #    .    @");
     expect(lines[2]).toBe("y -99     .    .    .");
     expect(narrowGrids(far).split("\n")).toEqual([
-      "x   -101",
+      "x   -101 -99",
       "       1 0 9",
       "y-100  # . @",
       "y -99  . . .",
