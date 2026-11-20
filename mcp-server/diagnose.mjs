@@ -3,11 +3,13 @@
 // combat death causes, and rule violations — without touching anything the model sees.
 
 import { UNCOUNTED } from "./call-budget.mjs";
+import { outcomeKind } from "./dashboard.mjs";
 import { callsOf } from "./friction.mjs";
 import { GEN1 } from "./games/index.mjs";
 import { contextStats, summarize } from "./report.mjs";
 
 const READ_ONLY_TOOLS = new Set(["get_state", "get_map", "get_screen", "read_screen_text", "routes", "notes", "get_rules", "policies"]);
+const MOVE_TOOLS = new Set(["walk", "walk_to", "travel", "exit_map", "go_to", "hunt"]);
 const BRACKET_MAP = /\[([A-Z0-9_]+)\]/;
 const PLAIN_MAP = /^([A-Z0-9_]+)(?=\s*\(|\s*\|)/;
 const XY_RE = /x(-?\d+)\s+y(-?\d+)|\((-?\d+),(-?\d+)\)/;
@@ -41,6 +43,22 @@ function usedTool(c, name) {
   return c.args.steps.some((s) => s?.tool === name || s?.name === name || (typeof s === "object" && s !== null && name in s));
 }
 
+/** True when the entry is a movement call (or a `do` batch containing one). */
+function isMoveCall(c) {
+  if (MOVE_TOOLS.has(c.tool)) return true;
+  if (c.tool !== "do" || !Array.isArray(c.args?.steps)) return false;
+  return c.args.steps.some((s) => MOVE_TOOLS.has(s?.tool ?? s?.name) || (typeof s === "object" && s !== null && Object.keys(s).some((k) => MOVE_TOOLS.has(k))));
+}
+
+/** Coarse state signature used to detect whether a call changed game state. */
+const stateKey = (c) => `${tileOf(c) ?? mapOf(c) ?? "?"}|${inBattle(c) ? (inTrainerBattle(c) ? "T" : "W") : "O"}|${c.badges ?? ""}|${c.deaths ?? ""}`;
+
+/** True when the transcript is in Claude Code's stream-json format (which records compact_boundary). */
+function hasCompactionMarkers(transcript, via) {
+  if (!transcript || via === "agy") return false;
+  return /"subtype"\s*:\s*"(?:init|compact_boundary)"|"type"\s*:\s*"result"/.test(transcript);
+}
+
 /**
  * Extracts the player's visible HP fraction right before each 1-based call index from a transcript.
  * Returns a Map from call number `n` to `{ hp, maxHp, pct }`.
@@ -65,7 +83,8 @@ export function hpBeforeCall(transcript) {
 /**
  * Detects spatial navigation failures:
  * - `ping-pong`: 4+ transitions bouncing between 2 maps within 25 non-battle calls
- * - `tile-spin`: revisiting the exact same `(map, x, y)` >= 5 times in 20 non-battle calls
+ * - `tile-spin`: returning to the exact same `(map, x, y)` >= 5 times across movement calls
+ *   within 20 movement calls (consecutive calls on the same tile don't count as returning)
  * - `stall` / `stall-at-end`: >= 60 calls without a new map, badge, or won trainer fight
  */
 export function detectSpatialLoops(calls) {
@@ -75,6 +94,8 @@ export function detectSpatialLoops(calls) {
   let lastPingPong = -30;
   let lastSpin = -30;
   const seenMaps = new Set();
+  /** Recent movement-call landings `{ n, tile }`, with consecutive identical tiles collapsed. */
+  const moveTrail = [];
 
   for (let i = 0; i < calls.length; i++) {
     const c = calls[i];
@@ -97,23 +118,31 @@ export function detectSpatialLoops(calls) {
       lastProgress = i;
     }
 
-    if (i >= 24) {
+    if (!inBattle(c) && isMoveCall(c)) {
+      const tile = tileOf(c);
+      if (tile && moveTrail.at(-1)?.tile !== tile) {
+        moveTrail.push({ n: c.n, tile });
+        if (moveTrail.length >= 9 && i - lastSpin >= 20) {
+          const recent = moveTrail.slice(-20);
+          const counts = new Map();
+          for (const step of recent) counts.set(step.tile, (counts.get(step.tile) ?? 0) + 1);
+          const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+          if (top && top[1] >= 5) {
+            incidents.push({ kind: "tile-spin", call: recent[0].n, tile: top[0], visits: top[1] });
+            lastSpin = i;
+          }
+        }
+      }
+    }
+
+    if (i >= 24 && i - lastPingPong >= 20) {
       const slice = calls.slice(i - 24, i + 1);
-      const nonBattle = slice.filter((x) => !inBattle(x));
-      if (i - lastPingPong >= 20 && !slice.some((x) => x.fight?.result === "won")) {
+      if (!slice.some((x) => x.fight?.result === "won")) {
+        const nonBattle = slice.filter((x) => !inBattle(x));
         const seq = nonBattle.map(mapOf).filter(Boolean).filter((x, k, a) => k === 0 || x !== a[k - 1]);
         if (seq.length >= 5 && new Set(seq).size <= 2) {
           incidents.push({ kind: "ping-pong", call: nonBattle[0].n, maps: [...new Set(seq)], transitions: seq.length - 1 });
           lastPingPong = i;
-        }
-      }
-      if (i - lastSpin >= 20) {
-        const counts = new Map();
-        for (const t of nonBattle.slice(-20).map(tileOf).filter(Boolean)) counts.set(t, (counts.get(t) ?? 0) + 1);
-        const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-        if (top && top[1] >= 5) {
-          incidents.push({ kind: "tile-spin", call: nonBattle[Math.max(0, nonBattle.length - 20)].n, tile: top[0], visits: top[1] });
-          lastSpin = i;
         }
       }
     }
@@ -128,7 +157,7 @@ export function detectSpatialLoops(calls) {
 /**
  * Detects tool thrashing:
  * - `blind-retry`: the exact same failing `(tool, args)` >= 3 times in a row
- * - `error-storm`: >= 5 errors inside any 15-call window
+ * - `error-storm`: >= 5 errors inside a 15-call window with no game-state change between them
  */
 export function detectErrorLoops(calls) {
   const incidents = [];
@@ -138,6 +167,8 @@ export function detectErrorLoops(calls) {
   let lastTool = "";
   let lastErr = "";
   let lastStorm = -20;
+  let stuckErrors = [];
+  let lastState = null;
 
   const flushStreak = () => {
     if (streak >= 3) incidents.push({ kind: "blind-retry", call: streakStart, tool: lastTool, count: streak, error: lastErr });
@@ -162,11 +193,19 @@ export function detectErrorLoops(calls) {
       }
     }
 
-    if (i >= 14 && i - lastStorm >= 15) {
-      const errs = calls.slice(i - 14, i + 1).filter((x) => x.error).length;
-      if (errs >= 5) {
-        incidents.push({ kind: "error-storm", call: calls[i - 14].n, errors: errs, window: 15 });
+    const st = stateKey(c);
+    if (!c.error && lastState !== null && st !== lastState) {
+      // A successful call moved the game forward: reset the stuck-error window.
+      stuckErrors = [];
+    }
+    if (!c.error) lastState = st;
+    if (c.error) {
+      stuckErrors.push({ i, n: c.n });
+      stuckErrors = stuckErrors.filter((e) => i - e.i < 15);
+      if (stuckErrors.length >= 5 && i - lastStorm >= 15) {
+        incidents.push({ kind: "error-storm", call: stuckErrors[0].n, errors: stuckErrors.length, window: 15 });
         lastStorm = i;
+        stuckErrors = [];
       }
     }
   }
@@ -240,16 +279,17 @@ export function detectCompactionAmnesia(calls, compactions) {
 
 /**
  * Classifies each death increment (`cascade-wipe`, `underleveled-boss-death`, `no-switch-death`,
- * `boss-death`, `wild-or-trash-death`) and violation increment (`cap-violation`, `rule-violation`).
+ * `boss-death`, `trainer-death`, `wild-death`) and violation increment (`cap-violation`, `rule-violation`).
  * @param {any[]} calls
  * @param {any} [game]
- * @param {{ hpBefore?: Map<number, { hp: number, maxHp: number, pct: number }> | null }} [opts]
+ * @param {{ hpBefore?: Map<number, { hp: number, maxHp: number, pct: number }> | null, resumed?: boolean, initialDeaths?: number | null, initialViolations?: number | null, initialCapViolations?: number | null }} [opts]
  */
-export function detectDeathCauses(calls, game = GEN1, { hpBefore = null } = {}) {
+export function detectDeathCauses(calls, game = GEN1, { hpBefore = null, resumed = false, initialDeaths = null, initialViolations = null, initialCapViolations = null } = {}) {
   const incidents = [];
-  let prevDeaths = 0;
-  let prevViolations = 0;
-  let prevCapViolations = 0;
+  const seedFromFirst = resumed && calls.length > 0 && !inBattle(calls[0]);
+  let prevDeaths = initialDeaths ?? (seedFromFirst ? (calls[0].deaths ?? 0) : 0);
+  let prevViolations = initialViolations ?? (seedFromFirst ? (calls[0].violations ?? 0) : 0);
+  let prevCapViolations = initialCapViolations ?? (seedFromFirst ? (calls[0].capViolations ?? 0) : 0);
   let activeFight = null;
 
   for (let i = 0; i < calls.length; i++) {
@@ -284,7 +324,8 @@ export function detectDeathCauses(calls, game = GEN1, { hpBefore = null } = {}) 
         : underleveled ? "underleveled-boss-death"
         : lowHpNoSwitch ? "no-switch-death"
         : bigFight ? "boss-death"
-        : "wild-or-trash-death";
+        : curTrainer || Boolean(fight) ? "trainer-death"
+        : "wild-death";
 
       incidents.push({
         kind,
@@ -314,12 +355,13 @@ export function detectDeathCauses(calls, game = GEN1, { hpBefore = null } = {}) 
 /**
  * Runs all detectors on one parsed attempt `{ session, calls }`.
  * @param {any} attempt
- * @param {{ game?: any, transcript?: string | null, name?: string, model?: string | null }} [opts]
+ * @param {{ game?: any, transcript?: string | null, name?: string, model?: string | null, agent?: any, initialDeaths?: number | null, initialViolations?: number | null, initialCapViolations?: number | null }} [opts]
  */
-export function diagnoseAttempt(attempt, { game = GEN1, transcript = null, name = "run", model = null } = {}) {
+export function diagnoseAttempt(attempt, { game = GEN1, transcript = null, name = "run", model = null, agent = null, initialDeaths = null, initialViolations = null, initialCapViolations = null } = {}) {
   const counted = attempt.calls.filter((c) => !UNCOUNTED.has(c.tool) && !c.uncounted);
   const summary = summarize({ session: attempt.session, calls: counted }, game);
-  const ctx = transcript ? contextStats(transcript) : null;
+  const trackCompactions = hasCompactionMarkers(transcript, agent?.via);
+  const ctx = trackCompactions ? contextStats(transcript) : null;
   const hpBefore = transcript ? hpBeforeCall(transcript) : null;
 
   const incidents = [
@@ -327,26 +369,81 @@ export function diagnoseAttempt(attempt, { game = GEN1, transcript = null, name 
     ...detectErrorLoops(counted),
     ...detectScreenshotBursts(counted),
     ...detectCompactionAmnesia(counted, ctx?.compactions),
-    ...detectDeathCauses(counted, game, { hpBefore }),
+    ...detectDeathCauses(counted, game, { hpBefore, resumed: Boolean(agent?.resumedFrom), initialDeaths, initialViolations, initialCapViolations }),
   ].sort((a, b) => a.call - b.call);
 
   const lastCall = counted.at(-1)?.n ?? 0;
   const endCause = incidents.filter((x) => x.call >= lastCall - 40).map((x) => x.kind);
   const tags = [...new Set(incidents.map((x) => x.kind))];
+  const outcome = outcomeKind(summary.outcome, agent);
 
   return {
     name,
+    resumedFrom: agent?.resumedFrom ?? null,
+    legs: 1,
     model: model ?? "unknown",
-    outcome: summary.outcome,
+    outcome,
     victory: summary.victory,
+    disqualified: summary.disqualified,
     badges: summary.badges,
     deaths: summary.deaths,
     calls: summary.calls,
-    compactions: ctx?.compactions.length ?? 0,
+    /** Number of Claude Code compactions, or null when the transcript format has no compaction markers. */
+    compactions: ctx ? ctx.compactions.length : null,
     incidents,
     endCause: [...new Set(endCause)],
     tags,
   };
+}
+
+/**
+ * Joins continued runs (`resumedFrom`) into one entry per run, matching `dashboardRuns` in
+ * `mcp-server/dashboard.mjs`: outcome, victory, badges, and deaths come from the final leg,
+ * calls sum across legs, and incidents are combined with cumulative call offsets.
+ */
+export function joinDiagnosedRuns(rows) {
+  const byName = new Map(rows.map((r) => [r.name, r]));
+  const parentOf = (r) => (r.resumedFrom ? byName.get(r.resumedFrom) ?? null : null);
+  const continued = new Set(rows.map((r) => parentOf(r)?.name).filter(Boolean));
+  const taken = new Set();
+  const chains = [];
+  const ends = rows.filter((r) => !continued.has(r.name)).sort((a, b) => (a.name < b.name ? 1 : -1));
+
+  for (const end of ends) {
+    const legs = [];
+    for (let at = end, i = 0; at && i < 20 && !taken.has(at.name); at = parentOf(at), i++) legs.unshift(at);
+    for (const l of legs) taken.add(l.name);
+    if (legs.length) chains.push(legs);
+  }
+
+  return chains.sort((a, b) => a[0].name.localeCompare(b[0].name)).map((legs) => {
+    if (legs.length === 1) return legs[0];
+    const first = legs[0];
+    const last = legs.at(-1);
+    const incidents = [];
+    let offset = 0;
+    for (const l of legs) {
+      for (const inc of l.incidents) incidents.push({ ...inc, call: inc.call + offset });
+      offset += l.calls;
+    }
+    const compCounts = legs.map((l) => l.compactions).filter((c) => c != null);
+    return {
+      name: first.name,
+      resumedFrom: first.resumedFrom,
+      legs: legs.length,
+      model: first.model !== "unknown" ? first.model : last.model,
+      outcome: last.outcome,
+      victory: last.victory && legs.every((l) => !l.disqualified),
+      disqualified: legs.some((l) => l.disqualified),
+      badges: Math.max(...legs.map((l) => l.badges)),
+      deaths: last.deaths,
+      calls: legs.reduce((s, l) => s + l.calls, 0),
+      compactions: compCounts.length ? compCounts.reduce((a, b) => a + b, 0) : null,
+      incidents,
+      endCause: last.endCause,
+      tags: [...new Set(incidents.map((x) => x.kind))],
+    };
+  });
 }
 
 const fmtIncident = (inc) => {
@@ -357,11 +454,11 @@ const fmtIncident = (inc) => {
     case "ping-pong":
       return `ping-pong (${inc.maps.join(" ↔ ")}, ${inc.transitions} transitions)`;
     case "tile-spin":
-      return `tile-spin (${inc.tile}, ${inc.visits} visits)`;
+      return `tile-spin (${inc.tile}, ${inc.visits} returns)`;
     case "blind-retry":
       return `blind-retry (${inc.tool} ×${inc.count}: ${inc.error})`;
     case "error-storm":
-      return `error-storm (${inc.errors}/${inc.window} calls failed)`;
+      return `error-storm (${inc.errors}/${inc.window} stuck calls failed)`;
     case "screenshot-burst":
       return `screenshot-burst (${inc.count} shots in ${inc.context}, ${inc.map ?? "?"})`;
     case "compaction-amnesia": {
@@ -387,26 +484,32 @@ export function diagnoseReport(runs, { details = false } = {}) {
     const total = rs.reduce((s, r) => s + r.incidents.filter((i) => kinds.includes(i.kind)).length, 0);
     return (total / rs.length).toFixed(1);
   };
+  const amnesiaAvg = (rs) => {
+    const measured = rs.filter((r) => r.compactions != null);
+    return measured.length ? avg(measured, ["compaction-amnesia"]) : "n/a";
+  };
 
   const lines = [
     `# Run diagnostics: ${runs.length} run(s)`,
     "",
-    "| Model | Runs | Wins | Stalls/run | Loops/run | ErrLoops | ShotBursts | Amnesia | NoSwitch | Underlv | WildDeaths | Violations |",
-    "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    "| Model | Runs | Wins | Stalls/run | Loops/run | ErrLoops | ShotBursts | Amnesia | NoSwitch | Underlv | Trainer | Wild | Violations |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
   ];
 
   const sorted = [...groups.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
   for (const [model, rs] of sorted) {
     const wins = rs.filter((r) => r.victory).length;
     lines.push(
-      `| ${model} | ${rs.length} | ${wins} | ${avg(rs, ["stall", "stall-at-end"])} | ${avg(rs, ["ping-pong", "tile-spin"])} | ${avg(rs, ["blind-retry", "error-storm"])} | ${avg(rs, ["screenshot-burst"])} | ${avg(rs, ["compaction-amnesia"])} | ${avg(rs, ["no-switch-death"])} | ${avg(rs, ["underleveled-boss-death"])} | ${avg(rs, ["wild-or-trash-death"])} | ${avg(rs, ["cap-violation", "rule-violation"])} |`,
+      `| ${model} | ${rs.length} | ${wins} | ${avg(rs, ["stall", "stall-at-end"])} | ${avg(rs, ["ping-pong", "tile-spin"])} | ${avg(rs, ["blind-retry", "error-storm"])} | ${avg(rs, ["screenshot-burst"])} | ${amnesiaAvg(rs)} | ${avg(rs, ["no-switch-death"])} | ${avg(rs, ["underleveled-boss-death"])} | ${avg(rs, ["trainer-death"])} | ${avg(rs, ["wild-death"])} | ${avg(rs, ["cap-violation", "rule-violation"])} |`,
     );
   }
 
   if (details || runs.length <= 10) {
     lines.push("", "## Per-run incident timelines");
     for (const r of runs) {
-      lines.push("", `### ${r.name} — ${r.model} (${r.outcome}, ${r.badges} badges, ${r.calls} calls, ${r.deaths} deaths, ${r.compactions} compactions)`);
+      const comp = r.compactions == null ? "compactions n/a" : `${r.compactions} compactions`;
+      const legsNote = r.legs > 1 ? `, ${r.legs} legs` : "";
+      lines.push("", `### ${r.name} — ${r.model} (${r.outcome}, ${r.badges} badges, ${r.calls} calls, ${r.deaths} deaths, ${comp}${legsNote})`);
       if (!r.incidents.length) {
         lines.push("- No failure incidents flagged.");
       } else {
