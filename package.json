@@ -20,6 +20,7 @@
     "bench:dashboard": "node scripts/bench-report.mjs --dashboard runs/dashboard.html",
     "bench:results": "node scripts/bench-results.mjs",
     "bench:friction": "node scripts/bench-friction.mjs",
+    "bench:diagnose": "node scripts/bench-diagnose.mjs",
     "verify": "node scripts/verify-run.mjs"
   },
   "dependencies": {
