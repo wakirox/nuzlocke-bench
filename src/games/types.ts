@@ -81,6 +81,12 @@ export interface GameState {
   money: number;
   playTime: { h: number; m: number; s: number };
   party: MonState[];
+  /**
+   * The party's species list, as the game keeps it beside the party data. A new Pokémon's species goes
+   * there first; its slot's data (species, level…) is written later, after the nickname prompt (Gen 1).
+   * Until then the slot still holds whatever was there before. Missing: the game's reader doesn't give it.
+   */
+  partySpecies?: number[];
   boxCount: number;
   dexOwned: number;
   bag: { id: number; qty: number }[];

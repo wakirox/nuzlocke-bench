@@ -365,9 +365,12 @@ export class Tracker {
     const pc = this.pendingCatch;
     if (pc) pc.polls++;
     const newest = pc?.toParty ? s.party[s.party.length - 1] : null;
+    // A gift's slot is written after its nickname prompt, so until the slot shows the species the
+    // game listed for it, it still holds the slot's old Pokémon (one deposited a moment ago).
+    const listed = s.partySpecies?.[s.party.length - 1];
     const settled = !!pc && (pc.wild
       ? !pc.toParty || (!!newest?.species && (newest.species === pc.enemy?.species || !pc.enemy || pc.polls > 20))
-      : pc.polls >= 5 && (!pc.toParty || (!!newest?.species && !!newest.level)));
+      : pc.polls >= 5 && (!pc.toParty || (!!newest?.species && !!newest.level && (listed == null || newest.species === listed))));
     if (pc && settled) {
       this.pendingCatch = null;
       const gift = !pc.wild;

@@ -191,6 +191,7 @@ export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }, v
       party.push(readPartyMon(mem, A.partyMons + i * PARTY_MON_SIZE, A.partyNicks + i * NAME_LENGTH));
     }
   }
+  const partySpecies = validParty ? Array.from(mem.readBytes(A.partySpecies, partyCount)) : [];
 
   const numBag = Math.min(mem.read8(A.numBagItems), 20);
   const bagRaw = mem.readBytes(A.bagItems, numBag * 2);
@@ -243,6 +244,7 @@ export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }, v
     money: bcd(money[0]) * 10000 + bcd(money[1]) * 100 + bcd(money[2]),
     playTime: { h: mem.read8(A.playTimeHours), m: mem.read8(A.playTimeMinutes), s: mem.read8(A.playTimeSeconds) },
     party,
+    partySpecies,
     boxCount: Math.min(mem.read8(A.boxCount), 20),
     dexOwned,
     bag,
