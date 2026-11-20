@@ -111,6 +111,10 @@ describe("text boxes and menus over the dark view", () => {
     expect(shown(windowSquares(0xe3, 0x70, 7))).toEqual([...Array(7).fill(".........."), ...Array(2).fill("xxxxxxxxxx")]);
     // Sliding in: a square partly under it is covered too.
     expect(shown(windowSquares(0xe3, 0x78, 7)).slice(6)).toEqual(["..........", "xxxxxxxxxx", "xxxxxxxxxx"]);
+    // Across: from pixel column WX−7. WX 87 starts at pixel 80, the right half (squares 5-9); WX 167
+    // is past the screen's right edge.
+    expect(shown(windowSquares(0xe3, 0x70, 87)).slice(6)).toEqual(["..........", ".....xxxxx", ".....xxxxx"]);
+    expect(shown(windowSquares(0xe3, 0x70, 167))).toEqual(Array(9).fill(".........."));
     // Hidden below the screen (WY 0x90), window off (bit 5) or screen off (bit 7): nothing covered.
     for (const [lcdc, wy] of [[0xe3, 0x90], [0xc3, 0x70], [0x63, 0x70]]) expect(shown(windowSquares(lcdc, wy, 7))).toEqual(Array(9).fill(".........."));
     // Squares under the sign stay dark although the sign lights them.
