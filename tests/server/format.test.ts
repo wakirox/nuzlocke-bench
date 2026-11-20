@@ -138,6 +138,14 @@ describe("messages", () => {
       .toEqual(["NOVA used CLAW!", "A lucky hit!", "It hardly did a thing...", "Enemy BASEMON fell!"]);
     expect(sentences(["Hey! We met on", "the trail!", "WALKER wants", "a rematch!"])).toEqual(["Hey! We met on the trail!", "WALKER wants a rematch!"]);
   });
+
+  it("says a status move that \"didn't affect\" the foe missed or failed; an immunity is left as it is", () => {
+    expect(sentences(["NOVA used", "SUPERSONIC!", "It didn't affect", "Enemy BIRDMON!"])).toEqual([
+      "NOVA used SUPERSONIC!",
+      `It didn't affect Enemy BIRDMON! (the move missed or failed: an immunity reads "doesn't affect")`,
+    ]);
+    expect(sentences(["It doesn't affect", "Enemy GHOSTMON!"])).toEqual(["It doesn't affect Enemy GHOSTMON!"]);
+  });
 });
 
 describe("battle and map repeats", () => {
