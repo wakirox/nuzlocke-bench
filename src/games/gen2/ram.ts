@@ -137,19 +137,26 @@ export function readBattleHp(mem: MemoryReader): { you: BattlerHp; foe: BattlerH
   return { you: one(A.battleMon, A.battleMonNick), foe: one(A.enemyMon, A.enemyMonNick) };
 }
 
+/**
+ * The player's square, signed: stepping off a map's top or left edge, the game sets the coordinate
+ * to -1 a frame before it loads the next map (no map is 128 squares across, so a byte ≥ 0x80 is
+ * such a -1). Read unsigned, a walk counted 255 squares.
+ */
+function coords(mem: MemoryReader): { x: number; y: number } {
+  const signed = (b: number) => (b >= 0x80 ? b - 0x100 : b);
+  return { x: signed(rd(mem, A.xCoord)), y: signed(rd(mem, A.yCoord)) };
+}
+
 export function readPosition(mem: MemoryReader): Position {
   const party = rd(mem, A.partyCount);
   const battle = inBattle(mem);
   const { w, h } = mapSize(mem);
-  // Signed: stepping off a map's top or left edge, the game sets the coordinate to -1 a frame
-  // before it loads the next map (no map is 128 squares across, so a byte ≥ 0x80 is such a -1).
-  const signed = (b: number) => (b >= 0x80 ? b - 0x100 : b);
-  const x = signed(rd(mem, A.xCoord));
-  const y = signed(rd(mem, A.yCoord));
+  const { x, y } = coords(mem);
   return {
     x, y, map: currentMap(mem), battle,
     scripted: !battle && (rd(mem, A.scriptRunning) !== 0 || rd(mem, A.joypadDisable) !== 0),
-    inWorld: (party >= 1 && party <= 6) || (w > 0 && h > 0 && x < w && y < h),
+    // Before the first Pokémon, memory may hold anything: only coordinates on the map count.
+    inWorld: (party >= 1 && party <= 6) || (w > 0 && h > 0 && x >= 0 && y >= 0 && x < w && y < h),
   };
 }
 
@@ -248,8 +255,7 @@ export function readGameState(mem: MemoryReader & { romBytes?(): Uint8Array }): 
     playerName: decodeText(rdBytes(mem, A.playerName, NAME_LENGTH)),
     map,
     mapConst: MAP_CONSTANTS_CRYSTAL[map] || `MAP_${map.toString(16)}`,
-    x: rd(mem, A.xCoord),
-    y: rd(mem, A.yCoord),
+    ...coords(mem),
     // wPlayerDirection: down 0, up 4, left 8, right $C.
     facing: (["down", "up", "left", "right"] as const)[(rd(mem, A.playerDirection) >> 2) & 3],
     dark: isDark(mem),

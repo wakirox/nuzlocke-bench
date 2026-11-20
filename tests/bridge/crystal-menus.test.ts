@@ -84,6 +84,15 @@ describe("Crystal menus", () => {
     expect(r.stopped).toBe(NAMING_KEYBOARD_OPEN);
   });
 
+  it("walk on the naming keyboard presses no direction (it would move the cursor off A) and says so", async () => {
+    const { host, call } = bridgeFor([
+      { rows: screenRows({ 4: "    RIVAL'S NAME?", 6: "    __________", 8: " A B C D E F G H I" }), on: {} },
+    ], { position: { x: 2, y: 2, inWorld: true, scripted: true }, world: [".....", ".....", ".....", "....."] });
+    const r = await call("walk", { path: "up 1" });
+    expect(host.presses).toEqual([]);
+    expect(String(r.walk)).toContain(NAMING_KEYBOARD_OPEN);
+  });
+
   it("switch_pokemon picks from Crystal's forced-switch screen (Which PKMN?)", async () => {
     const party = (at: number) => screenRows({
       1: `${at === 0 ? "▶" : " "}  WING   10/ 28`, 3: `${at === 1 ? "▶" : " "}  CROC    5/ 28`, 5: `${at === 2 ? "▶" : " "}  WORM    0/ 29`,

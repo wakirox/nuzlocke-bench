@@ -465,6 +465,9 @@ export class Travel {
    * on a map change, or when a battle starts.
    */
   private async walkStraight(dir: Dir, tiles: number): Promise<{ moved: number; stopped: string }> {
+    // On the naming keyboard a held direction moves its cursor off "A", where press name: starts
+    // typing (it can't home the cursor: the keyboard wraps). Don't press anything there.
+    if (isNamingKeyboardScreen(this.core.screenText())) return { moved: 0, stopped: NAMING_KEYBOARD_OPEN };
     const gb = this.core.requireGb();
     let last = this.core.host.position();
     let moved = 0;
@@ -533,6 +536,8 @@ export class Travel {
               const now = this.core.host.position();
               if (now.scripted) held = f + 6;
               if (now.map !== last.map) { stopped = "entered a new map"; break; }
+              // A scene that ends on the keyboard (the direction is already let go).
+              if (isNamingKeyboardScreen(this.core.screenText())) { stopped = NAMING_KEYBOARD_OPEN; break; }
               const later = this.core.textBox(this.core.screenText());
               if (later.open) {
                 stopped = `stopped by a scripted event: a text box opened${later.lines.length ? ` ("${later.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
