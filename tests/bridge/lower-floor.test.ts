@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { darkSquares, findPath, renderView, sealFromWholeMap, sealedLowerFloor, type OverworldView } from "../../src/bridge/overworld";
+import { SeenMaps } from "../../src/bridge/seen";
 
 // Tile 5 is the lower floor (as lowerCaveFloor says), tile 9 the upper floor; a step between 5 and 9 is a cliff.
 const cliff = (a: number, b: number) => (a === 5 && b === 9) || (a === 9 && b === 5);
@@ -32,6 +33,16 @@ describe("a cave's stairs", () => {
 
   it("are walkable as before: a walk goes up them", () => {
     expect(findPath(withStairs(view(grid, tiles)), 0, 1, { avoidSight: false })?.dirs).toEqual(["left", "left", "left"]);
+  });
+
+  it("stay walkable in the dark: remembered as ≡, read back as floor, drawn as ≡", () => {
+    // The dark view of the middle row, as darkSquares gives it, kept by the run's memory of the dark.
+    const seen = new SeenMaps();
+    seen.sawDark(7, [[",", ",", "≡", "@", "."]], 0, 1);
+    const dark = seen.fogDark(withStairs(view(grid, tiles, false)), 7);
+    expect(dark.grid[1]).toEqual([".", ".", ".", "@", "."]);
+    expect(rows(renderView(dark))[1]).toBe(",  ,  ≡  @  .");
+    expect(findPath(dark, 0, 1, { avoidSight: false })?.dirs).toEqual(["left", "left", "left"]);
   });
 });
 

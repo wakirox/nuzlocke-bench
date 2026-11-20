@@ -187,12 +187,12 @@ export function ledgeTarget(v: AnyOverworldView, x: number, y: number): string |
 
 /**
  * The screen as a player sees it in the dark: only the lit squares (litSquares) show, each as what it is
- * (rock, floor or the cave's lower floor, a ladder), since a player tells the cave's patterns apart. Lit isn't rock: in the dark
+ * (rock, floor, the cave's lower floor or stairs, a ladder), since a player tells the cave's patterns apart. Lit isn't rock: in the dark
  * tunnel the floor's pattern shows while some walls are drawn black, so a square says what the map has
  * there, not whether it's lit. A black wall right next to a lit square shows as rock too: a player reads
  * it as the edge of what's lit (a cliff's shadow). Other black squares, the player and everyone else
  * (black sprites) are "?". The player is always at the screen's centre, so @ is known.
- * Returns the screen's squares row by row: "#", ".", ",", "D", "?" or "@" (SeenMaps.sawDark keeps them).
+ * Returns the screen's squares row by row: "#", ".", ",", STAIRS, "D", "?" or "@" (SeenMaps.sawDark keeps them).
  */
 /** What a lit square can show in the dark; anything else there (a person, an object) is a black sprite. */
 const DARK_SEEN = new Set(["#", ".", ",", STAIRS, "D"]);
