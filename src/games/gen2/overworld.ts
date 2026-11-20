@@ -291,14 +291,29 @@ function currentWarps(mem: MemoryReader, rom: Uint8Array): { x: number; y: numbe
   });
 }
 
-/** A map's warp events from the ROM (MapGroupPointers → header → attributes → events), as [x, y]. */
-export function romWarps(rom: Uint8Array, map: number): [number, number][] {
+/** A map's header in the ROM (MapGroupPointers, 9 bytes each), or null for a number that isn't a map. */
+function mapHeader(rom: Uint8Array, map: number): number | null {
   const group = map >> 8;
   const number = map & 0xff;
   // Crystal has 26 map groups (MapGroupPointers): anything else isn't a map.
-  if (!group || !number || group > 26) return [];
-  const groupTable = romOff(0x25, word(rom, MAP_GROUP_POINTERS + (group - 1) * 2));
-  const header = groupTable + (number - 1) * 9;
+  if (!group || !number || group > 26) return null;
+  return romOff(0x25, word(rom, MAP_GROUP_POINTERS + (group - 1) * 2)) + (number - 1) * 9;
+}
+
+/** Map environments (the header's third byte, pokecrystal's constants/map_data_constants.asm): outdoors. */
+const TOWN = 1;
+const ROUTE = 2;
+
+/** Whether a map is outdoors (a town or a route), from its header's environment. */
+export function isOutdoorMap(rom: Uint8Array, map: number): boolean {
+  const header = mapHeader(rom, map);
+  return header !== null && [TOWN, ROUTE].includes(rom[header + 2]);
+}
+
+/** A map's warp events from the ROM (MapGroupPointers → header → attributes → events), as [x, y]. */
+export function romWarps(rom: Uint8Array, map: number): [number, number][] {
+  const header = mapHeader(rom, map);
+  if (header === null) return [];
   const attrs = romOff(rom[header], word(rom, header + 3));
   // map_attributes: border block, height, width, blocks bank, blocks, scripts bank, scripts, events.
   const events = romOff(rom[attrs + 6], word(rom, attrs + 9));
@@ -327,6 +342,7 @@ export function mapDoors(mem: MemoryReader, rom: Uint8Array): Door[] {
     return {
       x: w.x, y: w.y, to: MAP_CONSTANTS_CRYSTAL[w.map] || `MAP_${w.map.toString(16)}`, tx: arrival?.[0] ?? null, ty: arrival?.[1] ?? null,
       ...(push ? { push } : {}),
+      ...(isOutdoorMap(rom, w.map) ? { outside: true } : {}),
     };
   });
 }

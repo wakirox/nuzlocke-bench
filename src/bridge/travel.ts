@@ -852,16 +852,21 @@ export class Travel {
           return { ...out, walk: head };
         }
       }
-      const places = [...new Set(doors.map((d) => d.to))];
+      // Out of a building means outdoors: where some of its known doors lead to a town or route and
+      // others don't (a Crystal Pokémon Center's stairs up), only those count. A gate, both of whose
+      // doors lead out, stays the player's call.
+      const outdoors = doors.filter((d) => d.outside && d.to !== "?");
+      const ways = outdoors.length && outdoors.length < doors.length ? outdoors : doors;
+      const places = [...new Set(ways.map((d) => d.to))];
       // One way out only if every door lands on the same spot (a building's doormat, maybe two squares
       // wide). A cave's ladders can all go to the next floor, but to parts of it that don't connect.
-      const xs = doors.map((d) => d.tx ?? -1);
-      const ys = doors.map((d) => d.ty ?? -1);
+      const xs = ways.map((d) => d.tx ?? -1);
+      const ys = ways.map((d) => d.ty ?? -1);
       const oneSpot = Math.max(...xs) - Math.min(...xs) <= 1 && Math.max(...ys) - Math.min(...ys) <= 1;
       // Not through a door the run doesn't know ("?"): where that leads is the player's to find out.
       if (places.length === 1 && places[0] !== "?" && oneSpot) {
         const here = this.core.host.position();
-        const door = [...doors].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
+        const door = [...ways].sort((a, b) => Math.abs(a.x - here.x) + Math.abs(a.y - here.y) - (Math.abs(b.x - here.x) + Math.abs(b.y - here.y)))[0];
         // Said in this map's coordinates: once through the door the player is on the next map.
         const doorAt = this.core.at(door.x, door.y);
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;
