@@ -6,7 +6,8 @@ import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, r
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
-import type { Menus } from "./menus";
+import { NAMING_KEYBOARD_OPEN, type Menus } from "./menus";
+import { isNamingKeyboardScreen } from "./screen-state";
 
 export { seenSteps };
 
@@ -464,6 +465,9 @@ export class Travel {
    * on a map change, or when a battle starts.
    */
   private async walkStraight(dir: Dir, tiles: number): Promise<{ moved: number; stopped: string }> {
+    // On the naming keyboard a held direction moves its cursor off "A", where press name: starts
+    // typing (it can't home the cursor: the keyboard wraps). Don't press anything there.
+    if (isNamingKeyboardScreen(this.core.screenText())) return { moved: 0, stopped: NAMING_KEYBOARD_OPEN };
     const gb = this.core.requireGb();
     let last = this.core.host.position();
     let moved = 0;
@@ -516,7 +520,11 @@ export class Travel {
         } else if (++idle > FRAMES_PER_TILE * 2) {
           // An open text box holds the player in place until it's closed; say so, with its text
           // (once it has finished printing).
-          const box = this.core.textBox(await this.core.settledScreen());
+          const screen = await this.core.settledScreen();
+          // The naming keyboard (Crystal's rival, named in the lab) holds the player too: it waits
+          // for a name, not for the scene to end.
+          if (isNamingKeyboardScreen(screen)) { stopped = NAMING_KEYBOARD_OPEN; break; }
+          const box = this.core.textBox(screen);
           if (!box.open) {
             // A trainer who has seen you walks over before anything shows, and a scene (a ship
             // leaving the dock) plays with the controls taken: wait while the game holds them, so the
@@ -528,6 +536,8 @@ export class Travel {
               const now = this.core.host.position();
               if (now.scripted) held = f + 6;
               if (now.map !== last.map) { stopped = "entered a new map"; break; }
+              // A scene that ends on the keyboard (the direction is already let go).
+              if (isNamingKeyboardScreen(this.core.screenText())) { stopped = NAMING_KEYBOARD_OPEN; break; }
               const later = this.core.textBox(this.core.screenText());
               if (later.open) {
                 stopped = `stopped by a scripted event: a text box opened${later.lines.length ? ` ("${later.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
