@@ -124,9 +124,12 @@ details.fold summary:focus-visible { outline: 2px solid var(--focus); outline-of
 details.fold .sum-sub { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 #one details.fold { margin: 12px 0 0; }
 #one details.fold summary { font-size: 15px; padding: 13px 0; }
-.points-toggle { all: unset; cursor: pointer; display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); text-decoration: underline; }
+.points-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; font-size: 12.5px; }
+.points-toggle { all: unset; cursor: pointer; color: var(--muted); text-decoration: underline; }
 .points-toggle:hover { color: var(--ink); }
 .points-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.points-link { color: var(--muted); }
+.points-link:hover { color: var(--ink); }
 .points tr.is-zero { display: none; }
 .points.show-zero tr.is-zero { display: table-row; }
 @media (max-width: 720px) { .top-run { grid-template-columns: 1fr; } .milestones { columns: 1; } }
@@ -181,7 +184,7 @@ td.top { vertical-align: top; }
   </section>
   <details class="rules-fold">
     <summary>About official runs &amp; benchmark versions</summary>
-    <p><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care.</p>
+    <p><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care. <a href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How scoring works</a>.</p>
   </details>
   <details class="fold" id="heat-fold">
     <summary>Milestone breakdown <span class="sum-sub">Share of runs reaching each milestone, sorted by leaderboard rank</span></summary>
@@ -417,7 +420,10 @@ function oneRun(r) {
           const hide = v === 0 && t !== "Milestones" && t !== "Deaths";
           return `<tr${hide ? ' class="is-zero"' : ""}><td>${t}<span class="why">${esc(why)}</span></td><td class="num${v ? "" : " zero"}">${v > 0 ? "+" + v : v}</td></tr>`;
         }).join("")}</tbody></table>
-        ${zeroCount ? `<button type="button" class="points-toggle" id="points-toggle" data-n="${zeroCount}">Show ${zeroCount} zero row${zeroCount === 1 ? "" : "s"}</button>` : ""}
+        <div class="points-foot">
+          ${zeroCount ? `<button type="button" class="points-toggle" id="points-toggle" data-n="${zeroCount}">Show ${zeroCount} zero row${zeroCount === 1 ? "" : "s"}</button>` : "<span></span>"}
+          <a class="points-link" href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How points work</a>
+        </div>
       </section>
       <section>
         <h2>Milestones</h2>
