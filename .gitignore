@@ -1,4 +1,5 @@
-node_modules/
+# No slash: a worktree's node_modules can be a symlink to the main checkout's.
+node_modules
 dist/
 dev-rom/
 saves/
