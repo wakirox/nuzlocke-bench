@@ -156,6 +156,11 @@ describe("SeenMaps.fog", () => {
     expect(f.doors).toEqual([{ x: 7, y: 12, to: "?", tx: null, ty: null }, { x: 7, y: 10, to: "CAVE", tx: 1, ty: 1 }]);
   });
 
+  it("doesn't let a ? door say whether it leads outdoors", () => {
+    const f = fogged([{ ...door(7, 12, "SECRET", 3, 4), outside: true }, { ...door(7, 10, "CAVE", 1, 1), outside: true }]);
+    expect(f.doors).toEqual([{ x: 7, y: 12, to: "?", tx: null, ty: null }, { x: 7, y: 10, to: "CAVE", tx: 1, ty: 1, outside: true }]);
+  });
+
   it("lists a door shown as ? in the map text as → ?", () => {
     // A door the run hasn't been through reads as "→ ?" to the model, not as a place.
     expect(renderView(fogged([door(7, 12, "SECRET", 3, 4)]))).toContain("Doors (D): (7,12) → ?.");
