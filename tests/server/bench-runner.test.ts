@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { NUDGE, TokenMeter, PROMPT, loggedPreset, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, userTurn } from "../../mcp-server/bench-runner.mjs";
+import { NUDGE, TokenMeter, PROMPT, RESUME_PROMPT, loggedPreset, claudeArgs, mcpConfig, nextStep, runEnded, runnerEnv, userTurn } from "../../mcp-server/bench-runner.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { table } from "../../mcp-server/report.mjs";
 
@@ -48,6 +48,9 @@ describe("bench runner", () => {
   it("never gives the model hints: the prompt and nudge say what to do, not how", () => {
     expect(NUDGE).toBe("The run isn't over. Keep playing.");
     expect(PROMPT).toMatch(/get_rules/);
+    // Any other tool ends the run, and the model is told so (an agy model sees agy's built-ins too).
+    expect(PROMPT).toMatch(/Use only the nuzlocke-bench tools: calling any other tool ends the run\./);
+    expect(RESUME_PROMPT).toMatch(/Use only the nuzlocke-bench tools: calling any other tool ends the run\./);
     expect(JSON.parse(userTurn(NUDGE))).toEqual({ type: "user", message: { role: "user", content: [{ type: "text", text: NUDGE }] } });
   });
 
