@@ -192,7 +192,7 @@ export function plainErrorScreen(text) {
 }
 
 /** With narrow grids (the default), said once in get_map's description. */
-export const NARROW_GRID_NOTE = " The x header is two rows: the x row gives the whole x of the first column and of every multiple of 5, each number ending over its column; under it is each column's last digit. Count from the nearest whole number (never more than 4 columns away).";
+export const NARROW_GRID_NOTE = " The x header is two rows: the x row gives the whole x of the first and last columns and of every multiple of 5, each number ending over its column; under it is each column's last digit. Count from the nearest whole number (never more than 4 columns away).";
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
 export function compactGridNote({ boulderSwitch = false } = {}) {
@@ -329,7 +329,7 @@ export function compactGrids(text) {
 
 /**
  * The narrow grid's x header, two rows indented like the row labels ("y  5 "): an "x" row with
- * the whole x of the first column and of every multiple of 5, each ending over its column, and
+ * the whole x of the first and last columns and of every multiple of 5, each ending over its column, and
  * under it each column's last digit. Any column is then at most 4 from a whole number. Until
  * 2026-11-19 it was each column's digits stacked in rows (sign, hundreds, tens, ones), read top
  * to bottom: models doubted their reading by a column or two and took screenshots to check.
@@ -339,8 +339,10 @@ export function narrowHeader(xs, indent) {
   const at = (c) => indent + 2 * c + 1;
   const label = [..."x".padEnd(at(xs.length - 1) + 1)];
   let lastEnd = -1;
+  // The first and last columns too: past the last multiple of 5, a wide map's right edge was read
+  // as the teens (Opus took x8 for x18 after the 0 column, 2026-11-20).
   xs.forEach((x, c) => {
-    if (c > 0 && x % 5 !== 0) return;
+    if (c > 0 && c < xs.length - 1 && x % 5 !== 0) return;
     const s = String(x);
     const start = at(c) - s.length + 1;
     // A gap of one space at least, so two numbers never read as one.
