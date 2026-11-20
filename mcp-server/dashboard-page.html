@@ -26,8 +26,11 @@ h1 { font-size: 34px; line-height: 1.1; margin: 0; letter-spacing: -.025em; font
 h2 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
 .sub { color: var(--ink-2); margin: 8px 0 0; font-size: 16px; max-width: 62ch; }
 .note { color: var(--muted); font-size: 13px; margin: 2px 0 14px; max-width: 75ch; }
-.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin: 0 0 24px; }
-.rules { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 75ch; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin: 0 0 20px; }
+details.rules-fold { color: var(--muted); font-size: 13px; margin: -4px 0 14px; max-width: 78ch; }
+details.rules-fold summary { cursor: pointer; padding: 4px 0; color: var(--ink-2); }
+details.rules-fold summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+details.rules-fold p { margin: 6px 0 0; }
 /* Labels in one column, the pickers in the next: they line up, and take the width of the widest. */
 .filters { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 10px; }
 .filters label { display: contents; font-size: 13px; color: var(--ink-2); }
@@ -57,10 +60,16 @@ td.id a:hover { text-decoration: underline; }
 
 /* The leaderboard: each model's runs as a walk along the game, badges as the stops. */
 .board { padding: 8px 20px 16px; }
-.lane { display: grid; grid-template-columns: minmax(150px, 190px) 1fr 96px; gap: 6px 24px; align-items: center; padding: 16px 0; }
+.lane { display: grid; grid-template-columns: minmax(150px, 190px) 1fr 96px; gap: 4px 24px; align-items: center; padding: 12px 0; }
 .lane + .lane { border-top: 1px solid var(--line); }
-.lane.axis { padding: 12px 0 0; }
-.who b { display: block; font-size: 16px; font-weight: 650; }
+.lane.axis { padding: 10px 0 0; }
+.lane.active { background: color-mix(in srgb, var(--reach) 6%, transparent); margin: 0 -10px; padding-left: 10px; padding-right: 10px; border-radius: 8px; }
+.who-btn { all: unset; cursor: pointer; display: block; font-size: 16px; font-weight: 650; color: var(--ink); }
+.who-btn:hover { text-decoration: underline; }
+.who-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding: 2px 8px; font-size: 12px; color: var(--ink); background: var(--bg); border: 1px solid var(--ring); border-radius: 999px; cursor: pointer; font-family: inherit; }
+.filter-chip:hover { border-color: var(--ink-2); }
+.filter-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .who span, .score span { color: var(--muted); font-size: 12.5px; }
 .score { text-align: right; }
 .score b { display: block; font-size: 28px; line-height: 1; font-weight: 750; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -108,10 +117,21 @@ a { color: var(--ink); }
 .ms .t { font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .ms.no { color: var(--muted); }
 .ms.no .t { color: var(--muted); }
-details.fold { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; margin: 12px 0 0; padding: 0 20px; }
-details.fold summary { cursor: pointer; font-weight: 650; font-size: 15px; padding: 13px 0; min-height: 44px; }
-details.fold[open] { padding-bottom: 16px; }
+details.fold { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; margin: 0 0 16px; padding: 0 20px; }
+details.fold summary { cursor: pointer; font-weight: 650; font-size: 16px; padding: 14px 0; min-height: 44px; }
+details.fold[open] { padding-bottom: 18px; }
 details.fold summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+details.fold .sum-sub { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+#one details.fold { margin: 12px 0 0; }
+#one details.fold summary { font-size: 15px; padding: 13px 0; }
+.points-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; font-size: 12.5px; }
+.points-toggle { all: unset; cursor: pointer; color: var(--muted); text-decoration: underline; }
+.points-toggle:hover { color: var(--ink); }
+.points-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.points-link { color: var(--muted); }
+.points-link:hover { color: var(--ink); }
+.points tr.is-zero { display: none; }
+.points.show-zero tr.is-zero { display: table-row; }
 @media (max-width: 720px) { .top-run { grid-template-columns: 1fr; } .milestones { columns: 1; } }
 td.wrap { white-space: normal; }
 td.top { vertical-align: top; }
@@ -157,19 +177,21 @@ td.top { vertical-align: top; }
     <div class="filters"><label>Game <select id="f-game"></select></label><label>Version <select id="f-version"></select></label></div>
   </div>
   <section class="board" aria-labelledby="board-h">
-    <h2 id="board-h" style="padding-top:12px">Leaderboard</h2>
-    <p class="note" id="version-note"></p>
-    <p class="note" id="board-note"></p>
+    <h2 id="board-h" style="padding-top:10px">Leaderboard</h2>
+    <p class="note" id="board-meta"></p>
     <div id="board"></div>
     <div class="key"><span><i style="background:var(--reach)"></i>Median run</span><span><i style="background:var(--best)"></i>Best run</span><span>Circles are the 8 badges, squares the league's 4 elite rooms, the diamond is the Champion.</span></div>
   </section>
-  <p class="rules"><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care.</p>
-  <section style="margin-top:24px">
-    <h2>How far each model gets</h2>
-    <p class="note">Share of runs reaching each milestone, in game order. Hover or focus a cell for the counts.</p>
+  <details class="rules-fold">
+    <summary>About official runs &amp; benchmark versions</summary>
+    <p><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care. <a href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How scoring works</a>.</p>
+  </details>
+  <details class="fold" id="heat-fold">
+    <summary>Milestone breakdown <span class="sum-sub">Share of runs reaching each milestone, sorted by leaderboard rank</span></summary>
+    <p class="note">In game order. Hover or focus a cell for exact counts.</p>
     <div class="scroll"><table id="heat"></table></div>
     <div class="legend" id="legend"></div>
-  </section>
+  </details>
   <section>
     <h2>Runs</h2>
     <p class="note" id="runs-note"></p>
@@ -225,51 +247,56 @@ function versionOptions() {
 let sort = { key: "id", dir: -1 };
 const PAGE = 25;
 let showAll = false;
+let filterGroup = null;
 const chosen = () => runsAll.filter((r) => r.game === $("f-game").value && versionOf(r) === $("f-version").value);
-function versionNote() {
+function versionSummary() {
   const v = $("f-version").value;
   const what = (x) => (VERSION_NOTES[x] ? ` (${VERSION_NOTES[x]})` : "");
   const ahead = DATA.current && v && newer(DATA.current, v) < 0;
   const currentHasRuns = [...$("f-version").options].some((o) => o.value === DATA.current);
-  $("version-note").textContent = !v ? "" : !ahead ? `Version ${v}${what(v)}.`
-    : currentHasRuns ? `Version ${v}${what(v)}, an older one: the current is ${DATA.current}${what(DATA.current)}.`
-    : `Version ${DATA.current}${what(DATA.current)} is the current one, with no official runs here yet. These are version ${v}'s${what(v)}.`;
+  return !v ? "" : !ahead ? `Version ${v}${what(v)}.`
+    : currentHasRuns ? `Version ${v}${what(v)} — current is ${DATA.current}.`
+    : `Current is ${DATA.current} (no official runs yet); showing ${v}${what(v)}.`;
 }
 
 const isBadge = (o) => /^badge\d$/.test(o.id);
 const isEnd = (o, i) => i === DATA.objectives.length - 1;
 const isElite = (o) => /^elite\d$/.test(o.id);  // the league's four rooms: squares between the badges and the Champion
 
-function board(rows) {
+function rankedGroups(rows) {
   const groups = [...new Set(rows.map(groupOf))];
-  const winners = rows.filter((r) => r.outcome === "victory").length;
-  const furthest = Math.max(-1, ...rows.map((r) => r.furthest));
-  $("board-note").textContent = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${groups.length} model${groups.length === 1 ? "" : "s"}. ${winners ? `${winners} became Champion.` : `No Champion yet: the furthest run reached ${label(furthest)}.`} Ranked by median score.`;
-  if (!groups.length) { $("board").innerHTML = `<p class="empty">No official runs yet.</p>`; return; }
-  const n = DATA.objectives.length;
-  const all = groups.map((g) => {
+  return groups.map((g) => {
     const of = rows.filter((r) => groupOf(r) === g);
     const v = of.map((r) => r.score.total);
     // The best run: the top score (the furthest one on a tie), linked from its row.
     const bestRun = [...of].sort((a, b) => b.score.total - a.score.total || b.furthest - a.furthest)[0];
     return { g, n: of.length, med: exactMedian(v), best: Math.max(...v), worst: Math.min(...v), at: median(of.map((r) => r.furthest)), top: Math.max(...of.map((r) => r.furthest)), bestId: bestRun.id };
-  }).sort((a, b) => b.med - a.med || b.top - a.top);
+  }).sort((a, b) => b.med - a.med || b.top - a.top || byGroup(a.g, b.g));
+}
+
+function board(rows, all) {
+  const winners = rows.filter((r) => r.outcome === "victory").length;
+  const furthest = Math.max(-1, ...rows.map((r) => r.furthest));
+  const summary = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${all.length} model${all.length === 1 ? "" : "s"} · ${winners ? `${winners} Champion${winners === 1 ? "" : "s"}` : `furthest: ${label(furthest)}`} · ranked by median score. Click a model to filter runs.`;
+  $("board-meta").textContent = [summary, versionSummary()].filter(Boolean).join(" ");
+  if (!all.length) { $("board").innerHTML = `<p class="empty">No official runs yet.</p>`; return; }
+  const n = DATA.objectives.length;
   const stops = (x) => DATA.objectives.map((o, i) => {
     const cls = [isBadge(o) ? "stop" : "", isElite(o) ? "stop elite" : "", isEnd(o, i) ? "stop end" : "", i <= x.at ? "reach" : i <= x.top ? "best" : ""].filter(Boolean).join(" ");
     const tip = `${o.label}: ${i <= x.at ? "reached by the median run" : i <= x.top ? "reached by the best run" : "not reached"}`;
     return isBadge(o) || isElite(o) || isEnd(o, i) ? `<i class="${cls}" tabindex="0" data-tip="${esc(tip)}" aria-label="${esc(tip)}"></i>` : `<i class="${cls}"></i>`;
   }).join("");
   const axis = `<div class="lane axis" aria-hidden="true"><span></span><div class="track" style="--n:${n}">${DATA.objectives.map((o, i) => `<span>${isBadge(o) ? o.id.slice(5) : isElite(o) ? "E" + o.id.slice(5) : isEnd(o, i) ? "C" : ""}</span>`).join("")}</div><span></span></div>`;
-  $("board").innerHTML = axis + all.map((x) => `<div class="lane">
-    <div class="who"><b>${esc(x.g)}</b><span>${x.n} run${x.n === 1 ? "" : "s"}</span></div>
+  $("board").innerHTML = axis + all.map((x) => `<div class="lane${filterGroup === x.g ? " active" : ""}">
+    <div class="who"><button type="button" class="who-btn" data-filter="${esc(x.g)}" aria-pressed="${filterGroup === x.g}">${esc(x.g)}</button><span>${x.n} run${x.n === 1 ? "" : "s"}</span></div>
     <div class="track" style="--n:${n}" role="img" aria-label="${esc(`${x.g}: median run reached ${label(x.at)}, best ${label(x.top)}`)}">${stops(x)}</div>
     <div class="score"><b>${x.med}</b><span>${x.n > 1 ? `${x.worst} to ${x.best}` : "score"}</span></div>
     <div class="where">${x.at === x.top ? esc(label(x.top)) : `Median ${esc(label(x.at))}, best ${esc(label(x.top))}`} · <a href="#run/${esc(x.bestId)}">${x.n > 1 ? "See the best run" : "See the run"}</a></div>
   </div>`).join("");
 }
 
-function heat(rows) {
-  const groups = [...new Set(rows.map(groupOf))].sort(byGroup);
+function heat(rows, all) {
+  const groups = all.map((x) => x.g);
   if (!groups.length) { $("heat").innerHTML = `<tbody><tr><td class="empty">No official runs yet.</td></tr></tbody>`; $("legend").innerHTML = ""; return; }
   const of = Object.fromEntries(groups.map((g) => [g, rows.filter((r) => groupOf(r) === g)]));
   const head = `<thead><tr><th scope="col">Milestone</th>${groups.map((g) => `<th scope="col">${esc(g)}<br><span style="color:var(--muted);font-weight:400">${of[g].length} run${of[g].length === 1 ? "" : "s"}</span></th>`).join("")}</tr></thead>`;
@@ -299,11 +326,12 @@ const COLS = [
 ];
 
 function runs(rows) {
+  const filtered = filterGroup ? rows.filter((r) => groupOf(r) === filterGroup) : rows;
   const value = (r) => (sort.key === "group" ? groupOf(r) : sort.key === "darkText" ? r.dark?.result ?? "" : sort.key === "scoreTotal" ? r.score.total : sort.key === "playSec" ? secs(r.playTime) : r[sort.key] ?? -1);
-  const sorted = [...rows].sort((a, b) => { const x = value(a), y = value(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
-  $("more").hidden = rows.length <= PAGE;
-  $("more").textContent = showAll ? `Show the first ${PAGE}` : `Show all ${rows.length} runs`;
-  $("runs-note").textContent = `${rows.length} run${rows.length === 1 ? "" : "s"}. Select a run for its details, or a heading to sort.`;
+  const sorted = [...filtered].sort((a, b) => { const x = value(a), y = value(b); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir; });
+  $("more").hidden = filtered.length <= PAGE;
+  $("more").textContent = showAll ? `Show the first ${PAGE}` : `Show all ${filtered.length} runs`;
+  $("runs-note").innerHTML = `${filtered.length} run${filtered.length === 1 ? "" : "s"}. Select a run for its details, or a heading to sort.${filterGroup ? `<button type="button" class="filter-chip" id="clear-filter">${esc(filterGroup)} ✕</button>` : ""}`;
   const arrow = (k) => (sort.key === k ? (sort.dir > 0 ? " ▲" : " ▼") : "");
   const aria = (k) => (sort.key === k ? ` aria-sort="${sort.dir > 0 ? "ascending" : "descending"}"` : "");
   $("runs").innerHTML = `<thead><tr>${COLS.map(([k, t, , num]) => `<th class="${num && k !== "badges" ? "num" : ""}${["badges", "deaths", "furthest"].includes(k) ? " hide-s" : ""}"${aria(k)}><button data-sort="${k}">${esc(t)}${arrow(k)}</button></th>`).join("")}</tr></thead><tbody>${(showAll ? sorted : sorted.slice(0, PAGE)).map((r) => `<tr>${COLS.map((c) => c[2](r)).join("")}</tr>`).join("")}</tbody>`;
@@ -378,7 +406,8 @@ function oneRun(r) {
     ]),
     group("Knowledge: the longest story steps (calls from the milestone before)", longest.map(([id, n]) => [labelOf[id] ?? id, String(n)])),
   ].join("")}</tbody></table></div></section>` : "";
-  const stats = `<div class="tiles run-tiles">${[[r.deaths, "deaths"], [r.calls, "calls"], [r.playTime ?? "—", "game time"], [hhmm(r.realMs) || "—", "real time"], [r.screenshots, "screenshots"], [r.wrongCalls ?? 0, "failed calls"], [mTokens(r.tokens, r.tokensPartial) || "—", "tokens"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div>`;
+  const stats = `<div class="tiles run-tiles">${[[r.calls, "calls"], [r.playTime ?? "—", "game time"], [hhmm(r.realMs) || "—", "real time"], [mTokens(r.tokens, r.tokensPartial) || "—", "tokens"]].map(([v, t]) => `<div class="tile"><b>${esc(v)}</b><span>${esc(t)}</span></div>`).join("")}</div>`;
+  const zeroCount = parts.filter(([t, v]) => v === 0 && t !== "Milestones" && t !== "Deaths").length;
   $("one").innerHTML = `<a class="back" href="#">Back to all runs</a>
     <h1>${esc(groupOf(r))} · ${esc(r.game ? r.game[0].toUpperCase() + r.game.slice(1) : "")}</h1>
     <p class="sub">Started ${esc(when(r.id))} UTC · ${esc(r.preset ?? "")} · harness ${esc(r.harness ?? "?")}${r.playtest ? " · playtest" : ""}${r.continued ? " · continued" : ""}</p>
@@ -387,7 +416,14 @@ function oneRun(r) {
       <section class="score-card">
         <div class="big">${s.total}</div>
         <p class="note" style="margin:0 0 12px">Score · ${esc(r.outcome)}${r.notOfficial ? ` · not official: ${esc(r.notOfficial)}` : " · official"}</p>
-        <table class="points"><tbody>${parts.map(([t, v, why]) => row([`<td>${t}<span class="why">${esc(why)}</span></td>`, `<td class="num${v ? "" : " zero"}">${v > 0 ? "+" + v : v}</td>`])).join("")}</tbody></table>
+        <table class="points" id="points-table"><tbody>${parts.map(([t, v, why]) => {
+          const hide = v === 0 && t !== "Milestones" && t !== "Deaths";
+          return `<tr${hide ? ' class="is-zero"' : ""}><td>${t}<span class="why">${esc(why)}</span></td><td class="num${v ? "" : " zero"}">${v > 0 ? "+" + v : v}</td></tr>`;
+        }).join("")}</tbody></table>
+        <div class="points-foot">
+          ${zeroCount ? `<button type="button" class="points-toggle" id="points-toggle" data-n="${zeroCount}">Show ${zeroCount} zero row${zeroCount === 1 ? "" : "s"}</button>` : "<span></span>"}
+          <a class="points-link" href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How points work</a>
+        </div>
       </section>
       <section>
         <h2>Milestones</h2>
@@ -413,11 +449,33 @@ addEventListener("hashchange", route);
 
 function draw() {
   const rows = chosen();
-  versionNote(); board(rows); heat(rows); runs(rows);
+  const all = rankedGroups(rows);
+  if (filterGroup && !all.some((x) => x.g === filterGroup)) filterGroup = null;
+  board(rows, all); heat(rows, all); runs(rows);
 }
 
-$("f-game").addEventListener("change", () => { versionOptions(); draw(); });
-$("f-version").addEventListener("change", draw);
+$("f-game").addEventListener("change", () => { filterGroup = null; versionOptions(); draw(); });
+$("f-version").addEventListener("change", () => { filterGroup = null; draw(); });
+$("board").addEventListener("click", (e) => {
+  const g = e.target.closest("[data-filter]")?.dataset.filter;
+  if (!g) return;
+  filterGroup = filterGroup === g ? null : g;
+  showAll = false;
+  draw();
+});
+$("runs-note").addEventListener("click", (e) => {
+  if (!e.target.closest("#clear-filter")) return;
+  filterGroup = null;
+  draw();
+});
+$("one").addEventListener("click", (e) => {
+  const btn = e.target.closest("#points-toggle");
+  if (!btn) return;
+  const tbl = $("points-table");
+  const open = tbl.classList.toggle("show-zero");
+  const n = btn.dataset.n;
+  btn.textContent = open ? "Hide zero rows" : `Show ${n} zero row${n === "1" ? "" : "s"}`;
+});
 versionOptions();
 $("runs").addEventListener("click", (e) => {
   const k = e.target.closest("button")?.dataset.sort;
