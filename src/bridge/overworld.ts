@@ -216,7 +216,7 @@ export function darkSquares(v: UnfoggedView, lit: boolean[][], covered?: boolean
 
 /** Said above a dark map (BridgeCore.mapText): the map below is what the run has seen in the dark. */
 export const DARK_HEADER =
-  "It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), ≡ stairs (the way between them), D ladder; ? is dark: rock or floor you haven't seen. Walks go only over squares shown here. You are at @.";
+  "It's dark: you see only some squares, and remember the ones you saw earlier in the dark. # rock, . floor, , lower floor (a cliff between it and .), ≡ steps between them on this map (walked over like floor), D ladder to another floor; ? is dark: rock or floor you haven't seen. Walks go only over squares shown here. You are at @.";
 
 /** A dark screen's 160×144 RGBA pixels as 10×9 squares: is anything lit there? Floors have a stray lit dot or two. */
 export function litSquares(rgba: Uint8ClampedArray): boolean[][] {
