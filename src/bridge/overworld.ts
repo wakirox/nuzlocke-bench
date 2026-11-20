@@ -238,6 +238,18 @@ export function litSquares(rgba: Uint8ClampedArray): boolean[][] {
 const LIT_PIXELS = 8;
 
 /**
+ * The 10×9 squares the Game Boy's window layer covers (any part of them), from LCDC, WY and WX:
+ * shown when the display and the window are on (LCDC bits 7 and 5), from pixel row WY and column
+ * WX−7 to the screen's bottom-right. Crystal draws its place-name sign there; in the dark it's lit,
+ * but what's under it can't be seen.
+ */
+export function windowSquares(lcdc: number, wy: number, wx: number): boolean[][] {
+  const on = (lcdc & 0x80) !== 0 && (lcdc & 0x20) !== 0 && wy < 144 && wx < 167;
+  return Array.from({ length: 9 }, (_, r) =>
+    Array.from({ length: 10 }, (_, c) => on && r * 16 + 15 >= wy && c * 16 + 15 >= wx - 7));
+}
+
+/**
  * The 10×9 squares a text box or menu covers, from the screen's text (18 rows of 20 tiles; boxes
  * framed ┌┐└┘). In the dark a box is bright, but what's under it can't be seen: litSquares alone
  * read the whole box as lit cave (Rock Tunnel's rocks shown through a sign's text).
