@@ -33,6 +33,10 @@ import {
   startMenuRows,
 } from "./screen-state";
 
+const NAME_HOW = "press name:NAME types a name (letters, up to 10) and confirms it.";
+/** advance_text's stop on the naming keyboard. */
+export const NAMING_KEYBOARD_OPEN = `the naming keyboard is open: ${NAME_HOW}`;
+
 /**
  * "(MONA: 85% → 63% HP.)" for each battler whose HP changed while the same Pokémon stayed out.
  * Your side in HP, the foe's in % like its bar (a player never sees the foe's numbers).
@@ -119,6 +123,9 @@ export class Menus {
       }
       if (!opts.pastTheEnd && this.core.host.brief()?.outcome) return { messages, stopped: "the run ended" };
       if (!box.open) {
+        // The naming keyboard (a nickname, or Crystal's rival named in the lab) waits for a name:
+        // say so, as the catch's nickname prompt does, instead of "no text".
+        if (isNamingKeyboardScreen(lines)) return { messages, stopped: NAMING_KEYBOARD_OPEN };
         // Full-screen pages also wait for A: anything with a ▼, and encyclopedia entries
         // (recognized by their two labels, the layout's dexEntry — the ▼ only appears once the text is done).
         if (isDexEntryScreen(lines, this.core.layout) || hasMorePrompt(lines)) {
@@ -206,7 +213,7 @@ export class Menus {
     }
     // The naming keyboard isn't a menu of options: sweeping it would type letters.
     if (isNamingKeyboardScreen(this.core.screenText())) {
-      throw new Error("The naming keyboard is open: choose doesn't type. press name:NAME types a name (letters, up to 10) and confirms it.");
+      throw new Error(`The naming keyboard is open: choose doesn't type. ${NAME_HOW}`);
     }
     // The battle menu: step to the option from where the cursor is (see battleMenuTo).
     const action = battleAction(this.core.layout, option);

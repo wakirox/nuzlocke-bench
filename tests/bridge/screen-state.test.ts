@@ -93,6 +93,10 @@ describe("screen-state recognizers", () => {
       .toEqual(["Enemy RATTATA", "used TACKLE!"]);
     expect(dialogueBoxLines(["Wild SENTRET", "appeared!", "▶FIGHT PKMN", "PACK  RUN"], gen2))
       .toEqual(["Wild SENTRET", "appeared!"]);
+    // The cursor on the bag (after a missed ball): the FIGHT row has no ▶ and isn't a message either.
+    expect(dialogueBoxLines(["Shoot! It was so", "close too!", "FIGHT PKMN", "▶PACK  RUN"], gen2))
+      .toEqual(["Shoot! It was so", "close too!"]);
+    expect(dialogueBoxLines(["FIGHT PKMN", "▶ITEM  RUN"], gen1)).toEqual([]);
 
     const coveredStart = screenRows({ 2: "          │POKéDEX│", 10: "          │ EXIT  │" });
     expect(isStartMenuShown(coveredStart, gen1)).toBe(true);

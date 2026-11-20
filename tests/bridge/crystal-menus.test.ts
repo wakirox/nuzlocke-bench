@@ -9,6 +9,7 @@ vi.mock("../../src/storage", () => ({
 }));
 
 import { AiBridge } from "../../src/bridge/ai-bridge";
+import { NAMING_KEYBOARD_OPEN } from "../../src/bridge/menus";
 import { gen2Adapter } from "../../src/games/gen2";
 import { FakeHost, screenRows, textBoxScreen, type FakeHostOptions, type ScriptScreen } from "../harness/fake-bridge";
 
@@ -79,7 +80,8 @@ describe("Crystal menus", () => {
     ], { position: { inWorld: true, scripted: true } });
     const r = await call("advance_text");
     expect(host.presses).toEqual([]);
-    expect(r.stopped).toBe("no text on screen");
+    // Says what's waiting (Crystal's rival is named this way, in the lab), not "no text".
+    expect(r.stopped).toBe(NAMING_KEYBOARD_OPEN);
   });
 
   it("switch_pokemon picks from Crystal's forced-switch screen (Which PKMN?)", async () => {

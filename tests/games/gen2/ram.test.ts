@@ -60,6 +60,14 @@ describe("Crystal RAM", () => {
     expect({ x: s.x, y: s.y }).toEqual({ x: 13, y: 6 });
   });
 
+  it("reads a coordinate of -1 while stepping off the left or top edge, not 255", () => {
+    // The game writes -1 a frame before the next map loads; read unsigned, a walk counted 255 squares.
+    const ram = withTotodile(new FakeCgbRam()).set(A.mapGroup, [0x18, 0x04]).set(A.yCoord, [0xff, 0xff]);
+    expect(game.position(ram)).toMatchObject({ x: -1, y: -1 });
+    ram.set(A.yCoord, [35, 79]);
+    expect(game.position(ram)).toMatchObject({ x: 79, y: 35 });
+  });
+
   it("reads money as plain binary and the pockets together", () => {
     const ram = new FakeCgbRam().set(A.money, [0x00, 0x0b, 0xb8])
       .set(A.numItems, [1, 18, 3]).set(A.numBalls, [1, 5, 10]).set(A.numKeyItems, [1, 0x3b]);

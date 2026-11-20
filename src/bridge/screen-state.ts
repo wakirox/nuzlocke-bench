@@ -24,12 +24,14 @@ const layoutCache = new WeakMap<ScreenLayout, LayoutPatterns>();
 function patternsFor(layout: ScreenLayout): LayoutPatterns {
   let cached = layoutCache.get(layout);
   if (!cached) {
-    const { bag: bBag, run: bRun } = layout.battleMenu;
+    const { bag: bBag, run: bRun, fight: bFight, party: bParty } = layout.battleMenu;
     const actions = Object.keys(layout.battleMenu) as BattleAction[];
     const [d1, d2] = layout.dexEntry.labels;
     const { bag: sBag, exit: sExit } = layout.startMenu;
     cached = {
-      menuRow: new RegExp(`^${escapeRe(bBag.label)}\\s+${escapeRe(bRun.label)}$`),
+      // Either row of the battle menu, without its ▶ (the cursor on the other row): FIGHT PKMN once
+      // the cursor sits on the bag after a missed ball read as a message.
+      menuRow: new RegExp(`^(${escapeRe(bBag.label)}\\s+${escapeRe(bRun.label)}|${escapeRe(bFight.label)}\\s+${escapeRe(bParty.label)})$`),
       dex1: new RegExp(`\\b${escapeRe(d1)}\\b`),
       dex2: new RegExp(`\\b${escapeRe(d2)}\\b`),
       battleOption: new RegExp(`▶\\s*(${actions.map((a) => escapeRe(layout.battleMenu[a].label)).join("|")})\\b`),

@@ -141,8 +141,11 @@ export function readPosition(mem: MemoryReader): Position {
   const party = rd(mem, A.partyCount);
   const battle = inBattle(mem);
   const { w, h } = mapSize(mem);
-  const x = rd(mem, A.xCoord);
-  const y = rd(mem, A.yCoord);
+  // Signed: stepping off a map's top or left edge, the game sets the coordinate to -1 a frame
+  // before it loads the next map (no map is 128 squares across, so a byte ≥ 0x80 is such a -1).
+  const signed = (b: number) => (b >= 0x80 ? b - 0x100 : b);
+  const x = signed(rd(mem, A.xCoord));
+  const y = signed(rd(mem, A.yCoord));
   return {
     x, y, map: currentMap(mem), battle,
     scripted: !battle && (rd(mem, A.scriptRunning) !== 0 || rd(mem, A.joypadDisable) !== 0),

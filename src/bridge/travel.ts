@@ -6,7 +6,8 @@ import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, r
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
-import type { Menus } from "./menus";
+import { NAMING_KEYBOARD_OPEN, type Menus } from "./menus";
+import { isNamingKeyboardScreen } from "./screen-state";
 
 export { seenSteps };
 
@@ -516,7 +517,11 @@ export class Travel {
         } else if (++idle > FRAMES_PER_TILE * 2) {
           // An open text box holds the player in place until it's closed; say so, with its text
           // (once it has finished printing).
-          const box = this.core.textBox(await this.core.settledScreen());
+          const screen = await this.core.settledScreen();
+          // The naming keyboard (Crystal's rival, named in the lab) holds the player too: it waits
+          // for a name, not for the scene to end.
+          if (isNamingKeyboardScreen(screen)) { stopped = NAMING_KEYBOARD_OPEN; break; }
+          const box = this.core.textBox(screen);
           if (!box.open) {
             // A trainer who has seen you walks over before anything shows, and a scene (a ship
             // leaving the dock) plays with the controls taken: wait while the game holds them, so the
