@@ -7,6 +7,7 @@
 
 import { brief, staleFoe } from "../../src/bridge/summary";
 import { describe, expect, it } from "vitest";
+import type { GameState } from "../../src/games/types";
 import type { GameFixture } from "../harness/game-fixture";
 import { Run } from "../harness/scenario";
 
@@ -93,6 +94,23 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         const run = new Run(game).goTo(places.route).receiveGift(ids.wildB, "GIFTY");
         expect(areas(run)).toEqual([]);
         expect(run.engine.snap.catches).toEqual([expect.objectContaining({ species: ids.wildB, gift: true })]);
+      });
+
+      it("records a gift's species once its slot is written, not the old Pokémon left in that slot", () => {
+        // A Pokémon was just deposited: its data stays in the freed slot. The gift's species is listed
+        // at once, but its slot is only written after the nickname prompt, many polls later.
+        const run = new Run(game);
+        const stale = game.mon({ species: ids.wildA, level: 7, nickname: "OLD" });
+        const gift = game.mon({ species: ids.wildB, level: 5, nickname: "NEW" });
+        const listed = (s: GameState) => [...s.party.map((m) => m.species), ids.wildB];
+        run.poll((s) => ({ partySpecies: listed(s), party: [...s.party, stale] }));
+        for (let i = 0; i < 30; i++) run.poll();
+        expect(run.engine.snap.catches).toEqual([]);
+        run.poll((s) => ({ party: [...s.party.slice(0, -1), gift] }));
+        expect(run.engine.snap.catches).toEqual([expect.objectContaining({ species: ids.wildB, level: 5, gift: true })]);
+        const received = run.events().filter((e) => e.startsWith("Received"));
+        expect(received).toHaveLength(1);
+        expect(received[0]).toContain(`Received ${game.speciesName(ids.wildB)} Lv5`);
       });
     });
 
