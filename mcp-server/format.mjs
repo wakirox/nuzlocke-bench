@@ -15,6 +15,7 @@ const LEGEND = [
   ["B", "B boulder"],
   ["o", "o floor switch"],
   [",", ", a cave's lower floor (. is its upper floor)"],
+  ["≡", "≡ a cave's stairs (the only way between its upper and lower floor: elsewhere a cliff is between them)"],
   ["O", "O hole in the floor (paths avoid it; walk_to it to drop through)"],
   ["D", "D door/warp"],
   ["G", "G a closed gate (solid)"],

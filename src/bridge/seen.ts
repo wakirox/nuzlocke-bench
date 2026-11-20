@@ -3,7 +3,7 @@
 // shows only that, so a maze, a teleporter or a ladder is found out by going there.
 
 import { maskView } from "./map-lens";
-import type { AnyOverworldView, Door, KnownOverworldView } from "./overworld";
+import { STAIRS, type AnyOverworldView, type Door, type KnownOverworldView } from "./overworld";
 
 /** The screen around the player: 10×9 squares, the player at column 4, row 4 (both games). */
 const SCREEN = { left: 4, right: 5, up: 4, down: 4 };
@@ -18,7 +18,7 @@ export interface SeenData {
   doors: Record<string, Spot[]>;
   /** Map → floor-switch squares the run has seen uncovered (`o`), for showing a boulder later pushed onto one as `b`. */
   switches?: Record<string, Spot[]>;
-  /** Map → "x,y" → what the square showed in the dark (#, ., , or D): a dark map shows what the run saw there. */
+  /** Map → "x,y" → what the square showed in the dark (#, ., ,, ≡ or D): a dark map shows what the run saw there. */
   dark?: Record<string, Record<string, string>>;
   /**
    * Map → the square the run first stood on there: (0,0) of the coordinates the model sees on that
@@ -204,8 +204,13 @@ export class SeenMaps {
     // round one (maskView would keep a watcher standing on a square remembered as floor).
     return maskView({ ...view, watched: undefined, watchers: undefined }, {
       isVisible: (x, y) => `${x},${y}` in known || (x === view.originX + view.pc && y === view.originY + view.pr),
-      // A lower floor is "." on the grid, as on a lit map: renderView draws it "," from its tile.
-      mapCell: (ch, x, y) => (ch === "@" ? ch : known[`${x},${y}`] === "," ? "." : known[`${x},${y}`]),
+      // A lower floor and stairs are "." on the grid, as on a lit map (walkable): renderView draws them
+      // "," and STAIRS from their tiles.
+      mapCell: (ch, x, y) => {
+        if (ch === "@") return ch;
+        const was = known[`${x},${y}`];
+        return was === "," || was === STAIRS ? "." : was;
+      },
       mapDoors: (inSight) => {
         const doors = inSight.filter((d) => known[`${d.x},${d.y}`] === "D");
         const knownDoors = doors.filter((k) => this.knowsDoor(map, k, bottomRow));
