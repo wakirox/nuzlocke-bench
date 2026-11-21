@@ -222,7 +222,7 @@ const counts = (key) => { const m = {}; for (const r of runsAll) if (r[key]) m[r
 // One game at a time: scores from different games don't compare. The one with the most runs first.
 $("f-game").innerHTML = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]).map(([g, n]) => `<option value="${esc(g)}">${esc(g[0].toUpperCase() + g.slice(1))} (${n})</option>`).join("");
 
-// One benchmark version at a time (results/<version>.json): what the model is shown changes between versions,
+// One benchmark version at a time (results/<version>/): what the model is shown changes between versions,
 // so a run on one isn't the same test as a run on another. The version is the harness's, before "@commit".
 const versionOf = (r) => /^[^@\s(]+/.exec(String(r.harness ?? ""))?.[0] ?? "?";
 const vparts = (v) => v.split(".").map(Number);

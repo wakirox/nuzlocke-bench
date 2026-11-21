@@ -1,0 +1,104 @@
+{
+ "id": "2026-11-15T13-37-29-643Z",
+ "model": "haiku-5-5",
+ "effort": "high",
+ "game": "red",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-15",
+ "harness": "0.1.0@f4a385a",
+ "outcome": "gave up",
+ "badges": 2,
+ "deaths": 1,
+ "calls": 918,
+ "screenshots": 6,
+ "wrongCalls": 53,
+ "rejected": 0,
+ "realMs": 3089626,
+ "score": {
+  "total": 125,
+  "progress": 210,
+  "speed": 11,
+  "cottageSpeed": 0,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": -15,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": -13,
+  "wrongCalls": -23,
+  "winFloor": 0
+ },
+ "tokens": 64677154,
+ "tokensPartial": false,
+ "playTime": "1:59:20",
+ "furthest": 5,
+ "reached": [
+  "badge1",
+  "cave1",
+  "badge2",
+  "rival2",
+  "cottage"
+ ],
+ "times": {
+  "badge1": "1:00:10",
+  "cave1": "1:29:54",
+  "badge2": "1:34:44",
+  "rival2": "1:41:58",
+  "cottage": "1:58:53"
+ },
+ "dark": null,
+ "objectiveCalls": {
+  "badge1": 458,
+  "cave1": 680,
+  "badge2": 712,
+  "rival2": 781,
+  "cottage": 905
+ },
+ "lastBattleDeaths": 0,
+ "hardAreas": [
+  {
+   "id": "cave",
+   "label": "First cave",
+   "done": true,
+   "calls": 99,
+   "entries": 2,
+   "deaths": 0,
+   "seconds": 871
+  }
+ ],
+ "toolUse": {
+  "calls": 918,
+  "presses": 41,
+  "planned": 297,
+  "batches": 36,
+  "loops": 2
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 5.8,
+   "screenshotPct": 0.7,
+   "plannedMovePct": 32.4,
+   "pressPct": 4.5,
+   "batches": 36,
+   "loops": 2
+  },
+  "planning": {
+   "flash": null,
+   "deathsPerBadge": 0.5
+  },
+  "knowledge": {
+   "steps": {
+    "badge1": 458,
+    "cave1": 222,
+    "badge2": 32,
+    "rival2": 69,
+    "cottage": 124
+   }
+  }
+ }
+}

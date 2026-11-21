@@ -1,0 +1,135 @@
+{
+ "id": "2026-11-18T18-44-22-955Z",
+ "model": "gemini-4-hydrogen",
+ "effort": "low",
+ "via": "agy",
+ "game": "red",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-18",
+ "harness": "0.1.0@7ca90a8",
+ "outcome": "wipe",
+ "badges": 3,
+ "deaths": 6,
+ "calls": 596,
+ "screenshots": 1,
+ "wrongCalls": 19,
+ "rejected": 0,
+ "realMs": 3620489,
+ "score": {
+  "total": 327,
+  "progress": 360,
+  "speed": 23,
+  "cottageSpeed": 20,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": -15,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": -3,
+  "wrongCalls": -13,
+  "winFloor": 0
+ },
+ "tokens": 81197034,
+ "tokensPartial": false,
+ "playTime": "1:51:29",
+ "furthest": 9,
+ "reached": [
+  "badge1",
+  "cave1",
+  "badge2",
+  "rival2",
+  "cottage",
+  "cottageDone",
+  "ship",
+  "rival3",
+  "badge3"
+ ],
+ "times": {
+  "badge1": "0:21:35",
+  "cave1": "0:42:51",
+  "badge2": "0:46:42",
+  "rival2": "0:51:10",
+  "cottage": "1:04:12",
+  "cottageDone": "1:07:17",
+  "ship": "1:14:59",
+  "rival3": "1:17:34",
+  "badge3": "1:28:32"
+ },
+ "dark": {
+  "result": "not crossed",
+  "calls": 88,
+  "deaths": 4,
+  "flashAt": null
+ },
+ "objectiveCalls": {
+  "badge1": 85,
+  "cave1": 188,
+  "badge2": 205,
+  "rival2": 226,
+  "cottage": 310,
+  "cottageDone": 326,
+  "ship": 359,
+  "rival3": 372,
+  "badge3": 453
+ },
+ "lastBattleDeaths": 5,
+ "hardAreas": [
+  {
+   "id": "cave",
+   "label": "First cave",
+   "done": true,
+   "calls": 49,
+   "entries": 1,
+   "deaths": 0,
+   "seconds": 776
+  },
+  {
+   "id": "tunnel",
+   "label": "Dark tunnel",
+   "done": false,
+   "calls": 88,
+   "entries": 2,
+   "deaths": 4,
+   "seconds": 744
+  }
+ ],
+ "toolUse": {
+  "calls": 596,
+  "presses": 0,
+  "planned": 261,
+  "batches": 111,
+  "loops": 2
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 3.2,
+   "screenshotPct": 0.2,
+   "plannedMovePct": 43.8,
+   "pressPct": 0,
+   "batches": 111,
+   "loops": 2
+  },
+  "planning": {
+   "flash": false,
+   "deathsPerBadge": 2
+  },
+  "knowledge": {
+   "steps": {
+    "badge1": 85,
+    "cave1": 103,
+    "badge2": 17,
+    "rival2": 21,
+    "cottage": 84,
+    "cottageDone": 16,
+    "ship": 33,
+    "rival3": 13,
+    "badge3": 81
+   }
+  }
+ }
+}

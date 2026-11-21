@@ -41,10 +41,12 @@ and its record stays as it was.
 
 The dashboard shows these runs only, one game at a time; test runs stay in `npm run bench:report`.
 
-The published results are these runs alone: `npm run bench:results` keeps one file per benchmark version,
-`results/<version>.json` (the harness version without its commit), with each official run as the dashboard
-shows it and no game names. A run stays on file when its folder is gone; one whose folder is here is
-updated, or taken out when it's no longer a result. `npm run bench:results -- --dashboard <file>` builds
+The published results are these runs alone: `npm run bench:results` keeps a folder per benchmark version,
+`results/<version>/` (the harness version without its commit), with an `index.json` (the version's rules
+and objectives) and a file per official run, `<run id>.json`, as the dashboard shows it and no game names.
+A run's file is written only when it changes, so a results PR shows just the runs it adds. A run stays on
+file when its folder is gone; one whose folder is here is updated, or taken out when it's no longer a
+result. It reads the run folders in `$NUZLOCKE_RUNS_DIR`, else `runs/`. `npm run bench:results -- --dashboard <file>` builds
 the public page from those files only, so `runs/` stays private.
 
 ## Points

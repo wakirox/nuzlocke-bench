@@ -1,0 +1,78 @@
+{
+ "id": "2026-11-14T21-18-51-635Z",
+ "model": "haiku-5-5",
+ "effort": "high",
+ "game": "red",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-14",
+ "harness": "0.1.0@8bd00e1",
+ "outcome": "wipe",
+ "badges": 0,
+ "deaths": 1,
+ "calls": 200,
+ "screenshots": 2,
+ "wrongCalls": 4,
+ "rejected": 0,
+ "realMs": 577813,
+ "score": {
+  "total": -33,
+  "progress": 30,
+  "speed": 10,
+  "cottageSpeed": 0,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": 0,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": -20,
+  "wrongCalls": -8,
+  "winFloor": 0
+ },
+ "tokens": 10378283,
+ "tokensPartial": false,
+ "playTime": "0:18:37",
+ "furthest": 0,
+ "reached": [
+  "rival1"
+ ],
+ "times": {
+  "rival1": "0:04:38"
+ },
+ "dark": null,
+ "objectiveCalls": {
+  "rival1": 68
+ },
+ "lastBattleDeaths": 1,
+ "hardAreas": [],
+ "toolUse": {
+  "calls": 200,
+  "presses": 19,
+  "planned": 71,
+  "batches": 0,
+  "loops": 4
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 2,
+   "screenshotPct": 1,
+   "plannedMovePct": 35.5,
+   "pressPct": 9.5,
+   "batches": 0,
+   "loops": 4
+  },
+  "planning": {
+   "flash": null,
+   "deathsPerBadge": null
+  },
+  "knowledge": {
+   "steps": {
+    "rival1": 68
+   }
+  }
+ }
+}

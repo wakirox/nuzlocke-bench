@@ -1,0 +1,120 @@
+{
+ "id": "2026-11-15T14-38-10-131Z",
+ "model": "haiku-5-5",
+ "effort": "high",
+ "game": "red",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-15",
+ "harness": "0.1.0@18b524b",
+ "outcome": "gave up",
+ "badges": 2,
+ "deaths": 4,
+ "calls": 1003,
+ "screenshots": 6,
+ "wrongCalls": 95,
+ "rejected": 0,
+ "realMs": 3865521,
+ "score": {
+  "total": 195,
+  "progress": 330,
+  "speed": 18,
+  "cottageSpeed": 2,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": -60,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": -12,
+  "wrongCalls": -38,
+  "winFloor": 0
+ },
+ "tokens": 95380383,
+ "tokensPartial": false,
+ "playTime": "2:11:28",
+ "furthest": 8,
+ "reached": [
+  "rival1",
+  "badge1",
+  "cave1",
+  "badge2",
+  "rival2",
+  "cottage",
+  "cottageDone",
+  "ship",
+  "rival3"
+ ],
+ "times": {
+  "rival1": "0:03:34",
+  "badge1": "0:28:45",
+  "cave1": "0:51:42",
+  "badge2": "1:00:20",
+  "rival2": "1:04:46",
+  "cottage": "1:42:27",
+  "cottageDone": "1:47:59",
+  "ship": "1:58:49",
+  "rival3": "2:01:15"
+ },
+ "dark": null,
+ "objectiveCalls": {
+  "rival1": 52,
+  "badge1": 227,
+  "cave1": 363,
+  "badge2": 408,
+  "rival2": 430,
+  "cottage": 714,
+  "cottageDone": 787,
+  "ship": 903,
+  "rival3": 914
+ },
+ "lastBattleDeaths": 0,
+ "hardAreas": [
+  {
+   "id": "cave",
+   "label": "First cave",
+   "done": true,
+   "calls": 56,
+   "entries": 2,
+   "deaths": 0,
+   "seconds": 532
+  }
+ ],
+ "toolUse": {
+  "calls": 1003,
+  "presses": 64,
+  "planned": 423,
+  "batches": 134,
+  "loops": 11
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 9.5,
+   "screenshotPct": 0.6,
+   "plannedMovePct": 42.2,
+   "pressPct": 6.4,
+   "batches": 134,
+   "loops": 11
+  },
+  "planning": {
+   "flash": null,
+   "deathsPerBadge": 2
+  },
+  "knowledge": {
+   "steps": {
+    "rival1": 52,
+    "badge1": 175,
+    "cave1": 136,
+    "badge2": 45,
+    "rival2": 22,
+    "cottage": 284,
+    "cottageDone": 73,
+    "ship": 116,
+    "rival3": 11
+   }
+  }
+ }
+}
