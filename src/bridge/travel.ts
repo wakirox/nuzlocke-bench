@@ -14,6 +14,8 @@ export { seenSteps };
 const FRAMES_PER_TILE = 16;
 /** How long a walk waits out a scene that has taken the controls (30 s of game time). */
 const SCENE_FRAMES = 1800;
+/** One square each way, for counting a walk's squares on the downhill road (walkStraight). */
+const SLOPE_STEP: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 /** The text matched literally inside a RegExp (a move name comes from the model). */
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -479,6 +481,9 @@ export class Travel {
     // it can't (Crystal: it stops at 1 HP), the walk goes on and the result's Poison line has the damage.
     const poisonAtStart = this.core.game.data.poisonFaintsWhileWalking ? this.poisoned() : new Map();
     this.dropLapsedAcks();
+    // On the downhill road a slide downhill already under way when the walk starts isn't a step the
+    // way asked: there only squares that way count, and a square rolled back takes one off.
+    const along = this.core.game.forcedDownhill?.(gb) ? SLOPE_STEP[dir] : null;
     gb.setButton(dir, true);
     let drawn = performance.now();
     try {
@@ -497,7 +502,9 @@ export class Travel {
         if (p.x !== last.x || p.y !== last.y) {
           // Squares moved, the way toSegments counts a planned way: a ledge hop is two, whether the
           // game moves the player there in one update or two.
-          moved += Math.abs(p.x - last.x) + Math.abs(p.y - last.y);
+          moved += along
+            ? (p.x - last.x) * along[0] + (p.y - last.y) * along[1]
+            : Math.abs(p.x - last.x) + Math.abs(p.y - last.y);
           idle = 0;
           last = p;
           const hurt = [...this.poisoned()].find(([uid, now]) => !this.poisonAcked.has(uid) && now.hp < (poisonAtStart.get(uid)?.hp ?? now.hp));
@@ -509,7 +516,7 @@ export class Travel {
             // walk ends on the new map (the damage is in the result's Poison line either way).
             gb.setButton(dir, false);
             for (let f = 0; f < 150 && !this.core.host.position().battle; f += 6) {
-              await gb.runFrames(6, 6);
+              await this.core.slopeFrames(6, 6);
               if (this.core.host.position().map !== last.map) {
                 stopped = "entered a new map";
                 break;
@@ -532,7 +539,7 @@ export class Travel {
             gb.setButton(dir, false);
             let held = 0;
             for (let f = 0; (f < 90 || (this.core.host.position().scripted && f < SCENE_FRAMES)) && !this.core.host.position().battle; f += 6) {
-              await gb.runFrames(6, 6);
+              await this.core.slopeFrames(6, 6);
               const now = this.core.host.position();
               if (now.scripted) held = f + 6;
               if (now.map !== last.map) { stopped = "entered a new map"; break; }
@@ -562,12 +569,19 @@ export class Travel {
       }
     } finally {
       gb.setButton(dir, false);
+      // (No frame runs before the settle below holds B again.)
+      this.core.letGoOfSlope();
     }
     // Ledge hops finish on their own, a door walks you one step out, and a warp (also one that
     // starts after the last step, onto a door the game walks you to) loads the new map: the
-    // returned coordinates and map view are the new map's.
-    await gb.runFrames(4);
-    if (await this.core.settleMove(last.map)) stopped = "entered a new map";
+    // returned coordinates and map view are the new map's. On the downhill road B stays held
+    // through this (slopeFrames): with nothing held the game rolls the player back downhill.
+    try {
+      await this.core.slopeFrames(4);
+      if (await this.core.settleMove(last.map, true)) stopped = "entered a new map";
+    } finally {
+      this.core.letGoOfSlope();
+    }
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";

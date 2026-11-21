@@ -25,7 +25,7 @@ const RB = {
   curEnemyLevel: 0xd127, curMapTileset: 0xd367, options: 0xd355,
   tilesetBank: 0xd52b, tilesetBlocksPtr: 0xd52c, mapConnections: 0xd370,
   spriteData2: 0xc200, mapSpriteExtra: 0xd504, mapSpriteData: 0xd4e4, mapTextPtr: 0xd36c, ballSprite: 0x3d, fossilSprite: 0x3e, boulderSprite: 0x3f, readSprites: [0x40, 0x41, 0x42] /* paper, desk encyclopedia, clipboard */, numSigns: 0xd4b0,
-  curBoxNum: 0xd5a0, lastMap: 0xd365, walkBikeSurf: 0xd700, eventFlags: 0xd747,
+  curBoxNum: 0xd5a0, lastMap: 0xd365, walkBikeSurf: 0xd700, eventFlags: 0xd747, statusFlags7: 0xd733,
   toggleableFlags: 0xd5a6, toggleableList: 0xd5ce,
   currentMenuItem: 0xcc26,
 };
@@ -46,7 +46,7 @@ const Y: typeof RB = {
   curEnemyLevel: 0xd126, curMapTileset: 0xd366, options: 0xd354,
   tilesetBank: 0xd52a, tilesetBlocksPtr: 0xd52b, mapConnections: 0xd36f,
   spriteData2: 0xc200, mapSpriteExtra: 0xd503, mapSpriteData: 0xd4e3, mapTextPtr: 0xd36b, ballSprite: 0x47, fossilSprite: 0x48, boulderSprite: 0x49 /* pokeyellow SPRITE_BOULDER, two after the ball as in Red */, readSprites: [0x4a, 0x4b, 0x4c] /* the same three after it */, numSigns: 0xd4af,
-  curBoxNum: 0xd59f, lastMap: 0xd364, walkBikeSurf: 0xd6ff, eventFlags: 0xd746,
+  curBoxNum: 0xd59f, lastMap: 0xd364, walkBikeSurf: 0xd6ff, eventFlags: 0xd746, statusFlags7: 0xd732,
   toggleableFlags: 0xd5a5, toggleableList: 0xd5cd,
   currentMenuItem: 0xcc26,
 };
@@ -60,6 +60,20 @@ const EVENT_FIRST_RIVAL_BATTLE = 0x23;
 /** Event 0x00 of wEventFlags: the professor has led the player into his lab (read from saved games: 0 before, 1 after). */
 export function ledIntoLab(mem: MemoryReader, version: GameVersion): boolean {
   return (mem.read8(addressesFor(version).eventFlags) & 1) !== 0;
+}
+
+/** The downhill bike road's map id (pret's map constants), the same in Red, Blue and Yellow. */
+const DOWNHILL_MAP = 0x1c;
+/** pret's BIT_TRAINER_BATTLE of wStatusFlags7: a trainer has spotted the player (set before the "!"), cleared after the battle. */
+const BIT_TRAINER_BATTLE = 3;
+
+/**
+ * The game presses Down by itself on any frame with no direction, A or B held: on the downhill
+ * bike road, unless a trainer is coming (pret's JoypadOverworld).
+ */
+export function forcedDownhill(mem: MemoryReader, version: GameVersion): boolean {
+  const A = addressesFor(version);
+  return mem.read8(A.curMap) === DOWNHILL_MAP && (mem.read8(A.statusFlags7) & (1 << BIT_TRAINER_BATTLE)) === 0;
 }
 
 export function firstRivalBattleFought(mem: MemoryReader, version: GameVersion): boolean {

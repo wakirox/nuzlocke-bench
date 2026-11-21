@@ -57,6 +57,11 @@ export interface GameAdapter {
 
   /** The map is dark: a player sees only part of it (see renderDarkView). */
   isDark(mem: MemoryReader): boolean;
+  /**
+   * The game presses Down by itself whenever no direction, A or B is held (Gen 1's downhill bike road):
+   * walks hold B there while no direction is held, as a player riding uphill does. Absent: never.
+   */
+  forcedDownhill?(mem: MemoryReader): boolean;
   /** The visible screen as a text map (from the map data when the ROM is given). */
   readView(mem: MemoryReader, playerX: number, playerY: number, beaten: number[], rom: Uint8Array | null, boulderSwitch?: boolean): OverworldView;
   /** The whole current map as a text map, with its exits and doors. */
