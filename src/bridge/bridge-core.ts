@@ -275,12 +275,14 @@ export class BridgeCore {
    * Runs frames while a walk holds no direction. On the downhill bike road the game presses Down by
    * itself on every frame with nothing held, so a player riding uphill never lets go: there B is
    * held (it does nothing else while riding), looked at again every 6 frames, and let go as soon
-   * as a trainer comes (the game stops pushing then, and a held B would skip their text). Elsewhere
-   * these are plain frames, as before. The walk lets go of B when it ends (letGoOfSlope).
+   * as a trainer comes or a text box is open (the game doesn't push then, and a held B would skip
+   * the text: a trainer's, a sign's, a Pokémon fainting from poison). Elsewhere these are plain
+   * frames, as before. The walk lets go of B when it ends (letGoOfSlope).
    */
   async slopeFrames(frames: number, perAnimFrame = 4): Promise<void> {
     const gb = this.requireGb();
-    const pushes = () => !!this.game.forcedDownhill?.(gb) && !this.host.position().battle;
+    const pushes = () =>
+      !!this.game.forcedDownhill?.(gb) && !this.host.position().battle && !this.textBox(this.screenText()).open;
     if (!this.slopeB && !pushes()) return gb.runFrames(frames, perAnimFrame);
     for (let left = frames; left > 0; left -= 6) {
       const hold = pushes();

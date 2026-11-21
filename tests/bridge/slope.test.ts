@@ -19,7 +19,7 @@ const STEP: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left
  * On map 1 (the slope) a frame with no direction, A or B held starts a step down, unless
  * `trainerComing()`.
  */
-function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: boolean } = {}) {
+function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: boolean; top?: number; box?: (pos: Pos) => boolean } = {}) {
   const pos: Pos = { x: 5, y: 10, map: opts.map ?? 1, battle: false, scripted: false };
   const held = new Set<string>();
   const bHeldWhileTrainer: number[] = [];
@@ -30,15 +30,19 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
   const open = (d: string) => {
     const [dx, dy] = STEP[d];
     const x = pos.x + dx, y = pos.y + dy;
-    return y <= 12 && !(x > 5 && y > 8);
+    return y <= 12 && y >= (opts.top ?? -Infinity) && !(x > 5 && y > 8);
   };
-  const forced = () => pos.map === 1 && !opts.trainerComing?.();
+  // A text box open (a sign, a Pokémon fainting from poison): the game doesn't push then.
+  const boxOpen = () => !!opts.box?.(pos);
+  const bHeldWithBox: number[] = [];
+  const forced = () => pos.map === 1 && !opts.trainerComing?.() && !boxOpen();
   const gb = {
     setButton: (b: string, on: boolean) => { if (on) held.add(b); else held.delete(b); },
     runFrames: async (n: number) => {
       for (let i = 0; i < n; i++) {
         frame++;
         if (opts.trainerComing?.() && held.has("b")) bHeldWhileTrainer.push(frame);
+        if (boxOpen() && held.has("b")) bHeldWithBox.push(frame);
         if (!moving) {
           const dir = ["up", "down", "left", "right"].find((d) => held.has(d));
           const want = dir ?? (forced() && !held.has("a") && !held.has("b") ? "down" : null);
@@ -55,9 +59,10 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
   const core = {
     requireGb: () => gb,
     host: { position: () => ({ ...pos }) },
-    game: { data: { poisonFaintsWhileWalking: false }, poisonedParty: () => [], forcedDownhill: () => forced() },
+    // As the game's adapter reads it: the map and the trainer flag only, not whether a box is open.
+    game: { data: { poisonFaintsWhileWalking: false }, poisonedParty: () => [], forcedDownhill: () => pos.map === 1 && !opts.trainerComing?.() },
     fleeUncounted: false,
-    textBox: () => ({ open: false, lines: [] }),
+    textBox: () => (boxOpen() ? { open: true, lines: ["It's a sign."] } : { open: false, lines: [] }),
     screenText: () => [],
     settledScreen: async () => [],
     mapText: () => "map",
@@ -67,7 +72,7 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
     slopeFrames: BridgeCore.prototype.slopeFrames,
     letGoOfSlope: BridgeCore.prototype.letGoOfSlope,
   } as unknown as BridgeCore;
-  return { travel: new Travel(core, {} as Menus), pos, held, bHeldWhileTrainer, frames: () => frame, run: gb.runFrames };
+  return { travel: new Travel(core, {} as Menus), pos, held, bHeldWhileTrainer, bHeldWithBox, frames: () => frame, run: gb.runFrames };
 }
 
 const walk = async (t: Travel, path: string) => ((await t.walkPath(path)) as { walk: string }).walk;
@@ -85,6 +90,22 @@ describe("walk on the downhill road", () => {
     const { travel, pos } = setup({ sliding: true });
     expect(await walk(travel, "U2")).toBe("up 2/2 — arrived");
     expect(pos).toMatchObject({ x: 5, y: 8 });
+  });
+
+  it("says no squares, not fewer, when a slide lands and the way up is blocked", async () => {
+    // The slide lands one square down (y 11), and nothing above y 11 can be ridden.
+    const { travel, pos } = setup({ sliding: true, top: 11 });
+    expect(await walk(travel, "U2")).toBe("up 0/2 — stopped: blocked (wall, person, or a scripted event)");
+    expect(pos).toMatchObject({ x: 5, y: 11 });
+  });
+
+  it("never holds B over a text box (a held B would skip it)", async () => {
+    // A text box opens as the walk's one square up lands and stays open (a Pokémon fainting
+    // from poison, or a sign): the walk settles without B.
+    const { travel, bHeldWithBox, held } = setup({ box: (p) => p.y <= 9 });
+    await walk(travel, "U1");
+    expect(bHeldWithBox).toEqual([]);
+    expect([...held]).toEqual([]);
   });
 
   it("stays where a walk ended, and lets go of B then", async () => {

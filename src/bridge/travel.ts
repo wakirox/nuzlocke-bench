@@ -273,7 +273,9 @@ export class Travel {
         r = await this.walkStraight(dir, n - moved);
         moved += r.moved;
       }
-      done.push(`${dir} ${moved}/${n}`);
+      // A slide downhill that landed as the walk began takes a square off (walkStraight): one that
+      // stopped before making it up is no squares the way asked, not fewer than none.
+      done.push(`${dir} ${Math.max(0, moved)}/${n}`);
       if (r.stopped !== "arrived") return `${done.join(", ")} — stopped: ${r.stopped}${ran()}`;
     }
     return `${done.join(", ")} — arrived${ran()}`;
@@ -588,6 +590,22 @@ export class Travel {
     return { moved, stopped };
   }
 
+  /**
+   * BridgeCore.tap, except that on the downhill road the wait after the press holds B
+   * (slopeFrames): with nothing held there the game starts rolling the player downhill before the
+   * next press. Elsewhere it's tap itself, frame for frame.
+   */
+  private async tapOnSlope(button: "up" | "down" | "left" | "right" | "a", hold: number, gap: number): Promise<void> {
+    if (!this.core.game.forcedDownhill?.(this.core.requireGb())) return this.core.tap(button, hold, gap);
+    await this.core.tap(button, hold, 0);
+    try {
+      await this.core.slopeFrames(gap);
+    } finally {
+      this.core.letGoOfSlope();
+    }
+    this.core.noteSeen();
+  }
+
   /** Walks to the square below a PC, faces it and switches it on. */
   async usePc(x: number, y: number): Promise<unknown> {
     const walk = (await this.walkTo(x, y + 1, false)) as Record<string, unknown>;
@@ -673,7 +691,9 @@ export class Travel {
       }
       if (!report.includes("blocked")) break;
       attempt++;
-      await this.core.requireGb().runFrames(30, 8); // let the person move along, then re-plan
+      // Let the person move along, then re-plan (on the downhill road, without rolling back).
+      await this.core.slopeFrames(30, 8);
+      this.core.letGoOfSlope();
       route = replan();
     }
     // A trainer seen only off screen is assumed to look every way; once it is on screen its real
@@ -748,11 +768,11 @@ export class Travel {
     let messages: string[] | undefined;
     if (reached) {
       if (route?.face) {
-        await this.core.tap(route.face, 6, 12); // long enough to register a turn
+        await this.tapOnSlope(route.face, 6, 12); // long enough to register a turn
         said += `, facing ${route.face}`;
       }
       if (interact) {
-        await this.core.tap("a", 4, 24);
+        await this.tapOnSlope("a", 4, 24);
         messages = (await this.menus.advanceText(30)).messages;
       }
     }
