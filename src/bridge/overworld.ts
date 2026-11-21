@@ -100,7 +100,11 @@ const BLOCKS_SIGHT = new Set(["#", "G", "=", "C", "S", "P", "B", "b", "N", "$", 
 /** The four ways a trainer can face, as [dx, dy]: down, up, left, right. */
 const FACINGS: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
 
-export interface TrainerSprite { index: number; x: number; y: number; dx: number; dy: number; onScreen: boolean; sight: boolean }
+/**
+ * `beaten`: the game's own flag says so, for a trainer the tracker can't name (Crystal's gym leaders
+ * start the fight from their own script, not as a trainer spotted or talked to).
+ */
+export interface TrainerSprite { index: number; x: number; y: number; dx: number; dy: number; onScreen: boolean; sight: boolean; beaten?: boolean }
 
 /** Which way an on-screen trainer faces, from the same TrainerSprite vector markWatched uses; undefined off screen (not updated). */
 export function trainerFacing(s: Pick<TrainerSprite, "dx" | "dy" | "onScreen">): Dir | undefined {

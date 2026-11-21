@@ -273,7 +273,7 @@ export class RunSession {
     const here = this.adapter.position(this.gb);
     return this.adapter.trainerSprites(this.gb, here.x, here.y).map((s) => {
       const { trainerClass: cls } = this.adapter.spriteTrainer(this.gb, s.index);
-      const isBeaten = beaten.includes(s.index);
+      const isBeaten = beaten.includes(s.index) || !!s.beaten;
       const facing = includeFacing && !isBeaten ? trainerFacing(s) : undefined;
       return { x: s.x, y: s.y, name: this.run.data.trainerClasses?.[cls - 1] || `class ${cls}`, beaten: isBeaten, ...(facing ? { facing } : {}) };
     });

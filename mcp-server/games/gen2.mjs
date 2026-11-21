@@ -32,13 +32,16 @@ export const GEN2 = {
     { id: "rival2", label: "Rival 2", rival: "AZALEA_TOWN" },
     { id: "forest", label: "Through the forest", maps: ["ROUTE_34"] },
     { id: "badge3", label: "Badge 3", badges: 3 },
-    { id: "rival3", label: "Rival 3", rival: "BURNED_TOWER_1F" },
+    // The floor gives way around this fight: the call that wins it can end on the floor below
+    // (the 2026-11-12 run's did, so the milestone never counted).
+    { id: "rival3", label: "Rival 3", rival: ["BURNED_TOWER_1F", "BURNED_TOWER_B1F"] },
     { id: "badge4", label: "Badge 4", badges: 4 },
     { id: "badge5", label: "Badge 5", badges: 5 },
     { id: "badge6", label: "Badge 6", badges: 6 },
     { id: "hideout", label: "The gang's hideout", maps: ["TEAM_ROCKET_BASE_B3F"] },
     { id: "badge7", label: "Badge 7", badges: 7 },
-    { id: "rival4", label: "Rival 4", rival: "GOLDENROD_UNDERGROUND" },
+    // In the switch room's entrances, where pokecrystal's script has the fight, not the underground corridor.
+    { id: "rival4", label: "Rival 4", rival: "GOLDENROD_UNDERGROUND_SWITCH_ROOM_ENTRANCES" },
     { id: "tower", label: "Broadcast tower's top floor", maps: ["RADIO_TOWER_5F"] },
     { id: "icePath", label: "Through the ice cave", maps: ["BLACKTHORN_CITY"] },
     { id: "badge8", label: "Badge 8", badges: 8 },

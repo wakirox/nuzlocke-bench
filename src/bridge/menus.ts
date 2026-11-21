@@ -430,8 +430,9 @@ export class Menus {
     // Close the bag and the start menu (as many B presses as it takes: Crystal's needs one more).
     await this.closeMenus();
     const done = read().party.find((m) => m.slot === slot);
-    // Messages arrive one text-box line at a time ("NOVA grew" / "to level 21!"): rejoin, keep the events.
-    const events = log.join(" ").match(/\S+ (?:grew to level \d+|evolved into [A-Z.'♀♂ -]+?!|learned [A-Z -]+?!|forgot [A-Z -]+?!)/g) ?? [];
+    // Messages arrive one text-box line at a time ("NOVA grew" / "to level 21!"): rejoin, keep the events,
+    // each with the game's "!" (without it, several level-ups read as one run-on line, 2026-11-21).
+    const events = log.join(" ").match(/\S+ (?:grew to level \d+!?|evolved into [A-Z.'♀♂ -]+?!|learned [A-Z -]+?!|forgot [A-Z -]+?!)/g) ?? [];
     return this.core.result({ messages: [...events, `${done?.nickname} is Lv${done?.level}.`] });
   }
 

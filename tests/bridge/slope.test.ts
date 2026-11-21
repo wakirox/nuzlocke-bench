@@ -19,7 +19,7 @@ const STEP: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left
  * On map 1 (the slope) a frame with no direction, A or B held starts a step down, unless
  * `trainerComing()`.
  */
-function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: boolean; top?: number; box?: (pos: Pos) => boolean } = {}) {
+function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: boolean; top?: number; box?: (pos: Pos) => boolean; ice?: boolean } = {}) {
   const pos: Pos = { x: 5, y: 10, map: opts.map ?? 1, battle: false, scripted: false };
   const held = new Set<string>();
   const bHeldWhileTrainer: number[] = [];
@@ -51,7 +51,10 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
         if (moving && --left === 0) {
           pos.x += STEP[moving][0];
           pos.y += STEP[moving][1];
-          moving = null;
+          // `ice`: the whole floor is ice, so a step slides on until something stops it (the game's
+          // ice step is the fast one: 8 frames a square).
+          if (opts.ice && open(moving)) left = 8;
+          else moving = null;
         }
       }
     },
@@ -136,6 +139,13 @@ describe("walk on the downhill road", () => {
     expect(bFrames).toBeGreaterThan(0);
     expect(s.bHeldWhileTrainer.length).toBeLessThanOrEqual(6);
     expect([...s.held]).toEqual([]);
+  });
+
+  it("says how far a slide on ice really went, past the squares asked for", async () => {
+    // Off the road (map 2), on ice with nothing above until y 5: one square asked, five slid.
+    const { travel, pos } = setup({ map: 2, ice: true, top: 5 });
+    expect(await walk(travel, "U1")).toBe("up 1/1 (slid on: 5 squares up) — arrived");
+    expect(pos).toMatchObject({ x: 5, y: 5 });
   });
 
   it("presses nothing extra off the downhill road", async () => {
