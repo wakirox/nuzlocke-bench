@@ -248,22 +248,54 @@ export class BridgeCore {
    * step out of a door), and when the map has changed since `fromMap`, the warp finishes loading.
    * Its new map id shows before the new map's coordinates and screen are in: read then, a press
    * through a gym's door put the gym's square on the city (2026-11-19). True when the map changed.
+   * `onSlope`: a walk settling, which holds B on the downhill road (slopeFrames).
    */
-  async settleMove(fromMap: number): Promise<boolean> {
+  async settleMove(fromMap: number, onSlope = false): Promise<boolean> {
     const gb = this.requireGb();
+    const frames = (n: number, perAnimFrame?: number) => (onSlope ? this.slopeFrames(n, perAnimFrame) : gb.runFrames(n, perAnimFrame));
     const still = async () => {
       for (let i = 0, n = 0; i < 60 && n < 12 && !this.host.position().battle; i++) {
         const before = this.host.position();
-        await gb.runFrames(2, 2);
+        await frames(2, 2);
         const after = this.host.position();
         n = before.x === after.x && before.y === after.y ? n + 2 : 0;
       }
     };
     await still();
     if (this.host.position().map === fromMap) return false;
-    await gb.runFrames(120);
+    await frames(120);
     await still();
     return true;
+  }
+
+  /** Whether slopeFrames is holding B. */
+  private slopeB = false;
+
+  /**
+   * Runs frames while a walk holds no direction. On the downhill bike road the game presses Down by
+   * itself on every frame with nothing held, so a player riding uphill never lets go: there B is
+   * held (it does nothing else while riding), looked at again every 6 frames, and let go as soon
+   * as a trainer comes or a text box is open (the game doesn't push then, and a held B would skip
+   * the text: a trainer's, a sign's, a Pokémon fainting from poison). Elsewhere these are plain
+   * frames, as before. The walk lets go of B when it ends (letGoOfSlope).
+   */
+  async slopeFrames(frames: number, perAnimFrame = 4): Promise<void> {
+    const gb = this.requireGb();
+    const pushes = () =>
+      !!this.game.forcedDownhill?.(gb) && !this.host.position().battle && !this.textBox(this.screenText()).open;
+    if (!this.slopeB && !pushes()) return gb.runFrames(frames, perAnimFrame);
+    for (let left = frames; left > 0; left -= 6) {
+      const hold = pushes();
+      if (hold !== this.slopeB) gb.setButton("b", (this.slopeB = hold));
+      await gb.runFrames(Math.min(6, left), perAnimFrame);
+    }
+  }
+
+  /** Lets go of the B that slopeFrames held, when a walk ends. */
+  letGoOfSlope(): void {
+    if (!this.slopeB) return;
+    this.slopeB = false;
+    this.requireGb().setButton("b", false);
   }
 
   /** Lets letter-by-letter printing finish: waits until the screen stops changing. */

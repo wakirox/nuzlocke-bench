@@ -48,6 +48,9 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     result: (r: object) => ({ ...r }),
     // The real wait for a move to end (and a warp to load), on this world's frames.
     settleMove: BridgeCore.prototype.settleMove,
+    // No slope in this world (the game has no forcedDownhill): plain frames.
+    slopeFrames: BridgeCore.prototype.slopeFrames,
+    letGoOfSlope: BridgeCore.prototype.letGoOfSlope,
   } as unknown as BridgeCore;
   return { travel: new Travel(core, {} as Menus), core, pos, frames: () => frame };
 }
