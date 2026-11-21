@@ -16,6 +16,9 @@ const FRAMES_PER_TILE = 16;
 const SCENE_FRAMES = 1800;
 /** One square each way, for counting a walk's squares on the downhill road (walkStraight). */
 const SLOPE_STEP: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+/** hunt, when no square seen has a neighbour of the same kind to pace back and forth to. */
+const LONE_SQUARES =
+  "No two squares of grass (or cave floor) side by side seen yet, to pace between: explore further (walk, travel), then hunt.";
 /** The text matched literally inside a RegExp (a move name comes from the model). */
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -337,7 +340,7 @@ export class Travel {
     const where = typeof area === "string" ? huntableIn(area) : { land: true, water: true };
     if (!where.land && !where.water) throw new Error(`Nothing to hunt here: ${area}.`);
     // Pace between two neighbouring encounter squares: water while surfing, else grass, or any open floor in a cave.
-    const v = this.core.view(true);
+    let v = this.core.view(true);
     const H = v.grid.length;
     const W = v.grid[0].length;
     const surfing = !!v.surfing;
@@ -348,11 +351,12 @@ export class Travel {
     const hasGrass = mapHasGrass(this.core.rawView(true));
     const square = surfing ? "~" : hasGrass ? '"' : ".";
     // The grid draws you as @: what's under you is the map's own square there (water, while surfing).
-    const underYou = surfing ? "~" : (v.beyond?.(v.originX + v.pc, v.originY + v.pr) ?? v.grid[v.pr]?.[v.pc]);
-    if (square === '"' && underYou !== '"' && !v.grid.some((row) => row.includes('"'))) {
+    const underYou = () => (surfing ? "~" : (v.beyond?.(v.originX + v.pc, v.originY + v.pr) ?? v.grid[v.pr]?.[v.pc]));
+    if (square === '"' && underYou() !== '"' && !v.grid.some((row) => row.includes('"'))) {
       throw new Error("No tall grass seen yet on this map: explore further first, then hunt.");
     }
-    const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou : v.grid[r][c]) === square;
+    // Read from the view as it is now (look): walking to the grass brings more of it into sight.
+    const encounterSquare = (c: number, r: number) => (c === v.pc && r === v.pr ? underYou() : v.grid[r][c]) === square;
     // Never pace on a door or warp: stepping on (or off, at a mat on the map's edge) takes you away
     // (hunt right after coming into a cave paced on its entrance mat and walked back out, 2026-11-19).
     // The map's own doors: a mechanics read, not shown to the model.
@@ -365,17 +369,34 @@ export class Travel {
     const pairAt = (c: number, r: number) => (ok(c, r) ? DIRS.find(([, dx, dy]) => paced(c, r, c + dx, r + dy)) : undefined);
     let log = "";
     const fled: string[] = [];
+    /** The view now: what the walk so far has brought into sight (a lone grass square's neighbours). */
+    const look = () => (v = this.core.view(true));
     const pairHere = () => {
       const here = this.core.host.position();
-      const vv = this.core.view(true);
-      return pairAt(here.x - vv.originX, here.y - vv.originY);
+      look();
+      return pairAt(here.x - v.originX, here.y - v.originY);
     };
+    /** LONE_SQUARES, with the walking done so far when there was some. */
+    const loneSquares = () => new Error(log ? `${LONE_SQUARES} (Walked: ${log}.)` : LONE_SQUARES);
+    /** Lone squares already walked onto to look around (map coordinates): not walked back to. */
+    const looked = new Set<string>();
     // Walk to the nearest encounter square that has a neighbour to pace to (a walk can stop
     // short — a ledge, someone in the way — so try again from wherever it ended).
     for (let attempt = 0; attempt < 4 && !pairHere(); attempt++) {
-      const vv = this.core.view(true);
+      // pairHere has just looked: the view is the one now.
+      const vv = v;
       const cands: [number, number][] = [];
       for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (pairAt(c, r)) cands.push([c, r]);
+      // Nothing seen to pace between yet, only lone squares (one grass square at the screen's edge, a
+      // cave's floor right inside the dark): walk onto one to look around, and look again. hunt said
+      // walls or ledges were in the way of grass walk_to then reached (Crystal, 2026-11-20). Each
+      // only once: two lone squares that show nothing more were walked between, A B A B.
+      const lone = !cands.length;
+      if (lone) {
+        looked.add(`${vv.pc + vv.originX},${vv.pr + vv.originY}`);
+        for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (ok(c, r) && !looked.has(`${c + vv.originX},${r + vv.originY}`)) cands.push([c, r]);
+        if (!cands.length) throw loneSquares();
+      }
       cands.sort((a, b) => Math.abs(a[0] - vv.pc) + Math.abs(a[1] - vv.pr) - (Math.abs(b[0] - vv.pc) + Math.abs(b[1] - vv.pr)));
       // Nearest first, and on until one is reachable: the nearest can all be behind a one-way ledge
       // with reachable grass further off (only the 12 nearest were tried, 2026-11-19).
@@ -419,7 +440,14 @@ export class Travel {
       if (this.core.textBox(this.core.screenText()).open) return this.core.result({ walk: `on the way to the grass: ${log}`, map: this.core.mapText() });
     }
     const first = pairHere();
-    if (!first) throw new Error(`Couldn't reach the grass (${log || "no route"}).`);
+    if (!first) {
+      // Squares side by side are in sight, and the walks there stopped short (someone in the way,
+      // a walk guessed through unseen squares): that, not "none seen".
+      let pairSeen = false;
+      for (let r = 0; r < H && !pairSeen; r++) for (let c = 0; c < W && !pairSeen; c++) pairSeen = !!pairAt(c, r);
+      if (pairSeen) throw new Error(`Couldn't reach the grass (${log || "no route"}).`);
+      throw loneSquares();
+    }
     const opposite: Record<Dir, Dir> = { left: "right", right: "left", up: "down", down: "up" };
     let dir: Dir = first[0];
     for (let step = 0; step < maxSteps; step++) {

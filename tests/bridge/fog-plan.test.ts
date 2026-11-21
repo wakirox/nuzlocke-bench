@@ -88,6 +88,70 @@ describe("hunt on a fogged map", () => {
     await expect(onMap(grid, grid).hunt(10)).rejects.toThrow(/can be walked to from here: walls or one-way ledges are in the way/);
   });
 
+  it("walks onto a lone seen square of grass to look around, instead of saying it can't be reached", async () => {
+    // One grass square seen, at the edge of what's seen (more grass beyond it, unseen): nothing to pace
+    // between yet, but it's in reach (Crystal, 2026-11-20: hunt blamed walls; walk_to got there).
+    const travel = onMap([["@", ".", '"', '"']], [["@", ".", '"', "?"]]);
+    const t = travel as unknown as Record<string, unknown>;
+    const legs: unknown[] = [];
+    t.walkSegments = vi.fn(async (segs: unknown) => { legs.push(segs); throw new Error("walked"); });
+    await expect(travel.hunt(10)).rejects.toThrow("walked");
+    expect(legs).toEqual([[["right", 2]]]);
+  });
+
+  it("paces once the walk onto a lone grass square brings its neighbour into sight", async () => {
+    // The view read at the start had only (2,0); standing there, (3,0) is seen too. hunt used to
+    // keep the first view and gave up there (Crystal, 2026-11-20).
+    const seen = [["@", ".", '"', "?"]];
+    const travel = onMap([["@", ".", '"', '"']], seen);
+    const t = travel as unknown as Record<string, unknown>;
+    const core = (travel as unknown as { core: { host: { position: () => { x: number } } } }).core;
+    const pos = core.host.position();
+    t.walkSegments = vi.fn(async () => { pos.x = 2; seen[0] = [".", ".", "@", '"']; return "right 2/2 — arrived"; });
+    (core as unknown as Record<string, unknown>).view = () => ({ grid: seen, originX: 0, originY: 0, pc: pos.x, pr: 0, beyond: (x: number) => (x === 2 ? '"' : ".") });
+    t.walkStraight = vi.fn(async () => { throw new Error("paced"); });
+    await expect(travel.hunt(10)).rejects.toThrow("paced");
+  });
+
+  it("says it couldn't reach the grass when squares side by side are seen and the walks stop short", async () => {
+    // Two grass squares side by side are in sight; every walk there stops a square short (someone
+    // in the way). That isn't "none seen side by side".
+    const travel = onMap([["@", ".", '"', '"']], [["@", ".", '"', '"']]);
+    const t = travel as unknown as Record<string, unknown>;
+    t.walkSegments = vi.fn(async () => "right 1/2 — stopped: blocked (wall, person, or a scripted event)");
+    await expect(travel.hunt(10)).rejects.toThrow("Couldn't reach the grass (right 1/2 — stopped: blocked (wall, person, or a scripted event)).");
+  });
+
+  it("walks onto each lone square once, not back and forth between two that show nothing more", async () => {
+    // Two lone grass squares, (0,0) and (4,0), neither with a neighbour to pace to once stood on.
+    // hunt walked A B A B; now each once, then says so with what it walked.
+    const travel = onMap([['"', ".", "@", ".", '"']], [['"', ".", "@", ".", '"']]);
+    const t = travel as unknown as Record<string, unknown>;
+    const core = (travel as unknown as { core: { host: { position: () => { x: number } } } }).core;
+    const pos = core.host.position();
+    pos.x = 2;
+    const base = ['"', ".", ".", ".", '"'];
+    (core as unknown as Record<string, unknown>).view = () => ({
+      grid: [base.map((s, x) => (x === pos.x ? "@" : s))], originX: 0, originY: 0, pc: pos.x, pr: 0, beyond: (x: number) => base[x],
+    });
+    const visits: number[] = [];
+    t.walkSegments = vi.fn(async (segs: [string, number][]) => {
+      const [dir, n] = segs[0];
+      pos.x += dir === "left" ? -n : n;
+      visits.push(pos.x);
+      return `${dir} ${n}/${n} — arrived`;
+    });
+    await expect(travel.hunt(10)).rejects.toThrow(/No two squares of grass \(or cave floor\) side by side seen yet.*\(Walked: right 4\/4 — arrived\.\)/);
+    expect(visits).toEqual([0, 4]);
+  });
+
+  it("says to explore further when the only grass seen is the square you stand on", async () => {
+    const travel = onMap([['"', ".", "#"]], [['"', ".", "#"]]);
+    const core = (travel as unknown as { core: { view: () => unknown } }).core;
+    core.view = () => ({ grid: [["@", ".", "#"]], originX: 0, originY: 0, pc: 0, pr: 0, beyond: () => '"' });
+    await expect(travel.hunt(10)).rejects.toThrow(/No two squares of grass \(or cave floor\) side by side seen yet/);
+  });
+
   it("walks to seen grass through unseen squares when no seen way gets there, as walk_to does", async () => {
     // The grass at (3,0) and (4,0) is seen; the only way there is through the unseen (1,0) and (2,0).
     const travel = onMap([["@", ".", ".", '"', '"']], [["@", "?", "?", '"', '"']]);

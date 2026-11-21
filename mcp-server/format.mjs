@@ -430,8 +430,16 @@ export function sentences(lines = []) {
     if (out.length && !line.startsWith("(") && !/[.!?…]["'”)]*$/.test(out[out.length - 1])) out[out.length - 1] += ` ${line}`;
     else out.push(line);
   }
-  return out;
+  return out.map(missNote);
 }
+
+/**
+ * "It didn't affect <foe>!" is what the games say when a status move misses or fails (a confusion,
+ * sleep or paralysis move); an immunity reads "It doesn't affect". It reads like an immunity, so the
+ * message says which it is (Crystal playtest, 2026-11-20).
+ */
+const missNote = (message) =>
+  /^It didn't affect .+!$/.test(message) ? `${message} (the move missed or failed: an immunity reads "doesn't affect")` : message;
 
 /** Compact JSON: indentation is mostly whitespace tokens. */
 export const json = (v) => ({ content: [{ type: "text", text: JSON.stringify(v) }] });
