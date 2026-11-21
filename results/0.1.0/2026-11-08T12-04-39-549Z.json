@@ -1,0 +1,138 @@
+{
+ "id": "2026-11-08T12-04-39-549Z",
+ "model": "haiku-5-5",
+ "effort": "high",
+ "game": "red",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-08",
+ "harness": "0.1.0@78190cd",
+ "outcome": "gave up",
+ "badges": 3,
+ "deaths": 0,
+ "calls": 3798,
+ "screenshots": 24,
+ "wrongCalls": 141,
+ "rejected": 3,
+ "realMs": 8352821,
+ "score": {
+  "total": 325,
+  "progress": 390,
+  "speed": 0,
+  "cottageSpeed": 8,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": 0,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": -13,
+  "wrongCalls": -15,
+  "winFloor": 0
+ },
+ "tokens": 278203519,
+ "tokensPartial": false,
+ "playTime": "5:27:43",
+ "furthest": 9,
+ "reached": [
+  "rival1",
+  "badge1",
+  "cave1",
+  "badge2",
+  "rival2",
+  "cottage",
+  "cottageDone",
+  "ship",
+  "rival3",
+  "badge3"
+ ],
+ "times": {
+  "rival1": "0:04:40",
+  "badge1": "0:25:21",
+  "cave1": "0:59:48",
+  "badge2": "1:08:04",
+  "rival2": "1:12:59",
+  "cottage": "1:43:42",
+  "cottageDone": "1:46:52",
+  "ship": "1:55:23",
+  "rival3": "1:59:13",
+  "badge3": "2:12:38"
+ },
+ "dark": {
+  "result": "not crossed",
+  "calls": 2601,
+  "deaths": 0,
+  "flashAt": null
+ },
+ "objectiveCalls": {
+  "rival1": 83,
+  "badge1": 238,
+  "cave1": 513,
+  "badge2": 553,
+  "rival2": 599,
+  "cottage": 817,
+  "cottageDone": 845,
+  "ship": 927,
+  "rival3": 950,
+  "badge3": 1085
+ },
+ "lastBattleDeaths": 0,
+ "hardAreas": [
+  {
+   "id": "cave",
+   "label": "First cave",
+   "done": true,
+   "calls": 201,
+   "entries": 2,
+   "deaths": 0,
+   "seconds": 1408
+  },
+  {
+   "id": "tunnel",
+   "label": "Dark tunnel",
+   "done": false,
+   "calls": 2601,
+   "entries": 5,
+   "deaths": 0,
+   "seconds": 11027
+  }
+ ],
+ "toolUse": {
+  "calls": 3798,
+  "presses": 60,
+  "planned": 1820,
+  "batches": 769,
+  "loops": 18
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 3.7,
+   "screenshotPct": 0.6,
+   "plannedMovePct": 47.9,
+   "pressPct": 1.6,
+   "batches": 769,
+   "loops": 18
+  },
+  "planning": {
+   "flash": false,
+   "deathsPerBadge": 0
+  },
+  "knowledge": {
+   "steps": {
+    "rival1": 83,
+    "badge1": 155,
+    "cave1": 275,
+    "badge2": 40,
+    "rival2": 46,
+    "cottage": 218,
+    "cottageDone": 28,
+    "ship": 82,
+    "rival3": 23,
+    "badge3": 135
+   }
+  }
+ }
+}
