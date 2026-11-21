@@ -376,18 +376,26 @@ export class Travel {
       look();
       return pairAt(here.x - v.originX, here.y - v.originY);
     };
+    /** LONE_SQUARES, with the walking done so far when there was some. */
+    const loneSquares = () => new Error(log ? `${LONE_SQUARES} (Walked: ${log}.)` : LONE_SQUARES);
+    /** Lone squares already walked onto to look around (map coordinates): not walked back to. */
+    const looked = new Set<string>();
     // Walk to the nearest encounter square that has a neighbour to pace to (a walk can stop
     // short — a ledge, someone in the way — so try again from wherever it ended).
     for (let attempt = 0; attempt < 4 && !pairHere(); attempt++) {
-      const vv = look();
+      // pairHere has just looked: the view is the one now.
+      const vv = v;
       const cands: [number, number][] = [];
       for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (pairAt(c, r)) cands.push([c, r]);
       // Nothing seen to pace between yet, only lone squares (one grass square at the screen's edge, a
       // cave's floor right inside the dark): walk onto one to look around, and look again. hunt said
-      // walls or ledges were in the way of grass walk_to then reached (Crystal, 2026-11-20).
-      if (!cands.length) {
-        for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (ok(c, r) && !(c === vv.pc && r === vv.pr)) cands.push([c, r]);
-        if (!cands.length) throw new Error(LONE_SQUARES);
+      // walls or ledges were in the way of grass walk_to then reached (Crystal, 2026-11-20). Each
+      // only once: two lone squares that show nothing more were walked between, A B A B.
+      const lone = !cands.length;
+      if (lone) {
+        looked.add(`${vv.pc + vv.originX},${vv.pr + vv.originY}`);
+        for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (ok(c, r) && !looked.has(`${c + vv.originX},${r + vv.originY}`)) cands.push([c, r]);
+        if (!cands.length) throw loneSquares();
       }
       cands.sort((a, b) => Math.abs(a[0] - vv.pc) + Math.abs(a[1] - vv.pr) - (Math.abs(b[0] - vv.pc) + Math.abs(b[1] - vv.pr)));
       // Nearest first, and on until one is reachable: the nearest can all be behind a one-way ledge
@@ -432,7 +440,14 @@ export class Travel {
       if (this.core.textBox(this.core.screenText()).open) return this.core.result({ walk: `on the way to the grass: ${log}`, map: this.core.mapText() });
     }
     const first = pairHere();
-    if (!first) throw new Error(log ? `${LONE_SQUARES} (Walked: ${log}.)` : LONE_SQUARES);
+    if (!first) {
+      // Squares side by side are in sight, and the walks there stopped short (someone in the way,
+      // a walk guessed through unseen squares): that, not "none seen".
+      let pairSeen = false;
+      for (let r = 0; r < H && !pairSeen; r++) for (let c = 0; c < W && !pairSeen; c++) pairSeen = !!pairAt(c, r);
+      if (pairSeen) throw new Error(`Couldn't reach the grass (${log || "no route"}).`);
+      throw loneSquares();
+    }
     const opposite: Record<Dir, Dir> = { left: "right", right: "left", up: "down", down: "up" };
     let dir: Dir = first[0];
     for (let step = 0; step < maxSteps; step++) {

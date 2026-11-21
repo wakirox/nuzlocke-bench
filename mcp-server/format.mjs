@@ -438,7 +438,7 @@ export function sentences(lines = []) {
  * sleep or paralysis move); an immunity reads "It doesn't affect". It reads like an immunity, so the
  * message says which it is (Crystal playtest, 2026-11-20).
  */
-export const missNote = (message) =>
+const missNote = (message) =>
   /^It didn't affect .+!$/.test(message) ? `${message} (the move missed or failed: an immunity reads "doesn't affect")` : message;
 
 /** Compact JSON: indentation is mostly whitespace tokens. */

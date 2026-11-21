@@ -140,8 +140,8 @@ describe("messages", () => {
   });
 
   it("says a status move that \"didn't affect\" the foe missed or failed; an immunity is left as it is", () => {
-    expect(sentences(["NOVA used", "SUPERSONIC!", "It didn't affect", "Enemy BIRDMON!"])).toEqual([
-      "NOVA used SUPERSONIC!",
+    expect(sentences(["NOVA used", "HUMMING!", "It didn't affect", "Enemy BIRDMON!"])).toEqual([
+      "NOVA used HUMMING!",
       `It didn't affect Enemy BIRDMON! (the move missed or failed: an immunity reads "doesn't affect")`,
     ]);
     expect(sentences(["It doesn't affect", "Enemy GHOSTMON!"])).toEqual(["It doesn't affect Enemy GHOSTMON!"]);
