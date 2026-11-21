@@ -41,9 +41,12 @@ export const NAMING_KEYBOARD_OPEN = `the naming keyboard is open: ${NAME_HOW}`;
  * "(MONA: 85% → 63% HP.)" for each battler whose HP changed while the same Pokémon stayed out.
  * Your side in HP, the foe's in % like its bar (a player never sees the foe's numbers).
  */
-function hpChanges(before: { you: BattlerHp; foe: BattlerHp }, after: { you: BattlerHp; foe: BattlerHp }): string[] {
+export function hpChanges(before: { you: BattlerHp; foe: BattlerHp }, after: { you: BattlerHp; foe: BattlerHp }): string[] {
   const out: string[] = [];
-  const same = (a: BattlerHp, b: BattlerHp) => a.species === b.species && a.name === b.name && a.maxHp === b.maxHp && a.species > 0;
+  // A battler that had fainted doesn't come back while out: one at 0 HP with HP again is the next
+  // one sent out, even of the same species and level (a trainer's two alike, read as a heal to
+  // 100%, 2026-11-21).
+  const same = (a: BattlerHp, b: BattlerHp) => a.species === b.species && a.name === b.name && a.maxHp === b.maxHp && a.species > 0 && !(a.hp === 0 && b.hp > 0);
   const pct = (m: BattlerHp) => (m.maxHp ? Math.round((m.hp / m.maxHp) * 100) : 0);
   if (same(before.you, after.you) && before.you.hp !== after.you.hp) out.push(`(${after.you.name}: ${before.you.hp} → ${after.you.hp}/${after.you.maxHp} HP.)`);
   if (same(before.foe, after.foe) && before.foe.hp !== after.foe.hp) out.push(`(${after.foe.name}: ${pct(before.foe)}% → ${pct(after.foe)}% HP.)`);
@@ -683,6 +686,10 @@ export class Menus {
     await this.openStartMenu();
     await this.choose(this.core.layout.startMenu.bag);
     const picked = (await this.chooseInBag(it.item)) as { messages?: string[] };
+    // Crystal's bag shows the item's description in its text box: it came back as a message, before
+    // and after the real one ("Restores POKéMON HP by 20." twice, 2026-11-21). What the box says with
+    // the item picked is that description; it's left out of the messages below (only exact matches).
+    const descriptionBox = this.core.textBox(this.core.screenText()).lines;
     // Most items open USE/TOSS; the bicycle doesn't (Gen 1): picking it uses it, and looking for
     // USE then left the bag open (on a road where the game won't let you off it, 2026-11-19).
     const useMenu = this.core.screenText().some((l) => /(^|[\s▶])USE\b/.test(l));
@@ -722,6 +729,17 @@ export class Menus {
     }
     await this.closeMenus();
     if (/ESCAPE ROPE/i.test(it.item) && !this.core.layout.texts.notNow.test(messages.join(" "))) await this.core.awaitWarp();
-    return this.core.result({ used: it.item, on: mon?.nickname, messages });
+    return this.core.result({ used: it.item, on: mon?.nickname, messages: withoutDescription(messages, descriptionBox) });
   }
+}
+
+/**
+ * The messages without the bag's item description (`box`: the text box's lines with the item
+ * picked). Only a message that is the description, or one of its lines, exactly (spaces aside).
+ */
+export function withoutDescription(messages: string[], box: string[]): string[] {
+  const said = (s: string) => s.replace(/\s+/g, " ").trim();
+  const lines = box.map(said).filter(Boolean);
+  const description = new Set(lines.length ? [...lines, lines.join(" ")] : []);
+  return messages.filter((m) => !description.has(said(m)));
 }
