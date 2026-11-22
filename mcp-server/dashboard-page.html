@@ -210,7 +210,8 @@ const secs = (t) => (t ?? "0:0:0").split(":").reduce((a, b) => a * 60 + Number(b
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
 const label = (i) => (i >= 0 ? DATA.objectives[i].label : "None yet");
 const mTokens = (t, partial) => (t == null ? "" : `${partial ? "≥" : ""}${(t / 1e6).toFixed(1)}M`);
-const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""}${r.via ? ` via ${r.via}` : ""}`;
+// The harness a run was played through: agy where the record says so, else the runner's default, Claude Code.
+const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""} via ${r.via ?? "Claude Code"}`;
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const byGroup = (a, b) => { const [ma, ea] = a.split(" "), [mb, eb] = b.split(" "); return ma.localeCompare(mb) || EFFORTS.indexOf(ea) - EFFORTS.indexOf(eb); };
 
