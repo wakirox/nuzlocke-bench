@@ -259,6 +259,34 @@ describe("Crystal people on screen", () => {
       { x: 30, onScreen: false, facing: undefined },
     ]);
   });
+
+  it("a trainer that turns by itself has every way it can face; one standing still has none", () => {
+    const ram = new Uint8Array(0x10000);
+    ram[A.xCoord] = 10;
+    ram[A.yCoord] = 10;
+    ram[OW.objectEventCount] = 3;
+    const put = (idx: number, movement: number) => {
+      const m = OW.mapObjects + idx * 16;
+      ram[m] = 0xff;
+      ram[m + 1] = 1;
+      ram[m + 2] = 10 + 4;
+      ram[m + 3] = 10 + idx + 4;
+      ram[m + 4] = movement;
+      ram[m + 6] = 0xff; ram[m + 7] = 0xff;
+      ram[m + 8] = 2;
+      ram[m + 9] = 3;
+      ram[m + 12] = 0xff; ram[m + 13] = 0xff;
+    };
+    put(1, 0x1f); // SPRITEMOVEDATA_SPINCLOCKWISE
+    put(2, 0x05); // SPRITEMOVEDATA_WALK_LEFT_RIGHT
+    put(3, 0x06); // SPRITEMOVEDATA_STANDING_DOWN
+    const mem = { read8: (a: number) => ram[a], read16be: () => 0, readBytes: () => new Uint8Array() };
+    expect(trainerSprites(mem, 10, 10).map((s) => s.facings)).toEqual([
+      [[0, 1], [0, -1], [-1, 0], [1, 0]],
+      [[-1, 0], [1, 0]],
+      undefined,
+    ]);
+  });
 });
 
 describe("gym leaders (people whose own script starts the fight)", () => {

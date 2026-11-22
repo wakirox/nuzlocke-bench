@@ -189,3 +189,17 @@ describe("FLY's town map", () => {
     expect(flyPlace([])).toBe("");
   });
 });
+
+describe("HP notes among battle lines", () => {
+  it("go after a move being used, read in the same look (one that makes its own user faint)", async () => {
+    const { withHpNotes } = await import("../../src/bridge/menus");
+    expect(withHpNotes(["Enemy GASMON", "used BLAST!"], ["(GASMON: 50% → 0% HP.)", "(NOVA: 40 → 0/97 HP.)"]))
+      .toEqual(["Enemy GASMON", "used BLAST!", "(GASMON: 50% → 0% HP.)", "(NOVA: 40 → 0/97 HP.)"]);
+  });
+
+  it("go before what's said about a hit (the bar drains first)", async () => {
+    const { withHpNotes } = await import("../../src/bridge/menus");
+    expect(withHpNotes(["A critical hit!"], ["(MAGMON: 100% → 0% HP.)"])).toEqual(["(MAGMON: 100% → 0% HP.)", "A critical hit!"]);
+    expect(withHpNotes(["It's super-", "effective!"], [])).toEqual(["It's super-", "effective!"]);
+  });
+});

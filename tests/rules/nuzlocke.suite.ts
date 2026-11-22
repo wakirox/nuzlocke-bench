@@ -249,6 +249,14 @@ export function nuzlockeRuleSuite(game: GameFixture): void {
         expect(brief(run.engine, run.s).enemy).toMatch(/Lv20 100%HP/);
       });
 
+      it("shows the foe's types in battle, which a move can change from its species'", () => {
+        const run = new Run(game).goTo(places.route).trainerBattle(ids.wildA, 9);
+        const species = run.engine.data.species[ids.wildA].types.join("/");
+        expect(brief(run.engine, run.s).enemy).toContain(`[${species}]`);
+        run.poll({ enemy: { ...run.s.enemy!, types: ["ELECTRIC"] } }); // the game says it turned into that type
+        expect(brief(run.engine, run.s).enemy).toContain("[ELECTRIC]");
+      });
+
       it("shows the Pokémon about to be sent out, with its moves, before the game fills in the battle slot", () => {
         const run = new Run(game).receiveGift(ids.wildB, "SPIKE").goTo(places.route).trainerBattle(ids.wildA, 9).faint(0);
         run.s.battleMon = { ...run.s.battleMon!, species: 0, maxHp: 0 }; // a new battle's intro: the slot is empty

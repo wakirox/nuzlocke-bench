@@ -124,10 +124,26 @@ interface MapObject {
   y: number;
   /** OBJECT_DIRECTION of its loaded struct; null while it isn't loaded (off screen). */
   facing: number | null;
+  /** MAPOBJECT_MOVEMENT: how it moves (SPRITEMOVEDATA_*), e.g. standing one way or spinning. */
+  movement: number;
   type: number;
   sightRange: number;
   script: number;
   hidden: boolean;
+}
+
+/**
+ * The ways a person who turns by itself can face (SPRITEMOVEDATA_*): spinners and wanderers any way,
+ * walkers along their walk. A trainer that turns is planned around as looking every way it can
+ * (one spinning on the spot saw a walk planned past where it faced a moment before, a playtest,
+ * 2026-11-22). Undefined for one that stands facing one way.
+ */
+function facingsOf(movement: number): [number, number][] | undefined {
+  const all: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
+  if ([0x02, 0x03, 0x0a, 0x1e, 0x1f].includes(movement)) return all; // wander, spin random slow/fast, spin (counter)clockwise
+  if (movement === 0x04) return [[0, 1], [0, -1]]; // walk up and down
+  if (movement === 0x05) return [[-1, 0], [1, 0]]; // walk left and right
+  return undefined;
 }
 
 /** hHours (HRAM): the clock's hour, for objects only out at certain hours. */
@@ -171,7 +187,7 @@ function mapObjects(mem: MemoryReader): MapObject[] {
         loaded = true;
       }
     }
-    out.push({ index: i, sprite, x, y, facing, type: rd(mem, m + 8) & 0x0f, sightRange: rd(mem, m + 9), script: rd16le(mem, m + 10), hidden, loaded });
+    out.push({ index: i, sprite, x, y, facing, movement: rd(mem, m + 4), type: rd(mem, m + 8) & 0x0f, sightRange: rd(mem, m + 9), script: rd16le(mem, m + 10), hidden, loaded });
   }
   // Someone on screen who isn't loaded is gone (a script took them away without a flag), but only
   // once the game has loaded anyone: right after a door nobody is loaded yet, and a shop's clerk
@@ -219,7 +235,12 @@ export function trainerSprites(mem: MemoryReader, playerX: number, playerY: numb
         && o.y >= playerY - PLAYER_ROW && o.y < playerY - PLAYER_ROW + VIEW_H;
       // A leader waits to be talked to (no line of sight), and is beaten once the game's flag says so.
       const leader = leaderOf(mem, o);
-      return { index: o.index, x: o.x, y: o.y, dx, dy, onScreen, sight: o.sightRange > 0 && !leader, ...(leader && eventSet(mem, leader.beaten) ? { beaten: true } : {}) };
+      const turns = facingsOf(o.movement);
+      return {
+        index: o.index, x: o.x, y: o.y, dx, dy, onScreen, sight: o.sightRange > 0 && !leader,
+        ...(turns ? { facings: turns } : {}),
+        ...(leader && eventSet(mem, leader.beaten) ? { beaten: true } : {}),
+      };
     });
 }
 

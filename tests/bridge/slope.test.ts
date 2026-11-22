@@ -31,7 +31,10 @@ function setup(opts: {
   mapIce?: boolean;
   /** A wild battle starts on reaching this square (once), and travel runs from it. */
   battleAt?: { x: number; y: number };
+  /** A door on this map that leads elsewhere on it: stepping onto `from` puts the player at `to` a few frames later. */
+  warp?: { from: { x: number; y: number }; to: { x: number; y: number } };
 } = {}) {
+  let warpIn = -1;
   const iceAt = (x: number, y: number) => (typeof opts.ice === "function" ? opts.ice(x, y) : !!opts.ice);
   let battled = false;
   let battleNext = false;
@@ -61,6 +64,11 @@ function setup(opts: {
           pos.battle = true;
           continue;
         }
+        if (warpIn > 0 && --warpIn === 0 && opts.warp) {
+          pos.x = opts.warp.to.x;
+          pos.y = opts.warp.to.y;
+          continue;
+        }
         if (opts.trainerComing?.() && held.has("b")) bHeldWhileTrainer.push(frame);
         if (boxOpen() && held.has("b")) bHeldWithBox.push(frame);
         if (!moving) {
@@ -80,6 +88,10 @@ function setup(opts: {
             moving = null;
           } else if (iceAt(pos.x, pos.y) && open(moving)) left = 8;
           else moving = null;
+          if (opts.warp && pos.x === opts.warp.from.x && pos.y === opts.warp.from.y) {
+            warpIn = 10;
+            moving = null;
+          }
         }
       }
     },
@@ -98,6 +110,7 @@ function setup(opts: {
     screenText: () => [],
     settledScreen: async () => [],
     mapText: () => "map",
+    at: (x: number, y: number) => `(${x}, ${y})`,
     noteSeen: () => {},
     result: (r: object) => ({ ...r }),
     settleMove: BridgeCore.prototype.settleMove,
@@ -197,6 +210,21 @@ describe("walk on the downhill road", () => {
     const { travel, pos } = setup({ map: 2, ice: (_x, y) => y <= 7, top: 3, battleAt: { x: 5, y: 9 } });
     expect(await walk(travel, "U3")).toBe("up 3/3 (slid on: 7 squares up) — arrived (ran from a wild one)");
     expect(pos).toMatchObject({ x: 5, y: 3 });
+  });
+
+  it("says a door that leads elsewhere on the same map, instead of arrived", async () => {
+    // Off the road (map 2): the square above is a door to (2, 12) on this same map.
+    const { travel, pos } = setup({ map: 2, warp: { from: { x: 5, y: 9 }, to: { x: 2, y: 12 } } });
+    expect(await walk(travel, "U1")).toBe("up 1/1 — stopped: went through a door/warp to (2, 12), on this map");
+    expect(pos).toMatchObject({ x: 2, y: 12 });
+  });
+
+  it("tells a door elsewhere on the map from a slide on (along the way walked) or a ledge hop", async () => {
+    const { warpedOnMap } = await import("../../src/bridge/travel");
+    expect(warpedOnMap("up", { x: 15, y: 4 }, { x: 18, y: 29 })).toBe(true); // back and across
+    expect(warpedOnMap("down", { x: 5, y: 5 }, { x: 5, y: 12 })).toBe(false); // slid on down
+    expect(warpedOnMap("down", { x: 5, y: 5 }, { x: 5, y: 6 })).toBe(false); // a ledge hop's second square
+    expect(warpedOnMap("right", { x: 5, y: 5 }, { x: 9, y: 8 })).toBe(true); // off the line
   });
 
   it("presses nothing extra off the downhill road", async () => {
