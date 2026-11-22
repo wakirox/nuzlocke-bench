@@ -273,6 +273,43 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
   });
 
+  describe("the door you came in by", () => {
+    // The room's one door (5,8) is the one the player came in by, and leads indoors (a shrine).
+    const IN = [{ x: 5, y: 8, to: "INNER_ROOM", tx: 3, ty: 7, outside: false }];
+    const world = (doors: typeof IN) => {
+      // Come in through it (both ends noted) and walked up from it: seen around the door and here.
+      const seen = seenFrom0();
+      seen.wentThrough(MAP + 1, 3, 7, MAP, 5, 8);
+      seen.sawScreen(MAP, 5, 8);
+      seen.sawScreen(MAP, 5, 2);
+      const w = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors });
+      w.core.arrivedBy = { map: MAP, x: 5, y: 8 };
+      return w;
+    };
+
+    it("isn't taken back indoors: exit_map heads the way asked and says so", async () => {
+      const { core, travel } = world(IN);
+      const r = (await travel.exitMap("down")) as { walk: string };
+      expect(r.walk).toContain("no door in sight yet down of you (not back through the door you came in by: exit_map down again takes it), so heading down");
+      expect(core.host.position()).not.toMatchObject({ x: 5, y: 8 });
+    });
+
+    it("is taken when exit_map is asked the same way again", async () => {
+      const { core, travel } = world(IN);
+      await travel.exitMap("down");
+      const r = (await travel.exitMap("down")) as { walk: string };
+      expect(r.walk).toContain("out through the door at (5, 8) to INNER_ROOM");
+      expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
+    });
+
+    it("is taken at once when it leads outdoors (out of a house is out)", async () => {
+      const { core, travel } = world([{ ...IN[0], to: "SOME_TOWN", outside: true }]);
+      const r = (await travel.exitMap("down")) as { walk: string };
+      expect(r.walk).toContain("out through the door at (5, 8) to SOME_TOWN");
+      expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
+    });
+  });
+
   it("doesn't go back out the door behind you when asked the other way (a forest came into from the south)", async () => {
     // The door the player came in by is right below; above is unseen. exit_map up used to take that door.
     const seen = seenFrom0();

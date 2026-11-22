@@ -188,6 +188,7 @@ export class BridgeCore {
     if (from) {
       this.warpedFrom = null;
       seen.wentThrough(from.map, from.x, from.y, p.map, p.x, p.y);
+      this.arrivedBy = { map: p.map, x: p.x, y: p.y };
     }
     // The square the run first stands on in a map is (0,0) there for the model (SeenMaps.origins).
     seen.originAt(p.map, p.x, p.y);
@@ -222,6 +223,9 @@ export class BridgeCore {
    * the town map with a press, and both ends were noted as doors, 2026-11-20). Cleared on landing.
    */
   flightCalls = 0;
+
+  /** Where the player came onto the current map through a door (its square on this map); null after a flight or a battle. */
+  arrivedBy: { map: number; x: number; y: number } | null = null;
 
   /** The bottom text box (Gen 1: rows 12–17) if one is on screen, as its text lines. */
   textBox(lines: string[]): { open: boolean; lines: string[] } {

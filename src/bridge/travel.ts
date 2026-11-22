@@ -2,7 +2,7 @@
 // own routes, field moves and pacing the grass.
 
 import { hasFog, mapHasGrass, planFrontierEdge, planFrontierTarget, seenSteps } from "./map-lens";
-import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, routeEnd, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir } from "./overworld";
+import { cropView, findPath, seenPart, ledgeTarget, pairBlocked, pathFurthest, routeEnd, sightCrossings, toSegments, wayBlocker, type AnyOverworldView, type Dir, type Door } from "./overworld";
 import { describeLink } from "./routes";
 import { FAST_WATCH, PACED } from "./endpoint";
 import { clamp, type BridgeCore } from "./bridge-core";
@@ -80,6 +80,9 @@ export function warpedOnMap(dir: Dir, from: { x: number; y: number }, to: { x: n
 }
 
 export class Travel {
+  /** The last exit_map passed over the door in (map, direction): asked the same way again, it takes it. */
+  private skippedDoorIn: { map: number; dir: Dir } | null = null;
+
   /**
    * Poisoned Pokémon (by uid) the model has acknowledged with ack_poison: walks go on through their
    * poison until it's cured or they faint (a stop every 4 steps cost a call each, 2026-11-19). Each
@@ -1008,14 +1011,25 @@ export class Travel {
         d.x === here0.x && d.y === here0.y && [undefined, "#"].includes(beyond(d.x + sx, d.y + sy));
       const ahead = (d: { x: number; y: number }) => underfoot(d) ||
         (dir === "up" ? d.y < here0.y : dir === "down" ? d.y > here0.y : dir === "left" ? d.x < here0.x : d.x > here0.x);
-      const doors = hasFog(full) ? (full.doors ?? []).filter(ahead) : full.doors ?? [];
+      // Not back through the door you came in by when it leads indoors (a shrine, the floor above):
+      // asked up in a cave, exit_map took the shrine just left (a playtest, 2026-11-22). Asked the
+      // same way again, it does. A door in that leads outdoors stays: out of a house is out.
+      const arrived = this.core.arrivedBy?.map === startMapOf ? this.core.arrivedBy : null;
+      const isDoorIn = (d: Door) => !!arrived && d.outside === false && Math.abs(d.x - arrived.x) + Math.abs(d.y - arrived.y) <= 1;
+      const askedAgain = !explored && this.skippedDoorIn?.map === startMapOf && this.skippedDoorIn.dir === dir;
+      // Asked again, the door in counts wherever it is now (the heading may have passed it).
+      const seenDoors = hasFog(full) ? (full.doors ?? []).filter((d) => ahead(d) || (askedAgain && isDoorIn(d))) : full.doors ?? [];
+      const skipIn = !askedAgain && seenDoors.some(isDoorIn);
+      const doors = skipIn ? seenDoors.filter((d) => !isDoorIn(d)) : seenDoors;
+      if (!explored) this.skippedDoorIn = skipIn ? { map: startMapOf, dir } : null;
+      const doorInNote = skipIn ? ` (not back through the door you came in by: exit_map ${dir} again takes it)` : "";
       // No door in sight yet that way (fog of war, e.g. a run resumed inside): head the way asked
       // through what's been seen, looking as you go, as a player would; then, if that brought a way
       // out into sight, take it (once: no second look-around).
       if (!doors.length && hasFog(full)) {
         if (explored) throw new Error(`No door in sight yet that way: look around (walk, travel) and try exit_map again.`);
         const out = (await this.travel(dir, 12, 1)) as Record<string, unknown>;
-        const head = `no door in sight yet ${dir} of you, so heading ${dir}: ${String(out.walk ?? "")}`;
+        const head = `no door in sight yet ${dir} of you${doorInNote}, so heading ${dir}: ${String(out.walk ?? "")}`;
         const now = this.core.host.position();
         if (now.battle || now.map !== startMapOf || !this.core.view(true).doors?.length) return { ...out, walk: head };
         try {
@@ -1051,7 +1065,7 @@ export class Travel {
         const out = (await this.walkTo(door.x, door.y, false)) as Record<string, unknown>;
         return { ...out, walk: `no edge exits here, so out through the door at ${doorAt} to ${places[0]}: ${String(out.walk ?? "")}` };
       }
-      throw new Error(`This map has no exit ${dir}: leave through a door (D) — walk_to its square to go through it. Doors: ${(this.core.shownView({ ...full, doors }).doors ?? []).map((d) => `(${d.x},${d.y}) → ${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`).join("; ") || "none seen"}.`);
+      throw new Error(`This map has no exit ${dir}: leave through a door (D) — walk_to its square to go through it. Doors: ${(this.core.shownView({ ...full, doors }).doors ?? []).map((d) => `(${d.x},${d.y}) → ${d.to}${d.tx != null ? ` (${d.tx},${d.ty})` : ""}`).join("; ") || "none seen"}${doorInNote}.`);
     }
     if (full.exits && !full.exits.includes(dir)) {
       throw new Error(`This map has no exit ${dir}. Exits: ${full.exits.join(", ")}.`);
