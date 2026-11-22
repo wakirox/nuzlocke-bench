@@ -98,14 +98,17 @@ export class Menus {
       const box = this.core.textBox(lines);
       // HP that changed since the last line: what the hit (or heal) just shown did, as the bars show it.
       const now = this.core.host.battleHp();
-      if (hp && now) messages.push(...hpChanges(hp, now));
+      const hpNotes = hp && now ? hpChanges(hp, now) : [];
       hp = now;
       // Text scrolls up a line at a time; record each line once. Menu rows (FIGHT/PKMN, YES/NO…)
       // and the battle menu's second row (ITEM RUN) are choices, not messages.
       const text = dialogueBoxLines(box.lines, this.core.layout);
       const read = newBoxLines(lastBox, text);
       if (read.replaceLast !== null && lastLine >= 0) messages[lastLine] = read.replaceLast;
-      for (const line of read.add) lastLine = messages.push(line) - 1;
+      for (const line of withHpNotes(read.add, hpNotes)) {
+        const i = messages.push(line) - 1;
+        if (!hpNotes.includes(line)) lastLine = i;
+      }
       if (text.length) lastBox = text;
       // A quantity box (a shop's "×01") has no ▶: up/down change it and A confirms, so don't
       // press A through it. But text with a ▼ under it (the price question once a quantity
@@ -744,6 +747,20 @@ export class Menus {
     if (/ESCAPE ROPE/i.test(it.item) && !this.core.layout.texts.notNow.test(messages.join(" "))) await this.core.awaitWarp();
     return this.core.result({ used: it.item, on: mon?.nickname, messages: withoutDescription(messages, descriptionBox) });
   }
+}
+
+/**
+ * New text-box lines with the HP notes for the HP that changed since the last read. A hit drains
+ * the bar after its "used" line and before what's said about it ("A critical hit!", "It's super
+ * effective!"): the notes go before new lines, unless one of them is a move being used, when they
+ * go after it (nothing changes HP before a move is said). Read with it in one look, the note for
+ * a move that makes its own user faint came before that move's "used" line, as if the move before
+ * had done it (a playtest, 2026-11-22).
+ */
+export function withHpNotes(lines: string[], notes: string[]): string[] {
+  if (!notes.length) return lines;
+  const used = lines.findIndex((l) => /\bused [^!]+!$/.test(l));
+  return used < 0 ? [...notes, ...lines] : [...lines.slice(0, used + 1), ...notes, ...lines.slice(used + 1)];
 }
 
 /**
