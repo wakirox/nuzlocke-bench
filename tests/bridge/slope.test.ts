@@ -19,7 +19,22 @@ const STEP: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left
  * On map 1 (the slope) a frame with no direction, A or B held starts a step down, unless
  * `trainerComing()`.
  */
-function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: boolean; top?: number; box?: (pos: Pos) => boolean; ice?: boolean } = {}) {
+function setup(opts: {
+  map?: number;
+  trainerComing?: () => boolean;
+  sliding?: boolean;
+  top?: number;
+  box?: (pos: Pos) => boolean;
+  /** Which squares are ice (true: all of them): a step onto one slides on. */
+  ice?: boolean | ((x: number, y: number) => boolean);
+  /** What the map says is ice, when not the same as `ice` (a move past the squares asked for that isn't a slide). */
+  mapIce?: boolean;
+  /** A wild battle starts on reaching this square (once), and travel runs from it. */
+  battleAt?: { x: number; y: number };
+} = {}) {
+  const iceAt = (x: number, y: number) => (typeof opts.ice === "function" ? opts.ice(x, y) : !!opts.ice);
+  let battled = false;
+  let battleNext = false;
   const pos: Pos = { x: 5, y: 10, map: opts.map ?? 1, battle: false, scripted: false };
   const held = new Set<string>();
   const bHeldWhileTrainer: number[] = [];
@@ -41,6 +56,11 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
     runFrames: async (n: number) => {
       for (let i = 0; i < n; i++) {
         frame++;
+        if (battleNext) {
+          battleNext = false;
+          pos.battle = true;
+          continue;
+        }
         if (opts.trainerComing?.() && held.has("b")) bHeldWhileTrainer.push(frame);
         if (boxOpen() && held.has("b")) bHeldWithBox.push(frame);
         if (!moving) {
@@ -53,7 +73,12 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
           pos.y += STEP[moving][1];
           // `ice`: the whole floor is ice, so a step slides on until something stops it (the game's
           // ice step is the fast one: 8 frames a square).
-          if (opts.ice && open(moving)) left = 8;
+          if (opts.battleAt && !battled && pos.x === opts.battleAt.x && pos.y === opts.battleAt.y) {
+            // The battle starts a frame after the step lands (the walk has counted the step).
+            battled = true;
+            battleNext = true;
+            moving = null;
+          } else if (iceAt(pos.x, pos.y) && open(moving)) left = 8;
           else moving = null;
         }
       }
@@ -64,7 +89,11 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
     host: { position: () => ({ ...pos }) },
     // As the game's adapter reads it: the map and the trainer flag only, not whether a box is open.
     game: { data: { poisonFaintsWhileWalking: false }, poisonedParty: () => [], forcedDownhill: () => pos.map === 1 && !opts.trainerComing?.() },
-    fleeUncounted: false,
+    fleeUncounted: !!opts.battleAt,
+    // The map's ice ("*"), indexed [y][x] like the game's map.
+    rawView: () => ({
+      grid: Array.from({ length: 20 }, (_, y) => Array.from({ length: 20 }, (_, x) => ((opts.mapIce ?? iceAt(x, y)) ? "*" : "."))),
+    }),
     textBox: () => (boxOpen() ? { open: true, lines: ["It's a sign."] } : { open: false, lines: [] }),
     screenText: () => [],
     settledScreen: async () => [],
@@ -75,7 +104,13 @@ function setup(opts: { map?: number; trainerComing?: () => boolean; sliding?: bo
     slopeFrames: BridgeCore.prototype.slopeFrames,
     letGoOfSlope: BridgeCore.prototype.letGoOfSlope,
   } as unknown as BridgeCore;
-  return { travel: new Travel(core, {} as Menus), pos, held, bHeldWhileTrainer, bHeldWithBox, frames: () => frame, run: gb.runFrames };
+  const travel = new Travel(core, {} as Menus);
+  // Running from a wild battle: it ends, and the walk goes on.
+  (travel as unknown as { tryAutoRun: () => Promise<string> }).tryAutoRun = async () => {
+    pos.battle = false;
+    return "a wild one";
+  };
+  return { travel, pos, held, bHeldWhileTrainer, bHeldWithBox, frames: () => frame, run: gb.runFrames };
 }
 
 const walk = async (t: Travel, path: string) => ((await t.walkPath(path)) as { walk: string }).walk;
@@ -146,6 +181,22 @@ describe("walk on the downhill road", () => {
     const { travel, pos } = setup({ map: 2, ice: true, top: 5 });
     expect(await walk(travel, "U1")).toBe("up 1/1 (slid on: 5 squares up) — arrived");
     expect(pos).toMatchObject({ x: 5, y: 5 });
+  });
+
+  it("doesn't call a move past the squares asked for a slide when it wasn't on ice", async () => {
+    // The game moves the player on after the last square (as when the settle finishes a ledge
+    // hop), but the map has no ice there: the walk says what was asked, as on Gen 1.
+    const { travel, pos } = setup({ map: 2, ice: true, mapIce: false, top: 5 });
+    expect(await walk(travel, "U1")).toBe("up 1/1 — arrived");
+    expect(pos).toMatchObject({ x: 5, y: 5 });
+  });
+
+  it("counts a slide over the whole leg when travel ran from a battle on the way", async () => {
+    // Floor until y 8, ice from y 7 up to y 3. A battle at y 9 (one square in), run from; the
+    // rest of the leg (two squares) steps onto the ice at y 7 and slides on to y 3: 7 squares up.
+    const { travel, pos } = setup({ map: 2, ice: (_x, y) => y <= 7, top: 3, battleAt: { x: 5, y: 9 } });
+    expect(await walk(travel, "U3")).toBe("up 3/3 (slid on: 7 squares up) — arrived (ran from a wild one)");
+    expect(pos).toMatchObject({ x: 5, y: 3 });
   });
 
   it("presses nothing extra off the downhill road", async () => {

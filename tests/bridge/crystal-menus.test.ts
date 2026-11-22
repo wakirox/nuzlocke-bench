@@ -9,7 +9,7 @@ vi.mock("../../src/storage", () => ({
 }));
 
 import { AiBridge } from "../../src/bridge/ai-bridge";
-import { hpChanges, NAMING_KEYBOARD_OPEN, withoutDescription } from "../../src/bridge/menus";
+import { candyEvents, hpChanges, NAMING_KEYBOARD_OPEN, withoutDescription } from "../../src/bridge/menus";
 import { gen2Adapter } from "../../src/games/gen2";
 import { FakeHost, screenRows, textBoxScreen, type FakeHostOptions, type ScriptScreen } from "../harness/fake-bridge";
 
@@ -165,5 +165,17 @@ describe("the bag's item description isn't a message", () => {
   it("keeps everything when there's no description (Gen 1's bag) or a message only resembles it", () => {
     expect(withoutDescription(["BIRDY recovered 20HP!"], [])).toEqual(["BIRDY recovered 20HP!"]);
     expect(withoutDescription(["Restores POKéMON HP by 20 or more."], box)).toEqual(["Restores POKéMON HP by 20 or more."]);
+  });
+});
+
+describe("what rare candies did", () => {
+  it("keeps each level-up with the game's '!', one message each, also several candies (both games)", () => {
+    // One text-box line at a time, as advance_text reads them.
+    const log = ["NOVA grew", "to level 21!", "NOVA grew", "to level 22!", "NOVA learned", "BITE!"];
+    expect(candyEvents(log)).toEqual(["NOVA grew to level 21!", "NOVA grew to level 22!", "NOVA learned BITE!"]);
+  });
+
+  it("still reads a level-up whose '!' didn't come through", () => {
+    expect(candyEvents(["NOVA grew", "to level 21"])).toEqual(["NOVA grew to level 21"]);
   });
 });

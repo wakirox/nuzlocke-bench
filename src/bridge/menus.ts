@@ -433,10 +433,7 @@ export class Menus {
     // Close the bag and the start menu (as many B presses as it takes: Crystal's needs one more).
     await this.closeMenus();
     const done = read().party.find((m) => m.slot === slot);
-    // Messages arrive one text-box line at a time ("NOVA grew" / "to level 21!"): rejoin, keep the events,
-    // each with the game's "!" (without it, several level-ups read as one run-on line, 2026-11-21).
-    const events = log.join(" ").match(/\S+ (?:grew to level \d+!?|evolved into [A-Z.'♀♂ -]+?!|learned [A-Z -]+?!|forgot [A-Z -]+?!)/g) ?? [];
-    return this.core.result({ messages: [...events, `${done?.nickname} is Lv${done?.level}.`] });
+    return this.core.result({ messages: [...candyEvents(log), `${done?.nickname} is Lv${done?.level}.`] });
   }
 
   /** Types an A–Z name on the naming keyboard (cursor starts on "A"), then confirms. */
@@ -731,6 +728,16 @@ export class Menus {
     if (/ESCAPE ROPE/i.test(it.item) && !this.core.layout.texts.notNow.test(messages.join(" "))) await this.core.awaitWarp();
     return this.core.result({ used: it.item, on: mon?.nickname, messages: withoutDescription(messages, descriptionBox) });
   }
+}
+
+/**
+ * What rare candies did, from the text boxes read while using them. Messages arrive one text-box
+ * line at a time ("NOVA grew" / "to level 21!"): rejoined, only the events are kept, each with the
+ * game's "!" (both games end the line with it; without it several level-ups read as one run-on
+ * line, 2026-11-21).
+ */
+export function candyEvents(log: string[]): string[] {
+  return log.join(" ").match(/\S+ (?:grew to level \d+!?|evolved into [A-Z.'♀♂ -]+?!|learned [A-Z -]+?!|forgot [A-Z -]+?!)/g) ?? [];
 }
 
 /**
