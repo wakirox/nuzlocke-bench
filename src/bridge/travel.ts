@@ -638,6 +638,41 @@ export class Travel {
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+    // A trainer who saw the last step lands walks over after it, the game holding the controls: the
+    // walk said "arrived" and the challenge came on the next call (a playtest, 2026-11-22). While a
+    // script holds them, wait for what it says, as for one that starts mid-walk: a text box, the naming
+    // keyboard, or a walk onto another map. Gen 1 gives the controls back a frame or two before the
+    // box draws, so look on a little after the script lets go (review of #103).
+    if (stopped === "arrived" && this.core.host.position().scripted) {
+      try {
+        for (let f = 0, after = 0; f < SCENE_FRAMES && !this.core.host.position().battle; f += 6) {
+          await this.core.slopeFrames(6, 6);
+          const now = this.core.host.position();
+          if (now.map !== last.map) {
+            stopped = "entered a new map";
+            break;
+          }
+          if (isNamingKeyboardScreen(this.core.screenText())) {
+            stopped = NAMING_KEYBOARD_OPEN;
+            break;
+          }
+          if (this.core.textBox(this.core.screenText()).open) {
+            // Read once it has finished printing (a first look read "O"), with B let go: held on the
+            // downhill road, it would speed through the text or close it (review of #103).
+            this.core.letGoOfSlope();
+            const box = this.core.textBox(await this.core.settledScreen());
+            if (box.open) {
+              stopped = `stopped by a scripted event: a text box opened${box.lines.length ? ` ("${box.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
+              break;
+            }
+          }
+          if (!now.scripted && ++after > 3) break;
+        }
+      } finally {
+        this.core.letGoOfSlope();
+      }
+      if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+    }
     // A door that leads elsewhere on the same map (a locked door in a Crystal underpass) moves
     // the player there with the map unchanged: "up 1/1 — arrived" hid a move of some 25 squares (a
     // playtest, 2026-11-22). A jump off the line walked, or back along it, is that; a slide on
@@ -859,7 +894,9 @@ export class Travel {
     // the target when no way on shows, and the last leg's own "arrived" said nothing about that.
     const end = this.core.host.position();
     const [ex, ey] = route ? routeEnd(planned, route.dirs) : [x, y];
-    const reached = !!route && !end.battle && end.map === startMap && end.x === ex && end.y === ey;
+    // A last leg that stopped there for something else (a trainer who saw it, a scene) didn't arrive:
+    // turning to face and pressing A then would press into that text.
+    const reached = !!route && !end.battle && end.map === startMap && end.x === ex && end.y === ey && !/ — stopped: /.test(report);
     let said = legsSoFar;
     if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
       said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +

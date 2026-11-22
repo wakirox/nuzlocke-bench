@@ -49,6 +49,8 @@ export interface FakeHostOptions {
   position?: Partial<Position>;
   /** Called for every button press after the script has moved (for stateful screens such as a keyboard). */
   onPress?: (button: Button, host: FakeHost) => void;
+  /** Called after every run of frames, with the frame count and where the player is (a trainer who walks over, a scene). */
+  onFrames?: (host: FakeHost, frames: number, at: Position) => void;
   /** The summary / brief the bridge reads (defaults: nothing special). */
   outcome?: string | null;
   /** Fields of the game summary the bridge reads (e.g. battle: "wild", bag). */
@@ -102,6 +104,7 @@ export class FakeHost {
       runFrames: async (n: number) => {
         this.frames += n;
         this.stepWorld();
+        this.opts.onFrames?.(this, this.frames, this.here());
       },
       read8: () => 0, // LCD off: no V-blank alignment
       draw() {},
