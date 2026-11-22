@@ -227,6 +227,27 @@ describe("walk on the downhill road", () => {
     expect(warpedOnMap("right", { x: 5, y: 5 }, { x: 9, y: 8 })).toBe(true); // off the line
   });
 
+  it("lets go of B before reading a trainer's text after the last step on the downhill road (review of #103)", async () => {
+    // Up 2 to (5, 8): a script takes the controls there (a trainer who saw the step) and its box
+    // opens a while later. B held while the box prints would speed through it or close it.
+    // The road keeps pushing (B held against it) until the box is up, which opens mid-way through a
+    // 6-frame step of the wait.
+    let since = -1;
+    const s = setup({
+      box: (p) => {
+        if (p.y === 8 && since < 0) { since = s.frames(); p.scripted = true; }
+        return since >= 0 && s.frames() - since > 30;
+      },
+    });
+    let bWhenRead: boolean | null = null;
+    (s.travel as unknown as { core: { settledScreen: () => Promise<string[]> } }).core.settledScreen = async () => {
+      bWhenRead = s.held.has("b");
+      return [];
+    };
+    expect(await walk(s.travel, "U2")).toMatch(/^up 2\/2 — stopped: stopped by a scripted event: a text box opened/);
+    expect(bWhenRead).toBe(false);
+  });
+
   it("presses nothing extra off the downhill road", async () => {
     const { travel, pos, held } = setup({ map: 2 });
     const pressed: string[] = [];

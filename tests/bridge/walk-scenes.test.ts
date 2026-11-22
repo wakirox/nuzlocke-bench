@@ -100,6 +100,17 @@ describe("walk: when the player stops moving", () => {
     expect(await walk(travel, "up 2")).toBe('up 2/2 — stopped: stopped by a scripted event: a text box opened ("Open one shutter, another closes.") (a trainer who saw you, or a scene) — advance_text reads it');
   });
 
+  it("still says the text when the script lets go a few frames before the box draws (Gen 1)", async () => {
+    let talking = false;
+    const { travel } = setup({ wallAt: 0, tick: (f, p) => { p.scripted = p.y === 8 && f >= 36 && f < 150; if (f === 156) talking = true; }, box: () => (talking ? ["Hey!"] : []) });
+    expect(await walk(travel, "up 2")).toBe('up 2/2 — stopped: stopped by a scripted event: a text box opened ("Hey!") (a trainer who saw you, or a scene) — advance_text reads it');
+  });
+
+  it("says a script after the last step that takes you onto another map", async () => {
+    const { travel } = setup({ wallAt: 0, tick: (f, p) => { if (p.y === 8 && f >= 36 && p.map === 1) p.scripted = true; if (f === 120) { p.map = 2; p.scripted = false; } } });
+    expect(await walk(travel, "up 2")).toBe("up 2/2 — stopped: entered a new map");
+  });
+
   it("reports a warp that starts after the last step, once the new map is in", async () => {
     // The last step lands on a door; the game switches maps a few frames later.
     let arrivedAt = -1;

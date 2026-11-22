@@ -640,18 +640,33 @@ export class Travel {
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
     // A trainer who saw the last step lands walks over after it, the game holding the controls: the
     // walk said "arrived" and the challenge came on the next call (a playtest, 2026-11-22). While a
-    // script holds them, wait for what it says, as for one that starts mid-walk.
+    // script holds them, wait for what it says, as for one that starts mid-walk: a text box, the naming
+    // keyboard, or a walk onto another map. Gen 1 gives the controls back a frame or two before the
+    // box draws, so look on a little after the script lets go (review of #103).
     if (stopped === "arrived" && this.core.host.position().scripted) {
       try {
-        for (let f = 0; f < SCENE_FRAMES && this.core.host.position().scripted && !this.core.host.position().battle; f += 6) {
+        for (let f = 0, after = 0; f < SCENE_FRAMES && !this.core.host.position().battle; f += 6) {
           await this.core.slopeFrames(6, 6);
-          if (!this.core.textBox(this.core.screenText()).open) continue;
-          // Read once it has finished printing (a first look read "O").
-          const box = this.core.textBox(await this.core.settledScreen());
-          if (box.open) {
-            stopped = `stopped by a scripted event: a text box opened${box.lines.length ? ` ("${box.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
+          const now = this.core.host.position();
+          if (now.map !== last.map) {
+            stopped = "entered a new map";
             break;
           }
+          if (isNamingKeyboardScreen(this.core.screenText())) {
+            stopped = NAMING_KEYBOARD_OPEN;
+            break;
+          }
+          if (this.core.textBox(this.core.screenText()).open) {
+            // Read once it has finished printing (a first look read "O"), with B let go: held on the
+            // downhill road, it would speed through the text or close it (review of #103).
+            this.core.letGoOfSlope();
+            const box = this.core.textBox(await this.core.settledScreen());
+            if (box.open) {
+              stopped = `stopped by a scripted event: a text box opened${box.lines.length ? ` ("${box.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
+              break;
+            }
+          }
+          if (!now.scripted && ++after > 3) break;
         }
       } finally {
         this.core.letGoOfSlope();
