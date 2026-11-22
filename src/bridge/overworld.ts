@@ -444,14 +444,42 @@ function doorRuns(v: AnyOverworldView): { from: Door; to: Door; key: string }[] 
  * "Map exits: up, left, plus 2 doors (D)." for a whole map's view (null for the screen's, which has
  * no exits). It counts the doors too: it's all an action result shows of the map, and "left" alone
  * read as a dead end on a route whose way on is a house door (Haiku at Bill's, 2026-11-08).
+ * And the holes seen (O): "none (only 1 door (D))" read as a dead end on a floor whose way down is a
+ * hole (Sonnet in Crystal's lighthouse, 2026-11-22). A hole of several squares side by side counts once.
  */
 export function exitsLine(v: FoggedView): string | null {
   if (!v.exits) return null;
   const n = doorRuns(v).length;
-  const doorCount = n ? `${n} door${n === 1 ? "" : "s"}` : "";
+  const h = holeCount(v.grid);
+  const parts = [
+    ...(n ? [`${n} door${n === 1 ? "" : "s"} (D)`] : []),
+    ...(h ? [`${h} hole${h === 1 ? "" : "s"} (O)`] : []),
+  ].join(" and ");
   return v.exits.length
-    ? `Map exits: ${v.exits.join(", ")}${doorCount ? `, plus ${doorCount} (D)` : ""}.`
-    : `Map exits: none (${doorCount ? `only ${doorCount} (D)` : "doors only"}).`;
+    ? `Map exits: ${v.exits.join(", ")}${parts ? `, plus ${parts}` : ""}.`
+    : `Map exits: none (${parts ? `only ${parts}` : "doors only"}).`;
+}
+
+/** The holes (O) on the grid, squares touching side by side counted as one hole. */
+function holeCount(grid: string[][]): number {
+  const seen = new Set<number>();
+  const W = grid[0]?.length ?? 0;
+  let count = 0;
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < W; c++) {
+      if (grid[r][c] !== "O" || seen.has(r * W + c)) continue;
+      count++;
+      const stack = [[r, c]];
+      seen.add(r * W + c);
+      while (stack.length) {
+        const [y, x] = stack.pop()!;
+        for (const [ny, nx] of [[y - 1, x], [y + 1, x], [y, x - 1], [y, x + 1]]) {
+          if (grid[ny]?.[nx] === "O" && !seen.has(ny * W + nx)) { seen.add(ny * W + nx); stack.push([ny, nx]); }
+        }
+      }
+    }
+  }
+  return count;
 }
 
 /**
