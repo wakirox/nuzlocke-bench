@@ -43,6 +43,8 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     screenText: () => [],
     settledScreen: async () => [],
     mapText: () => "map",
+    // The map's mechanics: no doors (or ice) in this world.
+    rawView: () => ({ grid: [[]], doors: [] }),
     // The fog of war's memory is not what these walks are about: nothing to remember here.
     noteSeen: () => {},
     result: (r: object) => ({ ...r }),
