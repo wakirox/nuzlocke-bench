@@ -202,4 +202,10 @@ describe("HP notes among battle lines", () => {
     expect(withHpNotes(["A critical hit!"], ["(MAGMON: 100% → 0% HP.)"])).toEqual(["(MAGMON: 100% → 0% HP.)", "A critical hit!"]);
     expect(withHpNotes(["It's super-", "effective!"], [])).toEqual(["It's super-", "effective!"]);
   });
+
+  it("go after the end of a used sentence that wraps over lines (a trainer's potion)", async () => {
+    const { withHpNotes } = await import("../../src/bridge/menus");
+    expect(withHpNotes(["COOLTRAINER RAY", "used BIG POTION on", "MAGMON!"], ["(MAGMON: 50% → 100% HP.)"]))
+      .toEqual(["COOLTRAINER RAY", "used BIG POTION on", "MAGMON!", "(MAGMON: 50% → 100% HP.)"]);
+  });
 });

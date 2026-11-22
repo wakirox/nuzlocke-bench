@@ -759,7 +759,10 @@ export class Menus {
  */
 export function withHpNotes(lines: string[], notes: string[]): string[] {
   if (!notes.length) return lines;
-  const used = lines.findIndex((l) => /\bused [^!]+!$/.test(l));
+  // The sentence with "used" in it may wrap over lines ("<TRAINER>" / "used <ITEM> on" / "<MON>!",
+  // a trainer's potion read its HP note first, a playtest, 2026-11-22): after the line it ends on.
+  const from = lines.findIndex((l) => /\bused\b/.test(l));
+  const used = from < 0 ? -1 : lines.findIndex((l, i) => i >= from && /[!?.]["'”)]*$/.test(l));
   return used < 0 ? [...notes, ...lines] : [...lines.slice(0, used + 1), ...notes, ...lines.slice(used + 1)];
 }
 
