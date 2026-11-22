@@ -347,6 +347,15 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
     expect(r.walk).toContain("out through the door at (5, 8) to VIRIDIAN_POKECENTER");
   });
 
+  it("says why it didn't take a door that came into sight to somewhere the run doesn't know", async () => {
+    // The door (5,8) leads somewhere unknown ("?"): not taken, but named, with what to do.
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 5, 2);
+    const { travel } = fakeWorld(ROOM, [5, 2], seen, { exits: [], doors: [{ x: 5, y: 8, to: "?", tx: 3, ty: 7 }] });
+    const r = (await travel.exitMap("down")) as { walk: string };
+    expect(r.walk).toMatch(/^no door in sight yet down of you, so heading down: .*; This map has no exit down: leave through a door \(D\) — walk_to its square to go through it\. Doors: \(5,8\) → \?/);
+  });
+
   it("with no door in sight after heading that way, says so and doesn't look again", async () => {
     const seen = seenFrom0();
     seen.sawScreen(MAP, 5, 2);
