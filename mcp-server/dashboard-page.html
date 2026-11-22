@@ -184,7 +184,7 @@ td.top { vertical-align: top; }
   </section>
   <details class="rules-fold">
     <summary>About official runs &amp; benchmark versions</summary>
-    <p><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Most models have very few runs, so read the medians with care. <a href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How scoring works</a>.</p>
+    <p><strong>Official runs only:</strong> the full game on Red (hardcore-nuzlocke+firstrival+hardcap, no hints), from a new game, ended by the rules, since 8 November 2026. Each benchmark version is its own leaderboard: what the model is shown changes between versions, so scores compare only within one. Each model is ranked by its best run, with its lowest and average score under it; most models have very few runs, so read them with care. <a href="https://github.com/wakirox/nuzlocke-bench/blob/master/docs/scoring.md#points" target="_blank" rel="noopener">How scoring works</a>.</p>
   </details>
   <details class="fold" id="heat-fold">
     <summary>Milestone breakdown <span class="sum-sub">Share of runs reaching each milestone, sorted by leaderboard rank</span></summary>
@@ -207,11 +207,11 @@ const DATA = /*DATA*/null;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const secs = (t) => (t ?? "0:0:0").split(":").reduce((a, b) => a * 60 + Number(b), 0);
-const exactMedian = (xs) => { const s = [...xs].sort((a, b) => a - b), m = s.length / 2; return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[m - 1] + s[m]) / 2); };
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
 const label = (i) => (i >= 0 ? DATA.objectives[i].label : "None yet");
 const mTokens = (t, partial) => (t == null ? "" : `${partial ? "≥" : ""}${(t / 1e6).toFixed(1)}M`);
-const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""}${r.via ? ` via ${r.via}` : ""}`;
+// The harness a run was played through: agy where the record says so, else the runner's default, Claude Code.
+const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""} via ${r.via ?? "Claude Code"}`;
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const byGroup = (a, b) => { const [ma, ea] = a.split(" "), [mb, eb] = b.split(" "); return ma.localeCompare(mb) || EFFORTS.indexOf(ea) - EFFORTS.indexOf(eb); };
 
@@ -270,14 +270,16 @@ function rankedGroups(rows) {
     const v = of.map((r) => r.score.total);
     // The best run: the top score (the furthest one on a tie), linked from its row.
     const bestRun = [...of].sort((a, b) => b.score.total - a.score.total || b.furthest - a.furthest)[0];
-    return { g, n: of.length, med: exactMedian(v), best: Math.max(...v), worst: Math.min(...v), at: median(of.map((r) => r.furthest)), top: Math.max(...of.map((r) => r.furthest)), bestId: bestRun.id };
-  }).sort((a, b) => b.med - a.med || b.top - a.top || byGroup(a.g, b.g));
+    // Ranked by the best run's score; the worst and the average are shown under it.
+    const avg = Math.round(v.reduce((s, x) => s + x, 0) / v.length);
+    return { g, n: of.length, avg, best: Math.max(...v), worst: Math.min(...v), at: median(of.map((r) => r.furthest)), top: Math.max(...of.map((r) => r.furthest)), bestId: bestRun.id };
+  }).sort((a, b) => b.best - a.best || b.top - a.top || byGroup(a.g, b.g));
 }
 
 function board(rows, all) {
   const winners = rows.filter((r) => r.outcome === "victory").length;
   const furthest = Math.max(-1, ...rows.map((r) => r.furthest));
-  const summary = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${all.length} model${all.length === 1 ? "" : "s"} · ${winners ? `${winners} Champion${winners === 1 ? "" : "s"}` : `furthest: ${label(furthest)}`} · ranked by median score. Click a model to filter runs.`;
+  const summary = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${all.length} model${all.length === 1 ? "" : "s"} · ${winners ? `${winners} Champion${winners === 1 ? "" : "s"}` : `furthest: ${label(furthest)}`} · ranked by best score. Click a model to filter runs.`;
   $("board-meta").textContent = [summary, versionSummary()].filter(Boolean).join(" ");
   if (!all.length) { $("board").innerHTML = `<p class="empty">No official runs yet.</p>`; return; }
   const n = DATA.objectives.length;
@@ -290,7 +292,7 @@ function board(rows, all) {
   $("board").innerHTML = axis + all.map((x) => `<div class="lane${filterGroup === x.g ? " active" : ""}">
     <div class="who"><button type="button" class="who-btn" data-filter="${esc(x.g)}" aria-pressed="${filterGroup === x.g}">${esc(x.g)}</button><span>${x.n} run${x.n === 1 ? "" : "s"}</span></div>
     <div class="track" style="--n:${n}" role="img" aria-label="${esc(`${x.g}: median run reached ${label(x.at)}, best ${label(x.top)}`)}">${stops(x)}</div>
-    <div class="score"><b>${x.med}</b><span>${x.n > 1 ? `${x.worst} to ${x.best}` : "score"}</span></div>
+    <div class="score"><b>${x.best}</b><span>${x.n > 1 ? `min ${x.worst} · avg ${x.avg}` : "score"}</span></div>
     <div class="where">${x.at === x.top ? esc(label(x.top)) : `Median ${esc(label(x.at))}, best ${esc(label(x.top))}`} · <a href="#run/${esc(x.bestId)}">${x.n > 1 ? "See the best run" : "See the run"}</a></div>
   </div>`).join("");
 }
