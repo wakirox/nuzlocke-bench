@@ -14,6 +14,9 @@ export { seenSteps };
 const FRAMES_PER_TILE = 16;
 /** How long a walk waits out a scene that has taken the controls (30 s of game time). */
 const SCENE_FRAMES = 1800;
+/** A walk_to through unseen squares stops after this many times the straight distance (and at least GUESS_MIN_SQUARES). */
+const GUESS_TIMES_STRAIGHT = 3;
+const GUESS_MIN_SQUARES = 20;
 /** One square each way, for counting a walk's squares on the downhill road (walkStraight). */
 const SLOPE_STEP: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 /** hunt, when no square seen has a neighbour of the same kind to pace back and forth to. */
@@ -723,13 +726,25 @@ export class Travel {
     // A guessed way is walked only as far as the squares already seen (`route.legDirs`), then re-planned
     // with what that walk showed (the screen reaches 4-5 squares ahead): never blind into an unseen
     // trainer's sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
+    // A guess can lead far round, wall after wall: past a few times the straight way there, it stops
+    // and says so (a door 5 squares away took a walk of some 150 across a city and ended further off
+    // than it began, a playtest, 2026-11-22). Never for a way through seen squares.
+    const straight = Math.abs(x - here.x) + Math.abs(y - here.y);
+    const budget = Math.max(GUESS_MIN_SQUARES, GUESS_TIMES_STRAIGHT * straight);
+    let guessedSteps = 0;
+    let guessGaveUp = false;
     for (let attempt = 0, legs = 0; route && route.dirs.length && attempt < 4;) {
       report = await this.walkSegments(toSegments(route.legDirs, planned));
       walked.push(report);
+      if (route.guessed) guessedSteps += route.legDirs.length;
       here = this.core.host.position();
       if (here.battle || here.map !== startMap) break;
       // A leg that ran from a wild battle on the way still arrived where it was going.
       if (route.partial && ARRIVED.test(report) && legs++ < 30) {
+        if (route.guessed && guessedSteps >= budget) {
+          guessGaveUp = true;
+          break;
+        }
         route = replan();
         continue;
       }
@@ -807,7 +822,9 @@ export class Travel {
     let said = legsSoFar;
     if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
       said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +
-        ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${route ? "" : ": no way on there through squares you've seen"}`;
+        ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${
+          guessGaveUp ? `: the way it was trying through squares you hadn't seen had taken ${guessedSteps} squares (${straight} in a straight line from where you started), so it stopped`
+          : route ? "" : ": no way on there through squares you've seen"}`;
     }
     let messages: string[] | undefined;
     if (reached) {
