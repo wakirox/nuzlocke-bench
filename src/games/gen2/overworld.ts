@@ -397,7 +397,8 @@ export function mapDoors(mem: MemoryReader, rom: Uint8Array): Door[] {
     return {
       x: w.x, y: w.y, to: MAP_CONSTANTS_CRYSTAL[w.map] || `MAP_${w.map.toString(16)}`, tx: arrival?.[0] ?? null, ty: arrival?.[1] ?? null,
       ...(push ? { push } : {}),
-      ...(isOutdoorMap(rom, w.map) ? { outside: true } : {}),
+      // Known either way (false too): exit_map passes over the door in only when it doesn't lead outdoors.
+      outside: isOutdoorMap(rom, w.map),
     };
   });
 }

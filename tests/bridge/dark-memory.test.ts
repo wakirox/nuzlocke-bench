@@ -147,6 +147,24 @@ describe("BridgeCore: the dark map", () => {
     expect(seen.origin(MAP)).toEqual([26, 4]);
   });
 
+  it("remembers the door the player came in by, forgets it after a flight, keeps it through a battle (review of #106)", () => {
+    const { host, core } = darkCave();
+    host.moveTo({ map: MAP + 1, x: 20, y: 4 });
+    core.noteSeen();
+    host.moveTo({ map: MAP, x: 26, y: 4 });
+    core.noteSeen(true); // through a ladder
+    expect(core.arrivedBy).toEqual({ map: MAP, x: 26, y: 4 });
+    host.moveTo({ battle: true });
+    core.noteSeen(true); // a wild battle in the cave
+    host.moveTo({ battle: false, x: 27 });
+    core.noteSeen(true);
+    expect(core.arrivedBy).toEqual({ map: MAP, x: 26, y: 4 });
+    core.flightCalls = 1; // then a flight
+    host.moveTo({ map: MAP + 2, x: 5, y: 5 });
+    core.noteSeen(true);
+    expect(core.arrivedBy).toBeNull();
+  });
+
   it("remembers the squares walked over mid-walk as floor, though the screen is read only at the end", () => {
     const { host, core, seen } = darkCave();
     core.mapText(); // the first look, at (5,4)
