@@ -1,0 +1,610 @@
+{
+ "format": 2,
+ "version": "crystal-0.1.0",
+ "rules": {
+  "preset": "hardcore-nuzlocke+firstrival+hardcap",
+  "game": "red",
+  "since": "2026-11-08",
+  "games": {
+   "red": "2026-11-08",
+   "crystal": "2026-11-22"
+  }
+ },
+ "updated": "2026-11-22T20:22:40.104Z",
+ "objectives": [
+  {
+   "id": "rival1",
+   "label": "Rival 1"
+  },
+  {
+   "id": "badge1",
+   "label": "Badge 1"
+  },
+  {
+   "id": "cave1",
+   "label": "Through the first cave"
+  },
+  {
+   "id": "badge2",
+   "label": "Badge 2"
+  },
+  {
+   "id": "rival2",
+   "label": "Rival 2"
+  },
+  {
+   "id": "cottage",
+   "label": "Cottage past the bridge"
+  },
+  {
+   "id": "cottageDone",
+   "label": "Cottage step done (town left south or east)"
+  },
+  {
+   "id": "ship",
+   "label": "Ship boarded"
+  },
+  {
+   "id": "rival3",
+   "label": "Rival 3"
+  },
+  {
+   "id": "badge3",
+   "label": "Badge 3"
+  },
+  {
+   "id": "town7",
+   "label": "Through the dark tunnel"
+  },
+  {
+   "id": "badge4",
+   "label": "Badge 4"
+  },
+  {
+   "id": "rival4",
+   "label": "Rival 4"
+  },
+  {
+   "id": "tower",
+   "label": "Tower's top floor"
+  },
+  {
+   "id": "badge5",
+   "label": "Badge 5"
+  },
+  {
+   "id": "rival5",
+   "label": "Rival 5"
+  },
+  {
+   "id": "company",
+   "label": "Company building's top floor"
+  },
+  {
+   "id": "badge6",
+   "label": "Badge 6"
+  },
+  {
+   "id": "mansion",
+   "label": "Burned mansion solved"
+  },
+  {
+   "id": "badge7",
+   "label": "Badge 7"
+  },
+  {
+   "id": "badge8",
+   "label": "Badge 8"
+  },
+  {
+   "id": "rival6",
+   "label": "Rival 6"
+  },
+  {
+   "id": "lastCave",
+   "label": "Last cave"
+  },
+  {
+   "id": "league",
+   "label": "League building"
+  },
+  {
+   "id": "elite1",
+   "label": "Elite room 1"
+  },
+  {
+   "id": "elite2",
+   "label": "Elite room 2"
+  },
+  {
+   "id": "elite3",
+   "label": "Elite room 3"
+  },
+  {
+   "id": "elite4",
+   "label": "Elite room 4"
+  },
+  {
+   "id": "champion",
+   "label": "Champion beaten"
+  }
+ ],
+ "objectivesByGame": {
+  "red": [
+   {
+    "id": "rival1",
+    "label": "Rival 1"
+   },
+   {
+    "id": "badge1",
+    "label": "Badge 1"
+   },
+   {
+    "id": "cave1",
+    "label": "Through the first cave"
+   },
+   {
+    "id": "badge2",
+    "label": "Badge 2"
+   },
+   {
+    "id": "rival2",
+    "label": "Rival 2"
+   },
+   {
+    "id": "cottage",
+    "label": "Cottage past the bridge"
+   },
+   {
+    "id": "cottageDone",
+    "label": "Cottage step done (town left south or east)"
+   },
+   {
+    "id": "ship",
+    "label": "Ship boarded"
+   },
+   {
+    "id": "rival3",
+    "label": "Rival 3"
+   },
+   {
+    "id": "badge3",
+    "label": "Badge 3"
+   },
+   {
+    "id": "town7",
+    "label": "Through the dark tunnel"
+   },
+   {
+    "id": "badge4",
+    "label": "Badge 4"
+   },
+   {
+    "id": "rival4",
+    "label": "Rival 4"
+   },
+   {
+    "id": "tower",
+    "label": "Tower's top floor"
+   },
+   {
+    "id": "badge5",
+    "label": "Badge 5"
+   },
+   {
+    "id": "rival5",
+    "label": "Rival 5"
+   },
+   {
+    "id": "company",
+    "label": "Company building's top floor"
+   },
+   {
+    "id": "badge6",
+    "label": "Badge 6"
+   },
+   {
+    "id": "mansion",
+    "label": "Burned mansion solved"
+   },
+   {
+    "id": "badge7",
+    "label": "Badge 7"
+   },
+   {
+    "id": "badge8",
+    "label": "Badge 8"
+   },
+   {
+    "id": "rival6",
+    "label": "Rival 6"
+   },
+   {
+    "id": "lastCave",
+    "label": "Last cave"
+   },
+   {
+    "id": "league",
+    "label": "League building"
+   },
+   {
+    "id": "elite1",
+    "label": "Elite room 1"
+   },
+   {
+    "id": "elite2",
+    "label": "Elite room 2"
+   },
+   {
+    "id": "elite3",
+    "label": "Elite room 3"
+   },
+   {
+    "id": "elite4",
+    "label": "Elite room 4"
+   },
+   {
+    "id": "champion",
+    "label": "Champion beaten"
+   }
+  ],
+  "blue": [
+   {
+    "id": "rival1",
+    "label": "Rival 1"
+   },
+   {
+    "id": "badge1",
+    "label": "Badge 1"
+   },
+   {
+    "id": "cave1",
+    "label": "Through the first cave"
+   },
+   {
+    "id": "badge2",
+    "label": "Badge 2"
+   },
+   {
+    "id": "rival2",
+    "label": "Rival 2"
+   },
+   {
+    "id": "cottage",
+    "label": "Cottage past the bridge"
+   },
+   {
+    "id": "cottageDone",
+    "label": "Cottage step done (town left south or east)"
+   },
+   {
+    "id": "ship",
+    "label": "Ship boarded"
+   },
+   {
+    "id": "rival3",
+    "label": "Rival 3"
+   },
+   {
+    "id": "badge3",
+    "label": "Badge 3"
+   },
+   {
+    "id": "town7",
+    "label": "Through the dark tunnel"
+   },
+   {
+    "id": "badge4",
+    "label": "Badge 4"
+   },
+   {
+    "id": "rival4",
+    "label": "Rival 4"
+   },
+   {
+    "id": "tower",
+    "label": "Tower's top floor"
+   },
+   {
+    "id": "badge5",
+    "label": "Badge 5"
+   },
+   {
+    "id": "rival5",
+    "label": "Rival 5"
+   },
+   {
+    "id": "company",
+    "label": "Company building's top floor"
+   },
+   {
+    "id": "badge6",
+    "label": "Badge 6"
+   },
+   {
+    "id": "mansion",
+    "label": "Burned mansion solved"
+   },
+   {
+    "id": "badge7",
+    "label": "Badge 7"
+   },
+   {
+    "id": "badge8",
+    "label": "Badge 8"
+   },
+   {
+    "id": "rival6",
+    "label": "Rival 6"
+   },
+   {
+    "id": "lastCave",
+    "label": "Last cave"
+   },
+   {
+    "id": "league",
+    "label": "League building"
+   },
+   {
+    "id": "elite1",
+    "label": "Elite room 1"
+   },
+   {
+    "id": "elite2",
+    "label": "Elite room 2"
+   },
+   {
+    "id": "elite3",
+    "label": "Elite room 3"
+   },
+   {
+    "id": "elite4",
+    "label": "Elite room 4"
+   },
+   {
+    "id": "champion",
+    "label": "Champion beaten"
+   }
+  ],
+  "yellow": [
+   {
+    "id": "rival1",
+    "label": "Rival 1"
+   },
+   {
+    "id": "badge1",
+    "label": "Badge 1"
+   },
+   {
+    "id": "cave1",
+    "label": "Through the first cave"
+   },
+   {
+    "id": "badge2",
+    "label": "Badge 2"
+   },
+   {
+    "id": "rival2",
+    "label": "Rival 2"
+   },
+   {
+    "id": "cottage",
+    "label": "Cottage past the bridge"
+   },
+   {
+    "id": "cottageDone",
+    "label": "Cottage step done (town left south or east)"
+   },
+   {
+    "id": "ship",
+    "label": "Ship boarded"
+   },
+   {
+    "id": "rival3",
+    "label": "Rival 3"
+   },
+   {
+    "id": "badge3",
+    "label": "Badge 3"
+   },
+   {
+    "id": "town7",
+    "label": "Through the dark tunnel"
+   },
+   {
+    "id": "badge4",
+    "label": "Badge 4"
+   },
+   {
+    "id": "rival4",
+    "label": "Rival 4"
+   },
+   {
+    "id": "tower",
+    "label": "Tower's top floor"
+   },
+   {
+    "id": "badge5",
+    "label": "Badge 5"
+   },
+   {
+    "id": "rival5",
+    "label": "Rival 5"
+   },
+   {
+    "id": "company",
+    "label": "Company building's top floor"
+   },
+   {
+    "id": "badge6",
+    "label": "Badge 6"
+   },
+   {
+    "id": "mansion",
+    "label": "Burned mansion solved"
+   },
+   {
+    "id": "badge7",
+    "label": "Badge 7"
+   },
+   {
+    "id": "badge8",
+    "label": "Badge 8"
+   },
+   {
+    "id": "rival6",
+    "label": "Rival 6"
+   },
+   {
+    "id": "lastCave",
+    "label": "Last cave"
+   },
+   {
+    "id": "league",
+    "label": "League building"
+   },
+   {
+    "id": "elite1",
+    "label": "Elite room 1"
+   },
+   {
+    "id": "elite2",
+    "label": "Elite room 2"
+   },
+   {
+    "id": "elite3",
+    "label": "Elite room 3"
+   },
+   {
+    "id": "elite4",
+    "label": "Elite room 4"
+   },
+   {
+    "id": "champion",
+    "label": "Champion beaten"
+   }
+  ],
+  "crystal": [
+   {
+    "id": "rival1",
+    "label": "Rival 1"
+   },
+   {
+    "id": "badge1",
+    "label": "Badge 1"
+   },
+   {
+    "id": "cave1",
+    "label": "Through the first cave"
+   },
+   {
+    "id": "well",
+    "label": "The well's gang cleared"
+   },
+   {
+    "id": "badge2",
+    "label": "Badge 2"
+   },
+   {
+    "id": "rival2",
+    "label": "Rival 2"
+   },
+   {
+    "id": "forest",
+    "label": "Through the forest"
+   },
+   {
+    "id": "badge3",
+    "label": "Badge 3"
+   },
+   {
+    "id": "roadblock",
+    "label": "Past the roadblock tree"
+   },
+   {
+    "id": "rival3",
+    "label": "Rival 3"
+   },
+   {
+    "id": "badge4",
+    "label": "Badge 4"
+   },
+   {
+    "id": "lighthouse",
+    "label": "Lighthouse top"
+   },
+   {
+    "id": "island",
+    "label": "Across the sea to the island town"
+   },
+   {
+    "id": "medicine",
+    "label": "Medicine taken up the lighthouse"
+   },
+   {
+    "id": "badge5",
+    "label": "Badge 5"
+   },
+   {
+    "id": "badge6",
+    "label": "Badge 6"
+   },
+   {
+    "id": "hideout",
+    "label": "The gang's hideout"
+   },
+   {
+    "id": "badge7",
+    "label": "Badge 7"
+   },
+   {
+    "id": "rival4",
+    "label": "Rival 4"
+   },
+   {
+    "id": "tower",
+    "label": "Broadcast tower's top floor"
+   },
+   {
+    "id": "icePath",
+    "label": "Through the ice cave"
+   },
+   {
+    "id": "badge8",
+    "label": "Badge 8"
+   },
+   {
+    "id": "lastCave",
+    "label": "Last cave"
+   },
+   {
+    "id": "rival5",
+    "label": "Rival 5"
+   },
+   {
+    "id": "league",
+    "label": "League building"
+   },
+   {
+    "id": "elite1",
+    "label": "Elite room 1"
+   },
+   {
+    "id": "elite2",
+    "label": "Elite room 2"
+   },
+   {
+    "id": "elite3",
+    "label": "Elite room 3"
+   },
+   {
+    "id": "elite4",
+    "label": "Elite room 4"
+   },
+   {
+    "id": "champion",
+    "label": "Champion beaten"
+   }
+  ]
+ }
+}
