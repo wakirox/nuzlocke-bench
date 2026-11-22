@@ -8,7 +8,7 @@ import { BridgeCore } from "../../src/bridge/bridge-core";
 import { SeenMaps } from "../../src/bridge/seen";
 import type { Menus } from "../../src/bridge/menus";
 import { gen1Adapter } from "../../src/games/gen1";
-import { FakeHost, screenRows, seenFrom0, type FakeHostOptions } from "../harness/fake-bridge";
+import { FakeHost, screenRows, seenFrom0, textBoxScreen, type FakeHostOptions } from "../harness/fake-bridge";
 
 // walkStraight reads document.hidden to decide whether to yield to rendering: no document here.
 beforeAll(() => vi.stubGlobal("document", { hidden: true }));
@@ -89,6 +89,24 @@ describe("walk_to through the fog", () => {
     const taken = Number(/had taken (\d+) squares/.exec(r.walk)![1]);
     expect(taken).toBeGreaterThanOrEqual(20);
     expect(taken).toBeLessThan(40);
+  });
+
+  it("says a trainer who saw the last step, and doesn't turn or press A into its text", async () => {
+    // Walking up to the trainer at (7,1): on reaching (6,1) a script takes the controls (it saw the
+    // step); 60 frames later it talks.
+    const room = ["##########", "#......T.#", "##########"];
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 4, 1);
+    let at = -1;
+    const { host, travel } = fakeWorld(room, [2, 1], seen, {
+      onFrames: (h, frames, p) => {
+        if (p.x === 6 && at < 0) { at = frames; h.moveTo({ scripted: true }); }
+        if (at >= 0 && frames - at >= 60) h.show(textBoxScreen(layout, ["Hey! You there!"]));
+      },
+    });
+    const r = (await travel.walkTo(7, 1, true)) as { walk: string };
+    expect(r.walk).toBe('right 4/4 — stopped: stopped by a scripted event: a text box opened ("Hey! You there!") (a trainer who saw you, or a scene) — advance_text reads it');
+    expect(host.presses).not.toContain("a");
   });
 
   it("refuses a ? target, which the guess never walks to", async () => {

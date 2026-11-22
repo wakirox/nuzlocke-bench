@@ -879,7 +879,9 @@ export class Travel {
     // the target when no way on shows, and the last leg's own "arrived" said nothing about that.
     const end = this.core.host.position();
     const [ex, ey] = route ? routeEnd(planned, route.dirs) : [x, y];
-    const reached = !!route && !end.battle && end.map === startMap && end.x === ex && end.y === ey;
+    // A last leg that stopped there for something else (a trainer who saw it, a scene) didn't arrive:
+    // turning to face and pressing A then would press into that text.
+    const reached = !!route && !end.battle && end.map === startMap && end.x === ex && end.y === ey && !/ — stopped: /.test(report);
     let said = legsSoFar;
     if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
       said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +
