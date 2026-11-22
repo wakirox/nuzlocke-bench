@@ -605,12 +605,15 @@ export class Travel {
               }
             }
             if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
-            if (stopped === "arrived" && held >= 90) {
-              const at = this.core.host.position();
-              const where = at.x !== last.x || at.y !== last.y ? `; it moved you to ${this.core.at(at.x, at.y)}` : "";
+            // A short scene that moved you counts too: walking into a room whose scene stepped you in
+            // read "up 0/4 — stopped: blocked" (a playtest, 2026-11-22).
+            const at = this.core.host.position();
+            const movedTo = at.x !== last.x || at.y !== last.y;
+            if (stopped === "arrived" && (held >= 90 || (held > 0 && movedTo))) {
+              const where = movedTo ? `; it moved you to ${this.core.at(at.x, at.y)}` : "";
               stopped = this.core.host.position().scripted
                 ? `a scene has the controls (still going after ${Math.round(held / 60)} s) — wait, then walk again`
-                : `a scene had the controls for ${Math.round(held / 60)} s${where}; it's over — walk again`;
+                : `a scene had the controls${held >= 90 ? ` for ${Math.round(held / 60)} s` : ""}${where}; it's over — walk again`;
             }
             if (stopped !== "arrived") break;
           }

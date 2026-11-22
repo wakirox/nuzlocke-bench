@@ -43,6 +43,7 @@ function setup(opts: { wallAt: number; tick?: (frame: number, pos: Pos, held: bo
     screenText: () => [],
     settledScreen: async () => [],
     mapText: () => "map",
+    at: (x: number, y: number) => `(${x}, ${y})`,
     // The map's mechanics: no doors (or ice) in this world.
     rawView: () => ({ grid: [[]], doors: [] }),
     // The fog of war's memory is not what these walks are about: nothing to remember here.
@@ -69,6 +70,13 @@ describe("walk: when the player stops moving", () => {
     // From frame 40 a scene holds the controls for ~10 s (600 frames), then gives them back.
     const { travel } = setup({ wallAt: 0, tick: (f, p) => { p.scripted = f >= 40 && f < 640; } });
     expect(await walk(travel, "up 5")).toMatch(/^up 2\/5 — stopped: a scene had the controls for \d+ s; it's over — walk again$/);
+  });
+
+  it("says a short scene that moved you, instead of blocked", async () => {
+    // The walk is blocked from the start (a wall at y 10); a scene holds the controls for under a
+    // second and steps the player up one square (a room's entry scene).
+    const { travel } = setup({ wallAt: 10, tick: (f, p) => { p.scripted = f >= 40 && f < 70; if (f === 60) p.y = 9; } });
+    expect(await walk(travel, "up 4")).toBe("up 0/4 — stopped: a scene had the controls; it moved you to (5, 9); it's over — walk again");
   });
 
   it("follows a scene that walks you through a door", async () => {
