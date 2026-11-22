@@ -6,6 +6,13 @@ import type { GameState, MonState } from "../games/types";
 import { areaKey, type Tracker } from "../tracker/tracker";
 import { RULESETS, goalText } from "../rulesets";
 
+/**
+ * A battler's types: in battle the ones the game has for it (moves can change them: a foe the game
+ * said had turned into another type kept reading its species' types, a playtest, 2026-11-22),
+ * else its species'.
+ */
+export const typesOf = (t: Tracker, m: MonState & { types?: string[] }): string[] => m.types ?? t.data.species[m.species]?.types ?? [];
+
 /** No coordinates in a battle: there's no map then. */
 export const hideCoords = (s: { battle: number }): boolean => s.battle !== 0;
 
@@ -30,12 +37,11 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
   }
   const sp = (id: number) => t.data.species[id];
   const cap = t.levelCap(s);
-  const describeMoves = (mon: MonState, defenderSpecies: number | null) =>
+  const describeMoves = (mon: MonState, def: string[] | null) =>
     mon.moves.map((id, i) => {
       if (!id) return null;
       const mv = t.data.moves[id];
       if (!mv) return { id };
-      const def = defenderSpecies != null ? sp(defenderSpecies)?.types ?? [] : null;
       // Fixed damage (a set number of HP, or the user's level) ignores type, but for immunity; no STAB either.
       const fixed = mv.power > 0 && G.fixedDamage(id, mv.power);
       let effectiveness = def && mv.power > 0 ? G.effectiveness(mv.type, def) : undefined;
@@ -49,7 +55,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
         accuracy: mv.accuracy,
         pp: mon.pp[i],
         maxPp: mv.pp,
-        stab: (sp(mon.species)?.types ?? []).includes(mv.type) && mv.power > 0 && !fixed,
+        stab: typesOf(t, mon).includes(mv.type) && mv.power > 0 && !fixed,
         effectiveness,
       };
     }).filter(Boolean);
@@ -69,14 +75,14 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     hp: active.hp,
     maxHp: active.maxHp,
     status: G.statusName(active.status),
-    types: leadSp.types,
+    types: typesOf(t, active),
     baseStats: leadSp.base,
     bst: leadSp.bst,
     hmsLearnable: t.game.hmsLearnable(run.rom, leadSp),
     stats: active.stats,
     statStages: inBattle && s.battleMon ? stagesObj(s.battleMon.stages) : undefined,
     expToNextLevel: activeParty ? Math.max(0, G.expForLevel(leadSp.curve, activeParty.level + 1) - activeParty.exp) : undefined,
-    moves: describeMoves(active, foe ? foe.species : null),
+    moves: describeMoves(active, foe ? typesOf(t, foe) : null),
     newMoves: leadSp.learnset.filter(([l]) => l > active.level).map(([l, m]) => `Lv${l} ${t.moveName(m)}`),
     evolutions: leadSp.evolutions.map((e) => ({
       method: e.method, level: e.level, item: e.item != null ? t.itemName(e.item) : undefined,
@@ -88,7 +94,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
   if (foe) {
     const e = foe;
     const esp = sp(e.species);
-    const myTypes = active ? sp(active.species)?.types ?? [] : [];
+    const myTypes = active ? typesOf(t, active) : [];
     enemy = {
       kind: s.battle === 1 ? "wild" : "trainer",
       trainer: trainerName(t, s) ?? undefined,
@@ -96,7 +102,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
       level: e.level,
       hpPercent: e.maxHp ? Math.round((e.hp / e.maxHp) * 100) : 0,
       status: G.statusName(e.status),
-      types: esp?.types,
+      types: typesOf(t, e),
       statStages: stagesObj(e.stages),
       // What a player knows: the moves it has used, and how many Pokémon its trainer has by the Poké Balls.
       knownMoves: t.foeMoves.movesOf(e).map((id) => {
@@ -128,7 +134,7 @@ export function summarize(t: Tracker, state: GameState, run: CurrentRun, extra: 
     party: s.party.map((m, i) => ({ slot: i + 1, species: t.name(m.species), nickname: m.nickname, level: m.level, hp: m.hp, maxHp: m.maxHp, status: G.statusName(m.status),
       dead: t.isDead(m), overLevelCap: cap ? m.level > cap.level : undefined,
       expToNextLevel: t.data.species[m.species] ? Math.max(0, G.expForLevel(t.data.species[m.species].curve, m.level + 1) - m.exp) : undefined,
-      types: sp(m.species)?.types, stats: m.stats, moves: describeMoves(m, foe ? foe.species : null).flatMap((mv) => (mv ? [moveLine(mv)] : [])) })),
+      types: sp(m.species)?.types, stats: m.stats, moves: describeMoves(m, foe ? typesOf(t, foe) : null).flatMap((mv) => (mv ? [moveLine(mv)] : [])) })),
     nuzlocke: {
       levelCap: cap,
       thisArea: (() => {
@@ -210,7 +216,7 @@ export function brief(t: Tracker, s: GameState, origin?: [number, number] | null
   // In battle: each move's multiplier against the foe and its PP, right on the status line.
   let moves = "";
   if (foeOut && s.enemy && active) {
-    const def = t.data.species[s.enemy.species]?.types ?? [];
+    const def = typesOf(t, s.enemy);
     moves = " | moves: " + active.moves
       .map((id, i) => {
         const mv = id ? t.data.moves[id] : undefined;
@@ -223,7 +229,7 @@ export function brief(t: Tracker, s: GameState, origin?: [number, number] | null
       .filter(Boolean)
       .join(", ");
   }
-  const foeTypes = foeOut && s.enemy ? ` [${(t.data.species[s.enemy.species]?.types ?? []).join("/")}]` : "";
+  const foeTypes = foeOut && s.enemy ? ` [${typesOf(t, s.enemy).join("/")}]` : "";
   // Before the first Pokémon the memory may not hold a map yet (title screen, intro): don't name one.
   const inWorld = s.started || !s.mapSize || (s.mapSize.w > 0 && s.mapSize.h > 0 && s.x < s.mapSize.w && s.y < s.mapSize.h);
   // The rest of the party with a status problem (poison drains HP while walking): what the party

@@ -53,6 +53,8 @@ export interface MonState {
 export interface BattleMonState extends MonState {
   /** Stat stages −6..+6: atk, def, spd, spc, acc, eva (Gen 2 adds sp.def as a seventh). */
   stages: number[];
+  /** Its types in this battle, as the game has them (some moves change them). */
+  types?: string[];
 }
 
 export interface PcMon {
