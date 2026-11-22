@@ -1,5 +1,6 @@
 // The game data the Node side uses (milestones, fight classes, hint steps…), by the run's game
 // version as the page reports it (run.json data.version). A new generation adds its module here.
+import { readFileSync } from "node:fs";
 import { GEN1 } from "./gen1.mjs";
 import { GEN2 } from "./gen2.mjs";
 
@@ -20,6 +21,15 @@ export function romVersion(bytes) {
   const title = Buffer.from(bytes.subarray(0x134, 0x143)).toString("latin1");
   if (title.startsWith("PM_CRYSTAL")) return "crystal";
   return /^POKEMON (RED|BLUE|YELLOW)/.exec(title)?.[1].toLowerCase() ?? null;
+}
+
+/** The game data for the ROM file at `path` (its header), Gen 1 when there's none or it can't be read. */
+export function gameOfRom(path) {
+  try {
+    return gameData(romVersion(readFileSync(path ?? "")));
+  } catch {
+    return gameData(null);
+  }
 }
 
 export { GEN1, GEN2 };
