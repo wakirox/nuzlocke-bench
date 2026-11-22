@@ -28,6 +28,7 @@ import { createFormatter } from "./format.mjs";
 import { benchmarkPreset } from "./benchmark.mjs";
 import { knownRoms } from "./rom-refs.mjs";
 import { objectivesOf } from "./report.mjs";
+import { gameOfRom } from "./games/index.mjs";
 import { registerTools } from "./tools.mjs";
 
 const PORT = Number(process.env.NUZLOCKE_BRIDGE_PORT ?? 7878);
@@ -212,8 +213,14 @@ const server = new McpServer(
 const RUN_LOG_FILE = process.env.NUZLOCKE_RUN_LOG === "off" ? null
   : process.env.NUZLOCKE_RUN_LOG ?? join(PROJECT_ROOT, "runs", `${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`);
 
+// The game the run plays, from its ROM's header: its milestones are that game's (a Crystal run's
+// saves were named by Red's milestones, "rival4" at the fifth badge, 2026-11-22). Red when unknown.
+/** @type {any} */
+const RUN_GAME = gameOfRom(process.env.NUZLOCKE_ROM);
+
 async function saveMilestones(entry) {
-  for (const id of Object.keys(objectivesOf([entry]))) {
+  // One call at a time: the milestones saved before count as reached for one that needs them first.
+  for (const id of Object.keys(objectivesOf([entry], RUN_GAME, milestonesSaved))) {
     if (milestonesSaved.has(id)) continue;
     milestonesSaved.add(id);
     await call("milestone_save", { id });

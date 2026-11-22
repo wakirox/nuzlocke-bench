@@ -2,8 +2,11 @@
 // report follows whichever game it's given, so another generation is one more module.
 
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 // @ts-expect-error plain ESM module without type declarations
-import { GEN1, gameData, isExperimental, romVersion } from "../../mcp-server/games/index.mjs";
+import { GEN1, GEN2, gameData, gameOfRom, isExperimental, romVersion } from "../../mcp-server/games/index.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { firstRivalFromCalls, hardAreasOf, objectivesOf } from "../../mcp-server/report.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -25,6 +28,20 @@ describe("game data", () => {
     expect(romVersion(rom("POKEMON BLUE"))).toBe("blue");
     expect(romVersion(rom("POKEMON YELLOW"))).toBe("yellow");
     expect(romVersion(rom("TETRIS"))).toBeNull();
+  });
+
+  it("picks the game from a ROM file, so a Crystal run's milestone saves are Crystal's", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rom-"));
+    const file = join(dir, "game.gbc");
+    const b = new Uint8Array(0x150);
+    b.set(new TextEncoder().encode("PM_CRYSTAL\0BYTE"), 0x134);
+    writeFileSync(file, b);
+    expect(gameOfRom(file)).toBe(GEN2);
+    // The rival in the switch rooms is Crystal's milestone, not Red's.
+    expect(Object.keys(objectivesOf([at(1, "GOLDENROD_UNDERGROUND_SWITCH_ROOM_ENTRANCES", { fight: { result: "won", trainerClass: 9 } })], gameOfRom(file)))).toContain("rival4");
+    expect(gameOfRom(join(dir, "none.gbc"))).toBe(GEN1);
+    expect(gameOfRom(undefined)).toBe(GEN1);
+    rmSync(dir, { recursive: true });
   });
 
   it("is Gen 1's for every Gen 1 version, and for runs that don't say", () => {

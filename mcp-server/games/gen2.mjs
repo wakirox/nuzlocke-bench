@@ -27,15 +27,27 @@ export const GEN2 = {
     { id: "rival1", label: "Rival 1", rival: "CHERRYGROVE_CITY" },
     { id: "badge1", label: "Badge 1", badges: 1 },
     { id: "cave1", label: "Through the first cave", maps: ["AZALEA_TOWN"] },
-    { id: "well", label: "The well's gang cleared", maps: ["SLOWPOKE_WELL_B1F"] },
+    // Cleared, not entered: its last grunt (GRUNTM_1) beaten, whose script sets the well cleared in
+    // pokecrystal's map script (issue #85). That script then warps the player to the house in town,
+    // so the call that wins it ends there (the 2026-11-12 run's did).
+    { id: "well", label: "The well's gang cleared", beat: { trainerClass: 0x1f, number: 1, maps: ["SLOWPOKE_WELL_B1F", "KURTS_HOUSE"] } },
     { id: "badge2", label: "Badge 2", badges: 2 },
     { id: "rival2", label: "Rival 2", rival: "AZALEA_TOWN" },
     { id: "forest", label: "Through the forest", maps: ["ROUTE_34"] },
     { id: "badge3", label: "Badge 3", badges: 3 },
+    // The odd tree that blocks the route north (watered away) passed: the fourth gym's town is reached
+    // only that way (issue #85).
+    { id: "roadblock", label: "Past the roadblock tree", maps: ["ECRUTEAK_CITY"] },
     // The floor gives way around this fight: the call that wins it can end on the floor below
     // (the 2026-11-12 run's did, so the milestone never counted).
     { id: "rival3", label: "Rival 3", rival: ["BURNED_TOWER_1F", "BURNED_TOWER_B1F"] },
     { id: "badge4", label: "Badge 4", badges: 4 },
+    // Between the fourth badge and the seventh (issue #85), by first visit, so any badge order works:
+    // the lighthouse climbed, the sea crossed to the island town, and the medicine taken back up (the
+    // lighthouse top again after the island: the log has no item or event for the delivery itself).
+    { id: "lighthouse", label: "Lighthouse top", maps: ["OLIVINE_LIGHTHOUSE_6F"] },
+    { id: "island", label: "Across the sea to the island town", maps: ["CIANWOOD_CITY"] },
+    { id: "medicine", label: "Medicine taken up the lighthouse", maps: ["OLIVINE_LIGHTHOUSE_6F"], after: "island" },
     { id: "badge5", label: "Badge 5", badges: 5 },
     { id: "badge6", label: "Badge 6", badges: 6 },
     { id: "hideout", label: "The gang's hideout", maps: ["TEAM_ROCKET_BASE_B3F"] },
@@ -45,6 +57,8 @@ export const GEN2 = {
     { id: "tower", label: "Broadcast tower's top floor", maps: ["RADIO_TOWER_5F"] },
     { id: "icePath", label: "Through the ice cave", maps: ["BLACKTHORN_CITY"] },
     { id: "badge8", label: "Badge 8", badges: 8 },
+    // As in Gen 1: credit for reaching the last cave, for runs that wipe in it (issue #85).
+    { id: "lastCave", label: "Last cave", maps: ["VICTORY_ROAD"] },
     { id: "rival5", label: "Rival 5", rival: "VICTORY_ROAD" },
     { id: "league", label: "League building", maps: ["INDIGO_PLATEAU_POKECENTER_1F"] },
     { id: "elite1", label: "Elite room 1", maps: ["WILLS_ROOM"] },
