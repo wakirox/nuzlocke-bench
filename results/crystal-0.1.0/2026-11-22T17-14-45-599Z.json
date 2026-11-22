@@ -1,0 +1,80 @@
+{
+ "id": "2026-11-22T17-14-45-599Z",
+ "model": "gemini-4-neon",
+ "effort": "low",
+ "via": "agy",
+ "game": "crystal",
+ "preset": "hardcore-nuzlocke+firstrival+hardcap",
+ "date": "2026-11-22",
+ "harness": "0.4.0@d1084fe",
+ "version": "crystal-0.1.0",
+ "outcome": "wipe",
+ "badges": 0,
+ "deaths": 5,
+ "calls": 124,
+ "screenshots": 0,
+ "wrongCalls": 0,
+ "rejected": 0,
+ "realMs": 1065287,
+ "score": {
+  "total": -58,
+  "progress": 30,
+  "speed": 17,
+  "cottageSpeed": 0,
+  "tunnelSpeed": 0,
+  "flash": 0,
+  "efficiency": 0,
+  "deaths": -60,
+  "ended": -45,
+  "disqualified": 0,
+  "screenshots": 0,
+  "wrongCalls": 0,
+  "winFloor": 0
+ },
+ "tokens": 6323097,
+ "tokensPartial": false,
+ "playTime": "0:32:25",
+ "furthest": 0,
+ "reached": [
+  "rival1"
+ ],
+ "times": {
+  "rival1": "0:10:41"
+ },
+ "dark": null,
+ "objectiveCalls": {
+  "rival1": 37
+ },
+ "lastBattleDeaths": 1,
+ "hardAreas": [],
+ "toolUse": {
+  "calls": 124,
+  "presses": 1,
+  "planned": 65,
+  "batches": 58,
+  "loops": 1
+ },
+ "playtest": false,
+ "notOfficial": null,
+ "continued": false,
+ "short": false,
+ "capabilities": {
+  "tools": {
+   "failedPct": 0,
+   "screenshotPct": 0,
+   "plannedMovePct": 52.4,
+   "pressPct": 0.8,
+   "batches": 58,
+   "loops": 1
+  },
+  "planning": {
+   "flash": null,
+   "deathsPerBadge": null
+  },
+  "knowledge": {
+   "steps": {
+    "rival1": 37
+   }
+  }
+ }
+}
