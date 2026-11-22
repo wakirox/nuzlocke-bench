@@ -32,4 +32,12 @@ export function gameOfRom(path) {
   }
 }
 
+/**
+ * Each game version's milestones, as the dashboard and the results list them: { "red": [{ id, label }],
+ * …, "crystal": [...] }. A run's progress is read against its own game's (Crystal's aren't Red's).
+ */
+export function objectivesByGame() {
+  return Object.fromEntries(GAMES.flatMap((g) => g.versions.map((v) => [v, g.objectives.map((o) => ({ id: o.id, label: o.label }))])));
+}
+
 export { GEN1, GEN2 };

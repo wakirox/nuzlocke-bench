@@ -5,7 +5,7 @@
 // toolUseOf reads one leg's run log (run-summary.mjs keeps it in the leg's row); capabilitiesOf puts a
 // whole run together from the dashboard's run (dashboard.mjs), which has its legs combined already.
 
-import { OBJECTIVES } from "./report.mjs";
+import { gameData } from "./games/index.mjs";
 
 /** Calls that move the player through the map for it: a route, a path or a batch, not a button. */
 const PLANNED_MOVES = new Set(["go_to", "travel", "walk_to", "exit_map", "walk", "hunt", "do"]);
@@ -45,9 +45,10 @@ const pct = (n, of) => (of > 0 ? Math.round((1000 * n) / of) / 10 : null);
  * Co. before the fifth badge), so it goes by the calls, story order only breaking ties. A long step is
  * where the model didn't know, or couldn't find, what came next.
  */
-export function stepCallsOf(objectiveCalls = {}, reached = []) {
+export function stepCallsOf(objectiveCalls = {}, reached = [], game = null) {
   const got = new Set(reached);
-  const order = OBJECTIVES.map((o, i) => ({ id: o.id, at: objectiveCalls[o.id], i }))
+  // Story order is the run's own game's (Crystal's milestones aren't Red's).
+  const order = gameData(game).objectives.map((o, i) => ({ id: o.id, at: objectiveCalls[o.id], i }))
     .filter((o) => got.has(o.id) && o.at != null)
     .sort((a, b) => a.at - b.at || a.i - b.i);
   const steps = {};
@@ -81,7 +82,7 @@ export function capabilitiesOf(run) {
       deathsPerBadge: run.badges ? Math.round((10 * (run.deaths ?? 0)) / run.badges) / 10 : null,
     },
     knowledge: {
-      steps: stepCallsOf(run.objectiveCalls, run.reached),
+      steps: stepCallsOf(run.objectiveCalls, run.reached, run.game),
     },
   };
 }

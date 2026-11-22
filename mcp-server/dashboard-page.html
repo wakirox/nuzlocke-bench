@@ -208,7 +208,11 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const secs = (t) => (t ?? "0:0:0").split(":").reduce((a, b) => a * 60 + Number(b), 0);
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : null; };
-const label = (i) => (i >= 0 ? DATA.objectives[i].label : "None yet");
+// A game's milestones (Crystal's aren't Red's); pages built before the list per game had Red's only.
+const objectivesFor = (game) => DATA.objectivesByGame?.[game] ?? DATA.objectives;
+// The milestones of the game being shown.
+const shownObjectives = () => objectivesFor($("f-game").value);
+const label = (i, objs = shownObjectives()) => (i >= 0 && objs[i] ? objs[i].label : "None yet");
 const mTokens = (t, partial) => (t == null ? "" : `${partial ? "≥" : ""}${(t / 1e6).toFixed(1)}M`);
 // The harness a run was played through: agy where the record says so, else the runner's default, Claude Code.
 const groupOf = (r) => `${r.model}${r.effort ? ` ${r.effort}` : ""} via ${r.via ?? "Claude Code"}`;
@@ -260,7 +264,7 @@ function versionSummary() {
 }
 
 const isBadge = (o) => /^badge\d$/.test(o.id);
-const isEnd = (o, i) => i === DATA.objectives.length - 1;
+const isEnd = (o, i) => i === shownObjectives().length - 1;
 const isElite = (o) => /^elite\d$/.test(o.id);  // the league's four rooms: squares between the badges and the Champion
 
 function rankedGroups(rows) {
@@ -282,13 +286,13 @@ function board(rows, all) {
   const summary = !rows.length ? "" : `${rows.length} official run${rows.length === 1 ? "" : "s"} from ${all.length} model${all.length === 1 ? "" : "s"} · ${winners ? `${winners} Champion${winners === 1 ? "" : "s"}` : `furthest: ${label(furthest)}`} · ranked by best score. Click a model to filter runs.`;
   $("board-meta").textContent = [summary, versionSummary()].filter(Boolean).join(" ");
   if (!all.length) { $("board").innerHTML = `<p class="empty">No official runs yet.</p>`; return; }
-  const n = DATA.objectives.length;
-  const stops = (x) => DATA.objectives.map((o, i) => {
+  const n = shownObjectives().length;
+  const stops = (x) => shownObjectives().map((o, i) => {
     const cls = [isBadge(o) ? "stop" : "", isElite(o) ? "stop elite" : "", isEnd(o, i) ? "stop end" : "", i <= x.at ? "reach" : i <= x.top ? "best" : ""].filter(Boolean).join(" ");
     const tip = `${o.label}: ${i <= x.at ? "reached by the median run" : i <= x.top ? "reached by the best run" : "not reached"}`;
     return isBadge(o) || isElite(o) || isEnd(o, i) ? `<i class="${cls}" tabindex="0" data-tip="${esc(tip)}" aria-label="${esc(tip)}"></i>` : `<i class="${cls}"></i>`;
   }).join("");
-  const axis = `<div class="lane axis" aria-hidden="true"><span></span><div class="track" style="--n:${n}">${DATA.objectives.map((o, i) => `<span>${isBadge(o) ? o.id.slice(5) : isElite(o) ? "E" + o.id.slice(5) : isEnd(o, i) ? "C" : ""}</span>`).join("")}</div><span></span></div>`;
+  const axis = `<div class="lane axis" aria-hidden="true"><span></span><div class="track" style="--n:${n}">${shownObjectives().map((o, i) => `<span>${isBadge(o) ? o.id.slice(5) : isElite(o) ? "E" + o.id.slice(5) : isEnd(o, i) ? "C" : ""}</span>`).join("")}</div><span></span></div>`;
   $("board").innerHTML = axis + all.map((x) => `<div class="lane${filterGroup === x.g ? " active" : ""}">
     <div class="who"><button type="button" class="who-btn" data-filter="${esc(x.g)}" aria-pressed="${filterGroup === x.g}">${esc(x.g)}</button><span>${x.n} run${x.n === 1 ? "" : "s"}</span></div>
     <div class="track" style="--n:${n}" role="img" aria-label="${esc(`${x.g}: median run reached ${label(x.at)}, best ${label(x.top)}`)}">${stops(x)}</div>
@@ -302,7 +306,7 @@ function heat(rows, all) {
   if (!groups.length) { $("heat").innerHTML = `<tbody><tr><td class="empty">No official runs yet.</td></tr></tbody>`; $("legend").innerHTML = ""; return; }
   const of = Object.fromEntries(groups.map((g) => [g, rows.filter((r) => groupOf(r) === g)]));
   const head = `<thead><tr><th scope="col">Milestone</th>${groups.map((g) => `<th scope="col">${esc(g)}<br><span style="color:var(--muted);font-weight:400">${of[g].length} run${of[g].length === 1 ? "" : "s"}</span></th>`).join("")}</tr></thead>`;
-  const body = DATA.objectives.map((o) => `<tr${isBadge(o) ? ' class="badge"' : ""}><th scope="row">${esc(o.label)}</th>${groups.map((g) => {
+  const body = shownObjectives().map((o) => `<tr${isBadge(o) ? ' class="badge"' : ""}><th scope="row">${esc(o.label)}</th>${groups.map((g) => {
     const n = of[g].filter((r) => r.reached.includes(o.id)).length;
     const d = of[g].length;
     const pct = Math.round((100 * n) / d);
@@ -323,7 +327,7 @@ const COLS = [
   ["scoreTotal", "Score", (r) => `<td class="num"><strong>${r.score.total}</strong></td>`, 1],
   ["badges", "Badges", (r) => `<td class="hide-s">${pips(r.badges)}</td>`, 1],
   ["deaths", "Deaths", (r) => `<td class="num hide-s${r.deaths ? " deaths" : ""}">${r.deaths}</td>`, 1],
-  ["furthest", "Furthest milestone", (r) => `<td class="hide-s">${esc(label(r.furthest))}</td>`],
+  ["furthest", "Furthest milestone", (r) => `<td class="hide-s">${esc(label(r.furthest, objectivesFor(r.game)))}</td>`],
   ["outcome", "Outcome", (r) => `<td class="out-${esc(r.outcome.replace(/ /g, "-"))}">${esc(r.outcome[0].toUpperCase() + r.outcome.slice(1))}</td>`],
 ];
 
@@ -386,14 +390,16 @@ function oneRun(r) {
     `<td class="top">${esc(f.result ?? "—")}${f.died.length ? `<div class="change">Died: ${esc(f.died.join(", "))}</div>` : ""}</td>`,
   ])).join("")}</tbody></table></div>` : ""}</section>`;
   const fold = (html) => html.replace("<section><h2>", '<details class="fold"><summary>').replace("</h2>", "</summary>").replace(/<\/section>$/, "</details>");
-  const reached = DATA.objectives.filter((o) => r.times?.[o.id] !== undefined).sort((a, b) => secs(r.times[a.id]) - secs(r.times[b.id]));
-  const missing = DATA.objectives.filter((o) => r.times?.[o.id] === undefined);
+  // The run's own game's milestones.
+  const objs = objectivesFor(r.game);
+  const reached = objs.filter((o) => r.times?.[o.id] !== undefined).sort((a, b) => secs(r.times[a.id]) - secs(r.times[b.id]));
+  const missing = objs.filter((o) => r.times?.[o.id] === undefined);
   const areasTable = r.hardAreas?.length ? `<section><h2>Hard areas</h2><p class="note">From the first call inside to the milestone that ends it, trips out included.</p><div class="scroll"><table><thead><tr><th>Area</th><th>Status</th><th class="num">Calls</th><th class="num">Game time</th><th class="num">Times in</th><th class="num">Deaths</th></tr></thead><tbody>${r.hardAreas.map((a) => row([`<td>${esc(a.label)}</td>`, `<td>${a.done ? "Finished" : "Not finished"}</td>`, `<td class="num">${a.calls}</td>`, `<td class="num">${mins(a.seconds)}</td>`, `<td class="num">${a.entries}</td>`, `<td class="num">${a.deaths}</td>`])).join("")}</tbody></table></div></section>` : "";
   // What the run shows about the model (capabilities.mjs): measured numbers, none of them in the score.
   const cap = r.capabilities;
   const val = (v, unit = "") => (v == null ? "—" : `${v}${unit}`);
   const group = (title, rows) => `<tr class="group"><th colspan="2">${esc(title)}</th></tr>${rows.map(([k, v]) => row([`<td>${esc(k)}</td>`, `<td class="num">${esc(v)}</td>`])).join("")}`;
-  const labelOf = Object.fromEntries(DATA.objectives.map((o) => [o.id, o.label]));
+  const labelOf = Object.fromEntries(objs.map((o) => [o.id, o.label]));
   const longest = cap ? Object.entries(cap.knowledge.steps).sort((a, b) => b[1] - a[1]).slice(0, 5) : [];
   const capsTable = cap ? `<section><h2>What the run shows</h2><p class="note">Measured from the run's own records, for seeing where a model struggles. None of it is in the score.</p><div class="scroll"><table><tbody>${[
     group("Tool use", [
@@ -429,7 +435,7 @@ function oneRun(r) {
       </section>
       <section>
         <h2>Milestones</h2>
-        <p class="note">${reached.length} of ${DATA.objectives.length} reached, in the order they happened.</p>
+        <p class="note">${reached.length} of ${objs.length} reached, in the order they happened.</p>
         <div class="milestones">${reached.map((o) => `<div class="ms"><span>✓ ${esc(o.label)}</span><span class="t">${esc(r.times[o.id] ?? "")}</span></div>`).join("")}${missing.map((o) => `<div class="ms no"><span>${esc(o.label)}</span><span class="t">—</span></div>`).join("")}</div>
       </section>
     </div>

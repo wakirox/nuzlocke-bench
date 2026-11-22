@@ -7,6 +7,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OBJECTIVES } from "./report.mjs";
+import { objectivesByGame } from "./games/index.mjs";
 import { OFFICIAL } from "./benchmark.mjs";
 
 /**
@@ -116,6 +117,8 @@ export function mergeResults(existing, version, runs, localIds, updated) {
     rules: OFFICIAL,
     updated,
     objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })),
+    // Each game's milestones: a run is read against its own game's (`objectives` stays Red's).
+    objectivesByGame: objectivesByGame(),
     runs: [...kept, ...mine].sort((a, b) => (a.id < b.id ? 1 : -1)),
   };
 }
