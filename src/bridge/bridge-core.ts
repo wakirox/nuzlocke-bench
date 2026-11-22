@@ -593,12 +593,26 @@ export class BridgeCore {
     const status = this.host.brief() as unknown as Record<string, unknown> | null;
     // The location line is always printed, even by an MCP server that predates saveWarning.
     if (saveWarning && status) status.location = `⚠️ AUTOSAVE FAILING — ${String(status.location ?? "?")}`;
+    // The tracker's news (rule events, poison, maps entered) is handed out once per request, by
+    // handOut(): actions call other actions (switch_pokemon plays its turn through choose), and an
+    // inner result taking it dropped it (a Selfdestruct death never told, #115).
+    return { ...extra, saveWarning, crashed, status, screenText: this.screenText() };
+  }
+
+  /**
+   * Adds the tracker's news since the last request to a request's final result (one result() made;
+   * other replies leave it waiting, as an error does): rule events, poison hits, and, for the run log
+   * only (the MCP server doesn't print it), every map this request passed through.
+   */
+  handOut(r: unknown): unknown {
+    if (!r || typeof r !== "object" || !("screenText" in r)) return r;
+    const out = r as Record<string, unknown>;
     const events = this.host.newEvents();
     const poison = this.host.takePoisonHurt();
-    // For the run log only (the MCP server doesn't print it): every map this action passed through.
     const mapsEntered = this.host.takeMapsEntered();
+    const status = out.status as Record<string, unknown> | null | undefined;
     if (status && mapsEntered.length) status.mapsEntered = mapsEntered;
-    return { ...extra, saveWarning, crashed, status, poison: poison.length ? poison : undefined, events: events.length ? events : undefined, screenText: this.screenText() };
+    return { ...out, poison: poison.length ? poison : undefined, events: events.length ? events : undefined };
   }
 
   /** VRAM is unreadable mid-scanline; after a reload/state load we may be anywhere in a frame. */

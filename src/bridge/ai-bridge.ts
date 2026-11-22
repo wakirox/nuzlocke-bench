@@ -129,7 +129,12 @@ export class AiBridge {
     };
   }
 
+  /** One request: the command, then the tracker's news on its final result (BridgeCore.handOut). */
   private async dispatch(method: string, p: Record<string, unknown>): Promise<unknown> {
+    return this.core.handOut(await this.command(method, p));
+  }
+
+  private async command(method: string, p: Record<string, unknown>): Promise<unknown> {
     // Moving (or reading the map) needs a map: on the title screen or in the intro there isn't one yet.
     if ((MOVES.has(method) || method === "get_map") && this.core.host.position().inWorld === false) {
       throw new Error("The game hasn't started yet (title screen or intro): start_game starts it.");

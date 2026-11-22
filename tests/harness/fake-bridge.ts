@@ -53,6 +53,8 @@ export interface FakeHostOptions {
   onFrames?: (host: FakeHost, frames: number, at: Position) => void;
   /** The summary / brief the bridge reads (defaults: nothing special). */
   outcome?: string | null;
+  /** The tracker's rule events not yet handed out (newEvents takes them all); push to add one mid-action. */
+  events?: string[];
   /** Fields of the game summary the bridge reads (e.g. battle: "wild", bag). */
   summary?: Record<string, unknown>;
   /** The map view the game returns for the screen or the whole map (readView / readFullMap). */
@@ -188,7 +190,7 @@ export class FakeHost {
       game: () => this.adapter,
       summary: () => ({ ...this.opts.summary }),
       brief: () => ({ location: "test", battle: "", lead: null, enemy: null, outcome: this.opts.outcome ?? null }) as never,
-      newEvents: () => [],
+      newEvents: () => (this.opts.events ?? []).splice(0),
       takePoisonHurt: () => [],
       takeMapsEntered: () => [],
       battleMoves: () => [],
