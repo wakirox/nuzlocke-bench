@@ -160,6 +160,23 @@ export function rejectedCalls(transcript) {
   return n;
 }
 
+/**
+ * Every death: the event lines ("RATTY (RATICATE) died (GEODUDE Lv21, ROCK TUNNEL (4))"), and the tracker's
+ * list of the dead for the ones whose line is gone (the tracker keeps only its last 300 events: a long
+ * run's early deaths fell out, #115).
+ */
+function deathsOf(tracker, events) {
+  const lines = [...new Set(events.filter((e) => / died \(/.test(e)).map((e) => e.replace(/\. (Box|It can).*$/, "")))];
+  const named = (line) => line.split(" ")[0];
+  const left = [...lines];
+  const out = [];
+  for (const d of tracker?.dead ?? []) {
+    const i = left.findIndex((l) => named(l) === d.nickname);
+    out.push(i >= 0 ? left.splice(i, 1)[0] : `${d.nickname} died (${d.cause})`);
+  }
+  return [...out, ...left];
+}
+
 export function runExtras({ tracker, transcript, notes, game = GEN1 }) {
   const events = (tracker?.events ?? []).map((e) => e.text ?? "");
   // "PLAYER received a MONA!" in a result's messages (one line each), not the rival's.
@@ -169,7 +186,7 @@ export function runExtras({ tracker, transcript, notes, game = GEN1 }) {
   return {
     starter,
     caught: events.filter((e) => /^Caught /.test(e)).map((e) => e.replace(/^Caught /, "").replace(/\.$/, "")),
-    deaths: [...new Set(events.filter((e) => / died \(/.test(e)).map((e) => e.replace(/\. (Box|It can).*$/, "")))],
+    deaths: deathsOf(tracker, events),
     pcHeals: tracker?.pcHeals ?? null,
     fights: bigFights(tracker, game),
     notes: notes?.trim() || null,

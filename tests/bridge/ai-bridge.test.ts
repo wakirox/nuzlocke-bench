@@ -23,6 +23,37 @@ function bridgeFor(script: ScriptScreen[], opts?: FakeHostOptions, screen = layo
   return { host, call };
 }
 
+describe("AiBridge.dispatch: the tracker's events", () => {
+  // #115: switch_pokemon plays its turn through choose, an action of its own; the inner result took a
+  // Selfdestruct death's event and the switch's reply dropped it. Events go out once, on the request's reply.
+  it("an event from inside an action reaches the request's reply, once", async () => {
+    const events: string[] = [];
+    let died = false;
+    const { call } = bridgeFor([
+      { rows: textBoxScreen(layout, ["RATTY fainted!", "Enemy GEODUDE fainted!"], {}, true), on: { a: "next" } },
+      { rows: textBoxScreen(layout, ["Bring out which", "POKéMON?"]) },
+    ], { events, onPress: () => { if (!died) { died = true; events.push("[warning] RATTY died."); } } });
+    const r = await call("advance_text");
+    expect(r.events).toEqual(["[warning] RATTY died."]);
+    expect((await call("advance_text")).events).toBeUndefined();
+  });
+  it("an inner result doesn't take the events", async () => {
+    const host = new FakeHost(layout, [{ rows: textBoxScreen(layout, ["Hello."]) }], { events: ["[warning] RATTY died."] });
+    const bridge = new AiBridge(host.asHost(), () => {});
+    const core = (bridge as unknown as { core: { result(x: object): Record<string, unknown> } }).core;
+    expect(core.result({}).events).toBeUndefined();
+    const r = await (bridge as unknown as { dispatch(m: string, p: object): Promise<Record<string, unknown>> }).dispatch("read_screen_text", {});
+    expect(r.events).toBeUndefined(); // not an action result: the event keeps waiting
+    const next = await (bridge as unknown as { dispatch(m: string, p: object): Promise<Record<string, unknown>> }).dispatch("advance_text", {});
+    expect(next.events).toEqual(["[warning] RATTY died."]);
+  });
+  it("an error leaves the events for the next reply", async () => {
+    const { call } = bridgeFor([{ rows: textBoxScreen(layout, ["Hello."]) }], { events: ["[warning] RATTY died."] });
+    await expect(call("fight", { move: "TACKLE" })).rejects.toThrow();
+    expect((await call("advance_text")).events).toEqual(["[warning] RATTY died."]);
+  });
+});
+
 describe("AiBridge.dispatch", () => {
   it("advance_text presses A through text boxes and stops at a menu", async () => {
     const question = textBoxScreen(layout, ["Do you agree?"]);

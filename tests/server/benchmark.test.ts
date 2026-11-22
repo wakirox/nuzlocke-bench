@@ -214,4 +214,15 @@ describe("how a run was played", () => {
     expect(playTable([row])).toContain("| r1 | STARTERMON | — | 1 | 2 | ROAD | 5 | 1 / 1 | 1 | 1 | 3 | 0 | — |");
     expect(details([row])).toContain("> Shop in town A.");
   });
+
+  it("lists a death whose event line fell out of the tracker's last 300 (#115), from its list of the dead", () => {
+    const tracker = {
+      events: [{ text: "BEAKY (FEAROW) died (HYPNO Lv38, FUCHSIA CITY). It can never battle again." }],
+      dead: [
+        { nickname: "RATTY", species: 166, level: 29, cause: "GEODUDE Lv21" },
+        { nickname: "BEAKY", species: 35, level: 43, cause: "HYPNO Lv38" },
+      ],
+    };
+    expect(runExtras({ tracker, transcript: "", notes: null }).deaths).toEqual(["RATTY died (GEODUDE Lv21)", "BEAKY (FEAROW) died (HYPNO Lv38, FUCHSIA CITY)"]);
+  });
 });
