@@ -638,6 +638,26 @@ export class Travel {
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+    // A trainer who saw the last step lands walks over after it, the game holding the controls: the
+    // walk said "arrived" and the challenge came on the next call (a playtest, 2026-11-22). While a
+    // script holds them, wait for what it says, as for one that starts mid-walk.
+    if (stopped === "arrived" && this.core.host.position().scripted) {
+      try {
+        for (let f = 0; f < SCENE_FRAMES && this.core.host.position().scripted && !this.core.host.position().battle; f += 6) {
+          await this.core.slopeFrames(6, 6);
+          if (!this.core.textBox(this.core.screenText()).open) continue;
+          // Read once it has finished printing (a first look read "O").
+          const box = this.core.textBox(await this.core.settledScreen());
+          if (box.open) {
+            stopped = `stopped by a scripted event: a text box opened${box.lines.length ? ` ("${box.lines.join(" ")}")` : ""} (a trainer who saw you, or a scene) — advance_text reads it`;
+            break;
+          }
+        }
+      } finally {
+        this.core.letGoOfSlope();
+      }
+      if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+    }
     // A door that leads elsewhere on the same map (a locked door in a Crystal underpass) moves
     // the player there with the map unchanged: "up 1/1 — arrived" hid a move of some 25 squares (a
     // playtest, 2026-11-22). A jump off the line walked, or back along it, is that; a slide on
