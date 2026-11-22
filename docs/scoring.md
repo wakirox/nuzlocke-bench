@@ -10,9 +10,9 @@ Only these runs make the leaderboard (`OFFICIAL` in `mcp-server/benchmark.mjs`, 
 
 - **Rules:** `hardcore-nuzlocke+firstrival+hardcap`, the full game with the default options. No hints:
   `-o hints` is for testing, and its runs are their own group.
-- **Game:** Red.
-- **Started on or after 2026-11-08,** when the official run was defined. Earlier runs stay on the
-  dashboard as test runs.
+- **Game:** Red, or Crystal (`OFFICIAL.games`), each on its own leaderboard.
+- **Started on or after its game's date:** Red 2026-11-08, when the official run was defined; Crystal
+  2026-11-22. Earlier runs stay on the dashboard as test runs.
 - **From a new game.** A run continued after a crash or a reboot (`--resume`) still counts when every
   leg is on record. One started from a hand-made save doesn't.
 - **Ended by the rules:** Champion, a wipe, lost, disqualified, out of calls, or gave up after the
@@ -42,7 +42,8 @@ and its record stays as it was.
 The dashboard shows these runs only, one game at a time; test runs stay in `npm run bench:report`.
 
 The published results are these runs alone: `npm run bench:results` keeps a folder per benchmark version,
-`results/<version>/` (the harness version without its commit), with an `index.json` (the version's rules
+`results/<version>/` (Red's: the harness version without its commit, `0.4.0`; Crystal's: its own,
+`crystal-0.1.0`, see below), with an `index.json` (the version's rules
 and objectives) and a file per official run, `<run id>.json`, as the dashboard shows it and no game names.
 A run's file is written only when it changes, so a results PR shows just the runs it adds. A run stays on
 file when its folder is gone; one whose folder is here is updated, or taken out when it's no longer a
@@ -93,7 +94,13 @@ speed bonuses, the dark tunnel or the failed-call rate, as it doesn't use up the
 A call that passes through a milestone's map counts for it, even when it ends somewhere else (since 2026-11-14,
 for runs logged from then on: older logs only show where each call ended).
 
-### Crystal (experimental, not ranked yet)
+### Crystal
+
+Official since 2026-11-22, with a benchmark version of its own: `version` in `mcp-server/games/gen2.mjs`,
+recorded in each run's log as `gameVersion` and filed as `crystal-<version>` (runs from before it was
+recorded are `crystal-0.1.0`). A change to what the model sees in Crystal bumps it and leaves Red's
+leaderboard where it is; a change that reaches both games bumps both.
+
 
 Decided 2026-11-22 (issue #85): a Crystal run ends at the Champion, as Red's does; the second region is
 for a separate preset later. The points are Red's: each of the 8 badges +60, each of the 21 other

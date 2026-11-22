@@ -148,12 +148,25 @@ describe("dashboardRuns", () => {
     expect(run.model).toBe("sonnet-5-5[1m]");
   });
 
-  it("leaves Crystal runs out: an experimental game isn't on the dashboard yet", () => {
+  it("makes Crystal runs official from 2026-11-22, on Crystal's own version; Red's runs carry none", () => {
     const runs = dashboardRuns([
-      row("2026-11-08T10-00", { preset: OFFICIAL.preset, game: "crystal", outcome: "wipe: X" }),
-      row("2026-11-08T11-00", { preset: OFFICIAL.preset, game: "red", outcome: "wipe: X" }),
+      row("2026-11-21T10-00", { preset: OFFICIAL.preset, game: "crystal", outcome: "wipe: X", harness: "0.4.0@abc" }),
+      row("2026-11-22T10-00", { preset: OFFICIAL.preset, game: "crystal", outcome: "wipe: X", harness: "0.4.0@abc" }),
+      row("2026-11-22T11-00", { preset: OFFICIAL.preset, game: "crystal", outcome: "wipe: X", harness: "0.4.0@abc", gameVersion: "0.2.0" }),
+      row("2026-11-22T12-00", { preset: OFFICIAL.preset, game: "red", outcome: "wipe: X", harness: "0.4.0@abc" }),
     ]);
-    expect(runs.map((r: { game: string }) => r.game)).toEqual(["red"]);
+    const byId: Record<string, { notOfficial: string | null; version?: string }> = Object.fromEntries(runs.map((r: { id: string }) => [r.id, r])) as Record<string, never>;
+    expect(byId["2026-11-21T10-00"].notOfficial).toBe("before official runs");
+    expect(byId["2026-11-22T10-00"].notOfficial).toBeNull();
+    expect(byId["2026-11-22T10-00"].version).toBe("crystal-0.1.0");
+    expect(byId["2026-11-22T11-00"].version).toBe("crystal-0.2.0");
+    expect(byId["2026-11-22T12-00"].notOfficial).toBeNull();
+    expect(byId["2026-11-22T12-00"]).not.toHaveProperty("version");
+  });
+
+  it("keeps a game with no official date off the leaderboard", () => {
+    const [run] = dashboardRuns([row("2026-11-22T10-00", { preset: OFFICIAL.preset, game: "gold", outcome: "wipe: X" })]);
+    expect(run?.notOfficial ?? "gone").not.toBeNull();
   });
 
   it("keeps a continued run official when every leg is on record", () => {
@@ -331,6 +344,13 @@ describe("renderDashboard", () => {
   it("embeds current as null when no version is given", () => {
     const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z");
     expect(dataOf(html).current).toBeNull();
+  });
+
+  it("gives each game its current version: Red the harness's, Crystal its own, with or without one", () => {
+    const withOne = dataOf(renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z", "0.4.0")).currentByGame;
+    expect(withOne).toMatchObject({ red: "0.4.0", yellow: "0.4.0", crystal: "crystal-0.1.0" });
+    const without = dataOf(renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z")).currentByGame;
+    expect(without).toMatchObject({ red: null, crystal: "crystal-0.1.0" });
   });
 });
 

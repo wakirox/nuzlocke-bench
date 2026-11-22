@@ -71,6 +71,7 @@ export function summarize({ session, calls }, game = GEN1) {
   return {
     preset: session?.benchmark?.id ?? null,
     harness: harnessLabel(session?.harness),
+    ...(session?.gameVersion ? { gameVersion: session.gameVersion } : {}),
     ...(session?.boulderSwitch ? { boulderSwitch: true } : {}),
     ...(session?.mapPoints ? { mapPoints: true } : {}),
     ...(session?.trainerFacing ? { trainerFacing: true } : {}),

@@ -7,7 +7,7 @@ import { scoreRun } from "./score.mjs";
 import { capabilitiesOf, joinToolUse } from "./capabilities.mjs";
 import { OFFICIAL } from "./benchmark.mjs";
 import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, GIVE_UP_AFTER } from "./bench-runner.mjs";
-import { gameData, isExperimental, objectivesByGame } from "./games/index.mjs";
+import { benchVersionOf, gameData, isExperimental, objectivesByGame } from "./games/index.mjs";
 
 /** Below this many calls, a run that nothing ended is a stray start, not a result. */
 const SHORT_RUN = 50;
@@ -38,9 +38,10 @@ export const LEG_RULES_EXCEPTIONS = {
  */
 export function notOfficial({ date, preset, game, outcome, first, legs }) {
   if (isExperimental(game)) return "experimental game";
-  if (date < OFFICIAL.since) return "before official runs";
+  // Each official game from its own day (Crystal later than Red); another game by Red's.
+  if (date < (OFFICIAL.games[game] ?? OFFICIAL.since)) return "before official runs";
   if (preset !== OFFICIAL.preset || legs.some((l) => (LEG_RULES_EXCEPTIONS[l.name] ?? l.preset ?? preset) !== OFFICIAL.preset)) return "other rules";
-  if (game !== OFFICIAL.game) return "other game";
+  if (!OFFICIAL.games[game]) return "other game";
   if (recordOf(first)?.resumedFrom) return "not from a new game";
   if (legs.some((l) => recordOf(l)?.playtest)) return "playtest";
   if (legs.some((l) => recordOf(l)?.narrated)) return "narrated";
@@ -248,6 +249,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
       preset: first.preset ?? null,
       date: id.slice(0, 10),
       harness: last.harness ?? null,
+      // The leaderboard it's on when it isn't the harness version (Crystal's own, games/index.mjs);
+      // Red's runs don't carry it, so their results files don't change.
+      ...(/** @type {any} */ (gameData(first.game)).version ? { version: benchVersionOf({ game: first.game, harness: last.harness, gameVersion: last.gameVersion }) } : {}),
       outcome,
       badges: Math.max(...legs.map((l) => l.badges ?? 0)),
       deaths,
@@ -288,7 +292,9 @@ export function dashboardRuns(rows, { names = true } = {}) {
 export function renderDashboard(template, runs, generatedAt, current = null) {
   // `current`: the bench version now (package.json), so the page can say when it has no runs yet.
   // `objectives` stays Red's (a reader from before objectivesByGame); each run is read against its own game's.
-  const data = { generatedAt, current, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), objectivesByGame: objectivesByGame(), runs };
+  // `currentByGame`: each game's current version, Crystal's its own ("crystal-0.1.0").
+  const currentByGame = Object.fromEntries(Object.keys(objectivesByGame()).map((v) => [v, benchVersionOf({ game: v, harness: current, gameVersion: /** @type {any} */ (gameData(v)).version })]));
+  const data = { generatedAt, current, currentByGame, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), objectivesByGame: objectivesByGame(), runs };
   // "<" can't close the script tag it sits in.
   return template.replace("/*DATA*/null", () => JSON.stringify(data).replace(/</g, "\\u003c"));
 }

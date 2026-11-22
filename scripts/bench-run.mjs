@@ -59,7 +59,7 @@ if (argv.includes("--help") || argv.includes("-h")) {
 
 Usage: npm run bench -- --rom path/to/red.gb [options]
 
-  --rom <file>         the game: Red, Blue, Yellow, or Crystal (experimental: not scored) (or NUZLOCKE_ROM)
+  --rom <file>         the game: Red, Blue, Yellow, or Crystal (or NUZLOCKE_ROM)
   --model <id>         who plays (default claude-haiku-5-5). The standard context window is the default;
                        the [1m] suffix gives 1M (much costlier on long runs: every call re-reads the context)
   --effort <level>     low, medium, high… (default: Claude Code's; not with --api)
@@ -230,7 +230,7 @@ try {
   throw e;
 }
 
-// A game still being built (Crystal) plays, but its runs aren't scored or ranked: say so up front.
+// A game module marked experimental plays, but its runs aren't scored or ranked: say so up front.
 const version = romVersion(readFileSync(rom));
 const experimental = isExperimental(version);
 if (experimental) console.log(`Experimental game (${version[0].toUpperCase() + version.slice(1)}): the run plays, but it isn't scored or ranked.`);

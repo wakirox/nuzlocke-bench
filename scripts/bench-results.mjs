@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dashboardRuns, renderDashboard } from "../mcp-server/dashboard.mjs";
 import { findRunLogs, readRows } from "../mcp-server/run-summary.mjs";
-import { mergeResults, officialRuns, readVersion, resultsRuns, resultsVersions, versionOf, writeVersion } from "../mcp-server/results.mjs";
+import { mergeResults, officialRuns, readVersion, resultsRuns, resultsVersions, runVersionOf, writeVersion } from "../mcp-server/results.mjs";
 
 const args = process.argv.slice(2);
 if (args.includes("--help") || args.includes("-h")) {
@@ -51,7 +51,8 @@ if (dashboardFile) {
 const all = dashboardRuns(findRunLogs(runsDir).flatMap((f) => readRows(f)), { names: false });
 const official = officialRuns(all);
 const localIds = all.map((r) => r.id);
-const versions = new Set([...official.map((r) => versionOf(r.harness)), ...resultsVersions(dir)]);
+// Each run's own benchmark version: Red's the harness's, Crystal's its own ("crystal-0.1.0").
+const versions = new Set([...official.map((r) => runVersionOf(r)), ...resultsVersions(dir)]);
 mkdirSync(dir, { recursive: true });
 const updated = new Date().toISOString();
 for (const version of [...versions].sort()) {
