@@ -984,8 +984,10 @@ export class Travel {
         try {
           const through = (await this.exitMap(dir, true, here0)) as Record<string, unknown>;
           return { ...through, walk: `${head}; then ${String(through.walk ?? "")}` };
-        } catch {
-          return { ...out, walk: head };
+        } catch (e) {
+          // Say why it didn't go on (a door came into sight that leads somewhere the run doesn't know:
+          // walk_to it), not only the heading's dead end (a playtest, 2026-11-22).
+          return { ...out, walk: `${head}; ${e instanceof Error ? e.message : String(e)}` };
         }
       }
       // Out of a building means outdoors: where some of its known doors lead to a town or route, the

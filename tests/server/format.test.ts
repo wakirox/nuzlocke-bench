@@ -141,6 +141,8 @@ describe("messages", () => {
 
   it("joins a word broken over two lines with a hyphen without a space (Crystal)", () => {
     expect(sentences(["It's super-", "effective!"])).toEqual(["It's super-effective!"]);
+    // Also after an accented letter (the games' "é").
+    expect(sentences(["Don't lose at the POKé-", "MON LEAGUE!"])).toEqual(["Don't lose at the POKé-MON LEAGUE!"]);
     // A dash standing alone between words keeps its spaces.
     expect(sentences(["Wait -", "who's there?"])).toEqual(["Wait - who's there?"]);
   });
