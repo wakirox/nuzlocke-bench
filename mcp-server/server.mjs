@@ -237,6 +237,8 @@ const wrapLog = createToolLogger({
   session: () => ({
     benchmark: PRESET,
     harness: harnessVersion(PROJECT_ROOT, DIST),
+    // A game with its own benchmark version (Crystal): its leaderboard moves apart from Red's.
+    ...(RUN_GAME.version ? { gameVersion: RUN_GAME.version } : {}),
     headless: HEADLESS,
     ...(PLAYTEST ? { playtest: true } : {}),
     ...(SERVER_TRANSCRIPT ? { serverTranscript: true } : {}),

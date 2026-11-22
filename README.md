@@ -24,8 +24,8 @@ while you watch.
 The rulesets are a registry (`src/rulesets.ts`): Hardcore Nuzlocke is the one there is today.
 The games are too: everything game-specific (memory, screen, maps, data, bosses, the harness's
 interventions) sits behind a game adapter (`src/games/adapter.ts`). Gen 1 (`src/games/gen1/`: Red, Blue,
-Yellow) is the supported one. **Crystal (`src/games/gen2/`) is experimental**: it plays, but it's still being
-built, and its runs aren't scored or ranked.
+Yellow) and Gen 2 (`src/games/gen2/`: Crystal) are played. Crystal's runs are ranked since 2026-11-22,
+on a leaderboard of their own with their own benchmark version.
 
 The rules follow Hardcore Nuzlocke; how this harness reads the debatable ones (the first rival battle, the level cap) is in [docs/rules.md](docs/rules.md).
 

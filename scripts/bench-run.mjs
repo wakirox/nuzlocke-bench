@@ -59,7 +59,7 @@ if (argv.includes("--help") || argv.includes("-h")) {
 
 Usage: npm run bench -- --rom path/to/red.gb [options]
 
-  --rom <file>         the game: Red, Blue, Yellow, or Crystal (experimental: not scored) (or NUZLOCKE_ROM)
+  --rom <file>         the game: Red, Blue, Yellow, or Crystal (or NUZLOCKE_ROM)
   --model <id>         who plays (default claude-haiku-5-5). The standard context window is the default;
                        the [1m] suffix gives 1M (much costlier on long runs: every call re-reads the context)
   --effort <level>     low, medium, high… (default: Claude Code's; not with --api)

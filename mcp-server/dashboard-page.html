@@ -227,9 +227,14 @@ const counts = (key) => { const m = {}; for (const r of runsAll) if (r[key]) m[r
 $("f-game").innerHTML = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]).map(([g, n]) => `<option value="${esc(g)}">${esc(g[0].toUpperCase() + g.slice(1))} (${n})</option>`).join("");
 
 // One benchmark version at a time (results/<version>/): what the model is shown changes between versions,
-// so a run on one isn't the same test as a run on another. The version is the harness's, before "@commit".
-const versionOf = (r) => /^[^@\s(]+/.exec(String(r.harness ?? ""))?.[0] ?? "?";
-const vparts = (v) => v.split(".").map(Number);
+// so a run on one isn't the same test as a run on another. The version is the harness's, before "@commit",
+// or the game's own when it has one (Crystal: "crystal-0.1.0", its leaderboard apart from Red's).
+const versionOf = (r) => r.version ?? /^[^@\s(]+/.exec(String(r.harness ?? ""))?.[0] ?? "?";
+// A version as shown: its number ("crystal-0.1.0" → "0.1.0"; the game is picked beside it).
+const shownVersion = (v) => String(v).replace(/^[a-z]+-/, "");
+const vparts = (v) => shownVersion(v).split(".").map(Number);
+// The game's current version: its own, or the harness's.
+const currentOf = (game) => DATA.currentByGame?.[game] ?? DATA.current;
 const newer = (a, b) => { const x = vparts(a), y = vparts(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) - (x[i] || 0); return 0; };
 // What changed for the model in each version, in a few words (add one with each new version).
 const VERSION_NOTES = {
@@ -237,13 +242,14 @@ const VERSION_NOTES = {
   "0.3.0": "maps don't give away their size",
   "0.2.0": "fog of war: maps show only what the run has seen",
   "0.1.0": "whole maps from the start",
+  "crystal-0.1.0": "Crystal's first official version, on Red's 0.4.0 harness",
 };
 function versionOptions() {
   const n = {};
   for (const r of runsAll) if (r.game === $("f-game").value) n[versionOf(r)] = (n[versionOf(r)] ?? 0) + 1;
   const list = Object.keys(n).sort(newer);
   const keep = $("f-version").value;
-  $("f-version").innerHTML = list.map((v) => `<option value="${esc(v)}">${esc(v)} (${n[v]})</option>`).join("");
+  $("f-version").innerHTML = list.map((v) => `<option value="${esc(v)}">${esc(shownVersion(v))} (${n[v]})</option>`).join("");
   // The newest version that has runs, unless the reader picked one that this game also has.
   $("f-version").value = list.includes(keep) ? keep : list[0] ?? "";
 }
@@ -255,12 +261,13 @@ let filterGroup = null;
 const chosen = () => runsAll.filter((r) => r.game === $("f-game").value && versionOf(r) === $("f-version").value);
 function versionSummary() {
   const v = $("f-version").value;
+  const current = currentOf($("f-game").value);
   const what = (x) => (VERSION_NOTES[x] ? ` (${VERSION_NOTES[x]})` : "");
-  const ahead = DATA.current && v && newer(DATA.current, v) < 0;
-  const currentHasRuns = [...$("f-version").options].some((o) => o.value === DATA.current);
-  return !v ? "" : !ahead ? `Version ${v}${what(v)}.`
-    : currentHasRuns ? `Version ${v}${what(v)} — current is ${DATA.current}.`
-    : `Current is ${DATA.current} (no official runs yet); showing ${v}${what(v)}.`;
+  const ahead = current && v && newer(current, v) < 0;
+  const currentHasRuns = [...$("f-version").options].some((o) => o.value === current);
+  return !v ? "" : !ahead ? `Version ${shownVersion(v)}${what(v)}.`
+    : currentHasRuns ? `Version ${shownVersion(v)}${what(v)} — current is ${shownVersion(current)}.`
+    : `Current is ${shownVersion(current)} (no official runs yet); showing ${shownVersion(v)}${what(v)}.`;
 }
 
 const isBadge = (o) => /^badge\d$/.test(o.id);

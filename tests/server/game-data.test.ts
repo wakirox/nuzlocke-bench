@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error plain ESM module without type declarations
-import { GEN1, GEN2, gameData, gameOfRom, isExperimental, romVersion } from "../../mcp-server/games/index.mjs";
+import { GEN1, GEN2, benchVersionOf, gameData, gameOfRom, isExperimental, romVersion } from "../../mcp-server/games/index.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { firstRivalFromCalls, hardAreasOf, objectivesOf } from "../../mcp-server/report.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -15,10 +15,18 @@ import { hintState, nextHint } from "../../mcp-server/hints.mjs";
 const at = (n: number, map: string, extra: object = {}) => ({ n, tool: "walk", where: `X [${map}] x1 y1`, playTime: `0:00:${String(n).padStart(2, "0")}`, ...extra });
 
 describe("game data", () => {
-  it("marks Crystal experimental, and only Crystal", () => {
-    expect(isExperimental("crystal")).toBe(true);
-    expect(isExperimental("Crystal")).toBe(true);
-    for (const v of ["red", "blue", "yellow", null, undefined, "gold"]) expect(isExperimental(v)).toBe(false);
+  it("marks no game experimental: Crystal is official since 2026-11-22", () => {
+    for (const v of ["crystal", "Crystal", "red", "blue", "yellow", null, undefined, "gold"]) expect(isExperimental(v)).toBe(false);
+  });
+
+  it("files Red under the harness version and Crystal under its own", () => {
+    expect(benchVersionOf({ game: "red", harness: "0.4.0@abc1234" })).toBe("0.4.0");
+    expect(benchVersionOf({ game: "yellow", harness: "0.4.0@abc1234", gameVersion: "9.9.9" })).toBe("0.4.0");
+    expect(benchVersionOf({ game: "crystal", harness: "0.4.0@abc1234", gameVersion: "0.2.0" })).toBe("crystal-0.2.0");
+    // A Crystal run from before the version was recorded is its first.
+    expect(benchVersionOf({ game: "Crystal", harness: "0.4.0@abc1234" })).toBe("crystal-0.1.0");
+    expect(benchVersionOf({ game: "red", harness: null })).toBeNull();
+    expect(GEN2.version).toBe("0.1.0");
   });
 
   it("reads the game version from a ROM's header title", () => {

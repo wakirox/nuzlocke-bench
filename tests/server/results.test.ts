@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
-import { mergeResults, officialRuns, readVersion, resultsRuns, resultsVersions, RESULTS_FORMAT, versionOf, writeVersion } from "../../mcp-server/results.mjs";
+import { mergeResults, officialRuns, readVersion, resultsRuns, resultsVersions, RESULTS_FORMAT, runVersionOf, versionOf, writeVersion } from "../../mcp-server/results.mjs";
 // @ts-expect-error plain ESM module without type declarations
 import { findRunLogs } from "../../mcp-server/run-summary.mjs";
 // @ts-expect-error plain ESM module without type declarations
@@ -59,6 +59,13 @@ describe("mergeResults", () => {
   it("holds only its own version's runs", () => {
     const data = mergeResults(null, "0.2.0", [run("x"), run("y", { harness: "0.2.0@def5678" })], ["x", "y"], "now");
     expect(data.runs.map((r: { id: string }) => r.id)).toEqual(["y"]);
+  });
+
+  it("files a Crystal run under Crystal's own version, never the harness's", () => {
+    const runs = [run("red", { harness: "0.4.0@abc" }), run("cry", { harness: "0.4.0@abc", version: "crystal-0.1.0" })];
+    expect(mergeResults(null, "0.4.0", runs, ["red", "cry"], "now").runs.map((r: { id: string }) => r.id)).toEqual(["red"]);
+    expect(mergeResults(null, "crystal-0.1.0", runs, ["red", "cry"], "now").runs.map((r: { id: string }) => r.id)).toEqual(["cry"]);
+    expect(runs.map((r) => runVersionOf(r))).toEqual(["0.4.0", "crystal-0.1.0"]);
   });
 });
 

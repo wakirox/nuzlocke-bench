@@ -35,10 +35,17 @@ export const OPTIONS = {
 export const DEFAULT_OPTIONS = ["firstrival", "hardcap"];
 
 /**
- * The official run (docs/scoring.md): the full game on Red with the default options, no hints. Only
- * runs under exactly these rules, from a new game, ended by the rules, make the leaderboard.
+ * The official run (docs/scoring.md): the full game with the default options, no hints, on one of the
+ * official games, from the day it became one: Red since 2026-11-08, Crystal since 2026-11-22 (its own
+ * benchmark versions and leaderboard). Only runs under exactly these rules, from a new game, ended by the
+ * rules, make the leaderboard. `game` and `since` are Red's, as results files said before `games`.
  */
-export const OFFICIAL = { preset: "hardcore-nuzlocke+firstrival+hardcap", game: "red", since: "2026-11-08" };
+export const OFFICIAL = {
+  preset: "hardcore-nuzlocke+firstrival+hardcap",
+  game: "red",
+  since: "2026-11-08",
+  games: { red: "2026-11-08", crystal: "2026-11-22" },
+};
 
 /** The options asked for (-o), with the defaults added and each "no<option>" taken away. */
 export function withDefaultOptions(given, defaults = DEFAULT_OPTIONS) {

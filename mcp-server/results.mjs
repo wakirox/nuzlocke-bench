@@ -96,9 +96,17 @@ export function versionOf(harness) {
   return v || null;
 }
 
+/**
+ * The benchmark version a run is filed under: its own (Crystal's, "crystal-0.1.0") when it carries one,
+ * else the harness version (Red's).
+ */
+export function runVersionOf(run) {
+  return run.version ?? versionOf(run.harness);
+}
+
 /** The dashboard's runs (dashboardRuns, names: false) that are results: official, and not a stray start. */
 export function officialRuns(runs) {
-  return runs.filter((r) => !r.notOfficial && !r.short && versionOf(r.harness));
+  return runs.filter((r) => !r.notOfficial && !r.short && runVersionOf(r));
 }
 
 /**
@@ -110,7 +118,7 @@ export function officialRuns(runs) {
 export function mergeResults(existing, version, runs, localIds, updated) {
   const local = new Set(localIds);
   const kept = (existing?.runs ?? []).filter((r) => !local.has(r.id));
-  const mine = runs.filter((r) => versionOf(r.harness) === version);
+  const mine = runs.filter((r) => runVersionOf(r) === version);
   return {
     format: RESULTS_FORMAT,
     version,

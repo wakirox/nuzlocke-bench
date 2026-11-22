@@ -76,9 +76,10 @@ npm run bench -- --rom path/to/red.gb --model claude-haiku-5-5 --effort medium \
 npm run bench -- --rom path/to/red.gb --model qwen3.8:27b --api openai [--base-url http://127.0.0.1:11434/v1] [--compact-window 100]
 ```
 
-Crystal is an **experimental** game: `--rom` with a Crystal ROM plays, and says so when it starts, but the run
-records `experimental: true` and is left out of the dashboard and the published results. Its milestones
-and scoring aren't settled yet.
+`--rom` with a Crystal ROM plays Crystal. Its runs are official since 2026-11-22, on a leaderboard of
+their own with their own benchmark version (`version` in `mcp-server/games/gen2.mjs`, recorded in the
+run log as `gameVersion`), so a change to Crystal doesn't move Red's leaderboard. A game module can still
+be marked `experimental: true`: it plays, but its runs aren't scored or ranked.
 
 - **`--api openai|anthropic`**: the model plays through its API instead of Claude Code: OpenAI-style chat completions
   (Ollama, vLLM, OpenRouter…) or Anthropic's Messages API. It reads only the prompt and the game's tools, with no

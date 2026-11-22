@@ -8,8 +8,10 @@ const ITEM = { egg: 69, squirtBottle: 175, secretPotion: 67, redScale: 66, cardK
 
 export const GEN2 = {
   versions: ["crystal"],
-  // Work in progress: playable, but its runs aren't scored or ranked (docs/benchmark.md).
-  experimental: true,
+  // Crystal's own benchmark version (official since 2026-11-22, owner): a change to what the model sees
+  // in Crystal bumps this one, and Red's leaderboard (the harness version) doesn't move; a change that
+  // reaches both games bumps both. Runs from before it was recorded are its first version.
+  version: "0.1.0",
   // The maps before the first rival battle (in the second town, after the errand south of it):
   // the player can't get further before that fight.
   home: new Set([

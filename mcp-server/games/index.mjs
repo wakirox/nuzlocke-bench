@@ -33,6 +33,18 @@ export function gameOfRom(path) {
 }
 
 /**
+ * A run's benchmark version, the leaderboard it's on: Red's (and Yellow's) is the harness version without
+ * its commit ("0.4.0@abc1234" → "0.4.0"); a game with a version of its own (Crystal) is "<game>-<its
+ * version>", as the run recorded it ("crystal-0.1.0"), so a change to one game doesn't move the other's.
+ * A Crystal run from before the version was recorded is its first, 0.1.0.
+ * @param {{ game?: string | null, harness?: string | null, gameVersion?: string | null }} run
+ */
+export function benchVersionOf({ game, harness, gameVersion }) {
+  if (/** @type {any} */ (gameData(game)).version) return `${String(game).toLowerCase()}-${gameVersion ?? "0.1.0"}`;
+  return /^[^@\s(]+/.exec(String(harness ?? ""))?.[0] || null;
+}
+
+/**
  * Each game version's milestones, as the dashboard and the results list them: { "red": [{ id, label }],
  * …, "crystal": [...] }. A run's progress is read against its own game's (Crystal's aren't Red's).
  */
