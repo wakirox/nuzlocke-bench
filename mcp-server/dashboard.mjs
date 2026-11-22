@@ -7,7 +7,7 @@ import { scoreRun } from "./score.mjs";
 import { capabilitiesOf, joinToolUse } from "./capabilities.mjs";
 import { OFFICIAL } from "./benchmark.mjs";
 import { COMPACT_WINDOW, DEFAULT_MAX_TOKENS, GIVE_UP_AFTER } from "./bench-runner.mjs";
-import { isExperimental } from "./games/index.mjs";
+import { gameData, isExperimental, objectivesByGame } from "./games/index.mjs";
 
 /** Below this many calls, a run that nothing ended is a stray start, not a result. */
 const SHORT_RUN = 50;
@@ -210,7 +210,10 @@ export function dashboardRuns(rows, { names = true } = {}) {
     // An experimental game (Crystal) isn't on the dashboard at all, not even as a run's own page.
     if (isExperimental(first.game)) continue;
     const reached = new Set(legs.flatMap((l) => Object.keys(l.objectives ?? {})));
-    const furthest = OBJECTIVES.reduce((at, o, i) => (reached.has(o.id) ? i : at), -1);
+    // On the run's own game's milestones (Crystal's aren't Red's).
+    /** @type {{ id: string }[]} */
+    const objectives = gameData(first.game).objectives;
+    const furthest = objectives.reduce((at, o, i) => (reached.has(o.id) ? i : at), -1);
     const calls = legs.reduce((n, l) => n + (l.calls ?? 0), 0);
     const outcome = outcomeKind(last.outcome, last.agent);
     // Run logs from before 2026-11-15 leave out a wipe's last Pokémon (the run ended before it was counted).
@@ -284,7 +287,8 @@ export function dashboardRuns(rows, { names = true } = {}) {
 /** The page: its template with the data in it. */
 export function renderDashboard(template, runs, generatedAt, current = null) {
   // `current`: the bench version now (package.json), so the page can say when it has no runs yet.
-  const data = { generatedAt, current, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), runs };
+  // `objectives` stays Red's (a reader from before objectivesByGame); each run is read against its own game's.
+  const data = { generatedAt, current, objectives: OBJECTIVES.map((o) => ({ id: o.id, label: o.label })), objectivesByGame: objectivesByGame(), runs };
   // "<" can't close the script tag it sits in.
   return template.replace("/*DATA*/null", () => JSON.stringify(data).replace(/</g, "\\u003c"));
 }
