@@ -84,6 +84,13 @@ export const hasActiveCursor = (lines: string[]): boolean => lines.some((l) => l
 export const hasAnyCursor = (lines: string[]): boolean => lines.some((l) => l.includes("▶") || l.includes("▷"));
 export const hasMorePrompt = (rows: string[]): boolean => rows.some((l) => l.includes("▼"));
 export const isScreenFaded = (lines: string[]): boolean => lines.some((l) => l.includes("faded to white"));
+/**
+ * A screen between two menus: tiles but nothing readable, not even the overworld's "(No text on
+ * screen…)" (that one has letters). Crystal clears the party screen and redraws the bag over
+ * frames, with no fade a palette shows (Gen 1 fades to white); read as "closed", the bag came back
+ * after the menus were thought shut (a playtest, 2026-11-22).
+ */
+export const isScreenBetweenMenus = (lines: string[]): boolean => !lines.some((l) => /[A-Za-z0-9▶▷]/.test(l));
 export const isBlankOrGraphicsScreen = (lines: string[]): boolean => lines.every((l) => !l.trim() || l.startsWith("(No text"));
 
 /** The naming keyboard isn't a menu of options: sweeping it would type letters. */

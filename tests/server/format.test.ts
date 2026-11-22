@@ -139,6 +139,12 @@ describe("messages", () => {
     expect(sentences(["Hey! We met on", "the trail!", "WALKER wants", "a rematch!"])).toEqual(["Hey! We met on the trail!", "WALKER wants a rematch!"]);
   });
 
+  it("joins a word broken over two lines with a hyphen without a space (Crystal)", () => {
+    expect(sentences(["It's super-", "effective!"])).toEqual(["It's super-effective!"]);
+    // A dash standing alone between words keeps its spaces.
+    expect(sentences(["Wait -", "who's there?"])).toEqual(["Wait - who's there?"]);
+  });
+
   it("says a status move that \"didn't affect\" the foe missed or failed; an immunity is left as it is", () => {
     expect(sentences(["NOVA used", "HUMMING!", "It didn't affect", "Enemy BIRDMON!"])).toEqual([
       "NOVA used HUMMING!",

@@ -12,6 +12,7 @@ import {
   isNamingKeyboardScreen,
   isPartyScreenOpen,
   isSafariMenuScreen,
+  isScreenBetweenMenus,
   isScreenFaded,
   isStartMenuShown,
   isTargetMoveListOpen,
@@ -118,5 +119,14 @@ describe("screen-state recognizers", () => {
     const etherMoves = screenRows({ 8: "│▶THUNDERSHOCK│", 9: "│ GROWL       │" });
     expect(isTargetMoveListOpen(etherMoves, ["THUNDERSHOCK", "GROWL"])).toBe(true);
     expect(isTargetMoveListOpen(etherMoves, ["SURF", "CUT"])).toBe(false);
+  });
+
+  it("tells a screen between two menus (nothing readable) from the overworld and from a menu", () => {
+    // Crystal, party screen cleared and the bag not drawn yet: border tiles, no text.
+    expect(isScreenBetweenMenus(screenRows({ 0: "┌────────┐", 1: "│        │", 2: "└────────┘" }))).toBe(true);
+    expect(isScreenBetweenMenus(["", "", ""])).toBe(true);
+    expect(isScreenBetweenMenus(["(No text on screen — overworld or a graphics screen. Use get_screen to see it.)"])).toBe(false);
+    expect(isScreenBetweenMenus(screenRows({ 2: "▶HEAL ITEM × 7" }))).toBe(false);
+    expect(isScreenBetweenMenus(screenRows({ 14: "Restores POKéMON" }))).toBe(false);
   });
 });
