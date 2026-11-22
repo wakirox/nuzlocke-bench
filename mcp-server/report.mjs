@@ -482,6 +482,8 @@ export function objectiveCallsOf(calls, game = GEN1) {
 
 function reachedBy(calls, game, value) {
   const reached = {};
+  /** The call index each milestone came at (for `after`). */
+  const reachedAt = {};
   calls.forEach((c, i) => {
     const map = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];
     // The maps the call passed through on the way count too (a log from before they were recorded has none).
@@ -490,7 +492,16 @@ function reachedBy(calls, game, value) {
       if (reached[o.id] !== undefined) continue;
       // A rival fought on one map, or one of a few (a floor that gives way: the fight ends below).
       const beatRival = !!o.rival && !!map && [o.rival].flat().includes(map) && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
-      if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && passed.some((m) => o.maps.includes(m))) || beatRival) reached[o.id] = value(c, i);
+      // One trainer beaten, by class and number (on its map, when given): a step the story ends with a
+      // fight, e.g. the well's last grunt, whose script clears the well.
+      const beat = !!o.beat && c.fight?.result === "won" && c.fight.trainerClass === o.beat.trainerClass && c.fight.number === o.beat.number &&
+        (!o.beat.maps || passed.some((m) => o.beat.maps.includes(m)));
+      // Only once another milestone was reached at an earlier call (a place gone back to with something in hand).
+      if (o.after && !(reached[o.after] !== undefined && reachedAt[o.after] < i)) continue;
+      if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && passed.some((m) => o.maps.includes(m))) || beatRival || beat) {
+        reached[o.id] = value(c, i);
+        reachedAt[o.id] = i;
+      }
     }
   });
   // A log from before fights were recorded can't show rival wins: a run past a rival fought it and won.

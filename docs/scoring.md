@@ -93,6 +93,16 @@ speed bonuses, the dark tunnel or the failed-call rate, as it doesn't use up the
 A call that passes through a milestone's map counts for it, even when it ends somewhere else (since 2026-11-14,
 for runs logged from then on: older logs only show where each call ended).
 
+### Crystal (experimental, not ranked yet)
+
+Decided 2026-11-22 (issue #85): a Crystal run ends at the Champion, as Red's does; the second region is
+for a separate preset later. The points are Red's: each of the 8 badges +60, each of the 21 other
+milestones +30 (the 5 rival wins among them), the Champion +130, the same costs and the same pace
+speed. Progress adds up to 1240. The milestones are `objectives` in `mcp-server/games/gen2.mjs`.
+
+Red's step bonuses (the cottage step, the dark tunnel, Flash) have no Crystal counterpart, and Crystal
+gets none of its own for now: pace speed only, until runs show where models stall.
+
 ## A model's score
 
 The median of its official runs, not its best: one lucky run shouldn't carry a model.
