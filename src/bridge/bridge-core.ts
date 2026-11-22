@@ -177,6 +177,7 @@ export class BridgeCore {
       this.flightCalls = 0;
       if (this.mapChangeIsNoDoor || flown) {
         this.warpedFrom = null;
+        this.arrivedBy = null;
       } else {
         // Just warped: the coordinates and screen may not be the new map's yet, so the arrival is
         // taken at the next look (now, when the caller knows the game has settled there).
@@ -224,7 +225,11 @@ export class BridgeCore {
    */
   flightCalls = 0;
 
-  /** Where the player came onto the current map through a door (its square on this map); null after a flight or a battle. */
+  /**
+   * Where the player came onto the current map through a door (its square on this map). Null after a
+   * map change that isn't a door (a flight, Dig, Teleport, an Escape Rope). A battle keeps it: a wild
+   * one in a cave doesn't change how you came in, and a whiteout lands on another map (review of #106).
+   */
   arrivedBy: { map: number; x: number; y: number } | null = null;
 
   /** The bottom text box (Gen 1: rows 12–17) if one is on screen, as its text lines. */

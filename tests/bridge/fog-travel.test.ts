@@ -302,6 +302,22 @@ describe("exit_map looks for a way out first, then takes one that came into sigh
       expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
     });
 
+    it("is taken at once in a room seen whole with no other door (review of #106)", async () => {
+      const w = world(IN);
+      for (const [x, y] of [[1, 4], [10, 4], [1, 8], [10, 8]]) w.core.host.seen!()!.sawScreen(MAP, x, y);
+      const r = (await w.travel.exitMap("down")) as { walk: string };
+      expect(r.walk).toContain("out through the door at (5, 8) to INNER_ROOM");
+      expect(r.walk).not.toContain("not back through");
+    });
+
+    it("with another door too: passed over, then taken when asked again, not a choice among both (review of #106)", async () => {
+      const { core, travel } = world([...IN, { x: 2, y: 8, to: "?", tx: 1, ty: 1, outside: false }]);
+      await expect(travel.exitMap("down")).rejects.toThrow(/Doors: \(2,8\) → \?.*\(not back through the door you came in by: exit_map down again takes it\)/);
+      const r = (await travel.exitMap("down")) as { walk: string };
+      expect(r.walk).toContain("out through the door at (5, 8) to INNER_ROOM");
+      expect(core.host.position()).toMatchObject({ x: 5, y: 8 });
+    });
+
     it("is taken at once when it leads outdoors (out of a house is out)", async () => {
       const { core, travel } = world([{ ...IN[0], to: "SOME_TOWN", outside: true }]);
       const r = (await travel.exitMap("down")) as { walk: string };

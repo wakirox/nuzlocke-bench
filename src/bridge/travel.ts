@@ -1019,8 +1019,13 @@ export class Travel {
       const askedAgain = !explored && this.skippedDoorIn?.map === startMapOf && this.skippedDoorIn.dir === dir;
       // Asked again, the door in counts wherever it is now (the heading may have passed it).
       const seenDoors = hasFog(full) ? (full.doors ?? []).filter((d) => ahead(d) || (askedAgain && isDoorIn(d))) : full.doors ?? [];
-      const skipIn = !askedAgain && seenDoors.some(isDoorIn);
-      const doors = skipIn ? seenDoors.filter((d) => !isDoorIn(d)) : seenDoors;
+      const doorsIn = seenDoors.filter(isDoorIn);
+      const others = seenDoors.filter((d) => !isDoorIn(d));
+      // Passed over only when there's somewhere else to look: squares not seen yet to head into, or
+      // another door. A room seen whole with only the door in is left through it (review of #106).
+      const skipIn = !askedAgain && doorsIn.length > 0 && (hasFog(full) || others.length > 0);
+      // Asked again: the door in itself, not a choice among every door (that could refuse again).
+      const doors = askedAgain && doorsIn.length ? doorsIn : skipIn ? others : seenDoors;
       if (!explored) this.skippedDoorIn = skipIn ? { map: startMapOf, dir } : null;
       const doorInNote = skipIn ? ` (not back through the door you came in by: exit_map ${dir} again takes it)` : "";
       // No door in sight yet that way (fog of war, e.g. a run resumed inside): head the way asked
