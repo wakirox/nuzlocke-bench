@@ -104,7 +104,11 @@ const FACINGS: [number, number][] = [[0, 1], [0, -1], [-1, 0], [1, 0]];
  * `beaten`: the game's own flag says so, for a trainer the tracker can't name (Crystal's gym leaders
  * start the fight from their own script, not as a trainer spotted or talked to).
  */
-export interface TrainerSprite { index: number; x: number; y: number; dx: number; dy: number; onScreen: boolean; sight: boolean; beaten?: boolean }
+export interface TrainerSprite {
+  index: number; x: number; y: number; dx: number; dy: number; onScreen: boolean; sight: boolean; beaten?: boolean;
+  /** For one that turns by itself (spins, wanders, walks to and fro): every way it can face. */
+  facings?: [number, number][];
+}
 
 /** Which way an on-screen trainer faces, from the same TrainerSprite vector markWatched uses; undefined off screen (not updated). */
 export function trainerFacing(s: Pick<TrainerSprite, "dx" | "dy" | "onScreen">): Dir | undefined {
@@ -123,8 +127,9 @@ export function markWatched(v: OverworldView, trainers: TrainerSprite[], beaten:
   const watchers = new Map<number, [number, number][]>();
   for (const t of trainers) {
     if (beaten.includes(t.index) || !t.sight) continue;
-    // Off-screen sprites aren't updated, so their facing isn't known yet: assume any way.
-    const dirs = t.onScreen ? [[t.dx, t.dy]] : FACINGS;
+    // Off-screen sprites aren't updated, so their facing isn't known yet: assume any way. One that
+    // turns by itself may face any of its ways by the time the walk gets there.
+    const dirs = !t.onScreen ? FACINGS : t.facings ?? [[t.dx, t.dy]];
     for (const [dx, dy] of dirs) {
       for (let k = 1; k <= reach; k++) {
         const c = t.x + dx * k - v.originX;
