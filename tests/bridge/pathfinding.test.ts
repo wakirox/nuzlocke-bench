@@ -422,6 +422,22 @@ describe("renderView", () => {
     v.exits = ["up"];
     expect(renderView(v)).toMatch(/^Map exits: up\.\n/);
   });
+  it("counts the holes in the exits line, side-by-side squares once", () => {
+    // Crystal's lighthouse 6F: one door down and a two-square hole; "only 1 door" read as a dead end.
+    const v = view([
+      "#OO#O",
+      "#.@.#",
+      "#D###",
+    ]);
+    v.exits = [];
+    v.doors = [{ x: OX + 1, y: OY + 2, to: "5F", tx: 6, ty: 10 }];
+    expect(renderView(v)).toMatch(/^Map exits: none \(only 1 door \(D\) and 2 holes \(O\)\)\./);
+    v.doors = [];
+    v.exits = ["up"];
+    expect(renderView(v)).toMatch(/^Map exits: up, plus 2 holes \(O\)\./);
+    v.grid = v.grid.map((row) => row.map((ch, c) => (ch === "O" && c !== 4 ? "#" : ch)));
+    expect(renderView(v)).toMatch(/^Map exits: up, plus 1 hole \(O\)\./);
+  });
 });
 
 describe("reachability", () => {
