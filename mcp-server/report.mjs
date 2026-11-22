@@ -5,7 +5,7 @@
 
 /** Parses a run log's text into its session header and call entries. */
 import { harnessLabel } from "./provenance.mjs";
-import { GEN1 } from "./games/index.mjs";
+import { GEN1, gameData } from "./games/index.mjs";
 
 /** Gen 1's milestones and hard areas: the dashboard and tables list these (games/gen1.mjs). */
 export const OBJECTIVES = GEN1.objectives;
@@ -676,21 +676,35 @@ export function objectivesTable(rows) {
   const runs = new Map();
   for (const r of rows) {
     const root = rootOf(r);
-    const run = runs.get(root.name) ?? { group: `${groupOf(root.agent, root)}${root.preset ? ` · ${root.preset}` : ""}`, reached: {} };
+    const run = runs.get(root.name) ?? { group: `${groupOf(root.agent, root)}${root.preset ? ` · ${root.preset}` : ""}`, game: gameData(root.game), version: root.game ?? "red", reached: {} };
     for (const [k, v] of Object.entries(r.objectives ?? {})) if (run.reached[k] === undefined) run.reached[k] = v;
     runs.set(root.name, run);
   }
-  const groups = [...new Set([...runs.values()].map((r) => r.group))].sort();
+  // A table per game, each on its own milestones (a Crystal run was listed against Red's, 2026-11-22);
+  // with one game, as it always was.
+  const games = [...new Set([...runs.values()].map((r) => r.game))];
+  return games.map((game) => {
+    const of = [...runs.values()].filter((r) => r.game === game);
+    const table = milestonesTable(of, game.objectives);
+    if (games.length === 1) return table;
+    const versions = [...new Set(of.map((r) => r.version))].map((v) => v[0].toUpperCase() + v.slice(1)).join(", ");
+    return `**${versions}**\n\n${table}`;
+  }).filter(Boolean).join("\n\n");
+}
+
+/** The milestone table of runs of one game: { group, reached } each, against `objectives`. */
+function milestonesTable(runs, objectives) {
+  const groups = [...new Set(runs.map((r) => r.group))].sort();
   if (!groups.length) return "";
-  const inGroup = (g) => [...runs.values()].filter((r) => r.group === g);
+  const inGroup = (g) => runs.filter((r) => r.group === g);
   const pct = (n, d) => `${n}/${d}${d ? ` (${Math.round((100 * n) / d)}%)` : ""}`;
   const head = `| Objective | ${groups.join(" | ")} |`;
   const sep = `|---|${groups.map(() => "---|").join("")}`;
-  const body = OBJECTIVES.map((o) => `| ${o.label} | ${groups.map((g) => { const rs = inGroup(g); return pct(rs.filter((r) => r.reached[o.id] !== undefined).length, rs.length); }).join(" | ")} |`);
+  const body = objectives.map((o) => `| ${o.label} | ${groups.map((g) => { const rs = inGroup(g); return pct(rs.filter((r) => r.reached[o.id] !== undefined).length, rs.length); }).join(" | ")} |`);
   const stopped = groups.map((g) => {
     const counts = {};
     for (const r of inGroup(g)) {
-      const next = OBJECTIVES.find((o) => !o.rival && r.reached[o.id] === undefined);
+      const next = objectives.find((o) => !o.rival && r.reached[o.id] === undefined);
       const at = next ? next.label : "finished";
       counts[at] = (counts[at] ?? 0) + 1;
     }
