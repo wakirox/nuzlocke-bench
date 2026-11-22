@@ -12,8 +12,11 @@ import { gameData } from "./games/index.mjs";
 import { UNCOUNTED } from "./call-budget.mjs";
 import { toolUseOf } from "./capabilities.mjs";
 
-/** The summary's format: a reader that finds another one computes the rows again. */
-export const SUMMARY_VERSION = 6;
+/**
+ * The summary's format: a reader that finds another one computes the rows again. 7: a rival win counts on the
+ * fight's own map too (report.mjs reachedBy).
+ */
+export const SUMMARY_VERSION = 7;
 
 const readIf = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 
