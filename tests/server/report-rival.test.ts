@@ -21,6 +21,17 @@ describe("rival milestones", () => {
     expect(objectivesOf([call("CERULEAN_CITY", 0x06, "won")]).rival2).toBeUndefined();
   });
 
+  it("counts a win whose call walked on to another map, by the fight's own map", () => {
+    // 2026-11-22: the call that won the first rival fight ended in the next town; its passed maps don't hold the
+    // map it started on, the fight record does.
+    const walkedOn = (map: string, fightMap: string, trainerClass: number) =>
+      ({ ...call(map, trainerClass, "won"), maps: ["ROUTE_29", map], fight: { trainerClass, result: "won", map: fightMap } });
+    expect(objectivesOf([walkedOn("NEW_BARK_TOWN", "CHERRYGROVE CITY", 9)], GEN2).rival1).toBe("1:00:00");
+    expect(objectivesOf([walkedOn("ROUTE_25", "CERULEAN CITY", 0x19)]).rival2).toBe("1:00:00");
+    // Another trainer's win on that map still isn't the rival's.
+    expect(objectivesOf([walkedOn("NEW_BARK_TOWN", "CHERRYGROVE CITY", 0x06)], GEN2).rival1).toBeUndefined();
+  });
+
   it("counts only the later fight on the route with two", () => {
     expect(objectivesOf([call("ROUTE_22", 0x19, "won")]).rival6).toBeUndefined();
     expect(objectivesOf([call("ROUTE_22", 0x2a, "won")]).rival6).toBe("1:00:00");

@@ -505,8 +505,12 @@ function reachedBy(calls, game, value, earlier = []) {
     const passed = [...(c.maps ?? []), map].filter(Boolean);
     for (const o of game.objectives) {
       if (reached[o.id] !== undefined) continue;
-      // A rival fought on one map, or one of a few (a floor that gives way: the fight ends below).
-      const beatRival = !!o.rival && !!map && [o.rival].flat().includes(map) && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
+      // A rival fought on one map, or one of a few (a floor that gives way: the fight ends below). The map is where
+      // the call ended, or the fight's own (its name, "CHERRYGROVE CITY"): a call that wins and walks on ends
+      // elsewhere, and its passed maps don't hold the one it started on (2026-11-22: a rival win at call 37 ended
+      // in the next town and went uncounted).
+      const fightMap = String(c.fight?.map ?? "").replace(/ /g, "_");
+      const beatRival = !!o.rival && [o.rival].flat().some((m) => m === map || m === fightMap) && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
       // One trainer beaten, by class and number (on its map, when given): a step the story ends with a
       // fight, e.g. the well's last grunt, whose script clears the well.
       const beat = !!o.beat && c.fight?.result === "won" && c.fight.trainerClass === o.beat.trainerClass && c.fight.number === o.beat.number &&
