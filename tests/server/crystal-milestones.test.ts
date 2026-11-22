@@ -39,6 +39,12 @@ describe("Crystal's story milestones", () => {
     expect(reached([at("CIANWOOD_CITY"), at("OLIVINE_LIGHTHOUSE_6F")])).toEqual(expect.arrayContaining(["lighthouse", "island", "medicine"]));
   });
 
+  it("counts the medicine from one call when the island was reached before it (the server checks one call at a time; review of #107)", () => {
+    const up = [at("OLIVINE_LIGHTHOUSE_6F")];
+    expect(Object.keys(objectivesOf(up, GEN2, new Set(["lighthouse"])))).not.toContain("medicine");
+    expect(Object.keys(objectivesOf(up, GEN2, new Set(["lighthouse", "island"])))).toContain("medicine");
+  });
+
   it("counts the last cave on first entering it", () => {
     expect(reached([at("VICTORY_ROAD")])).toContain("lastCave");
   });

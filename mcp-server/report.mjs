@@ -471,8 +471,16 @@ export function splitsTable(rows) {
 
 /** Which objectives a run's calls reached: { id: game time when first reached }. */
 
-export function objectivesOf(calls, game = GEN1) {
-  return reachedBy(calls, game, (c) => c.playTime ?? null);
+/**
+ * `earlier`: milestone ids already reached before these calls (the server checks one call at a
+ * time): a milestone that needs another one first (`after`) counts once that one is among them
+ * (the medicine after the island could never be saved, review of #107).
+ * @param {any[]} calls
+ * @param {any} [game]
+ * @param {Iterable<string>} [earlier]
+ */
+export function objectivesOf(calls, game = GEN1, earlier = []) {
+  return reachedBy(calls, game, (c) => c.playTime ?? null, earlier);
 }
 
 /** The same, as the number of calls it took: { id: 1-based call that first reached it } (for the speed points). */
@@ -480,10 +488,16 @@ export function objectiveCallsOf(calls, game = GEN1) {
   return reachedBy(calls, game, (c, i) => i + 1);
 }
 
-function reachedBy(calls, game, value) {
+/**
+ * @param {any[]} calls
+ * @param {any} game
+ * @param {(c: any, i: number) => any} value
+ * @param {Iterable<string>} [earlier]
+ */
+function reachedBy(calls, game, value, earlier = []) {
   const reached = {};
-  /** The call index each milestone came at (for `after`). */
-  const reachedAt = {};
+  /** The call index each milestone came at (for `after`); -1 for one reached before these calls. */
+  const reachedAt = Object.fromEntries([...earlier].map((id) => [id, -1]));
   calls.forEach((c, i) => {
     const map = /\[([A-Z0-9_]+)\]/.exec(c.where ?? "")?.[1];
     // The maps the call passed through on the way count too (a log from before they were recorded has none).
@@ -497,7 +511,7 @@ function reachedBy(calls, game, value) {
       const beat = !!o.beat && c.fight?.result === "won" && c.fight.trainerClass === o.beat.trainerClass && c.fight.number === o.beat.number &&
         (!o.beat.maps || passed.some((m) => o.beat.maps.includes(m)));
       // Only once another milestone was reached at an earlier call (a place gone back to with something in hand).
-      if (o.after && !(reached[o.after] !== undefined && reachedAt[o.after] < i)) continue;
+      if (o.after && !(reachedAt[o.after] !== undefined && reachedAt[o.after] < i)) continue;
       if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && passed.some((m) => o.maps.includes(m))) || beatRival || beat) {
         reached[o.id] = value(c, i);
         reachedAt[o.id] = i;

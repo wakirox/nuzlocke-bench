@@ -219,7 +219,8 @@ const RUN_LOG_FILE = process.env.NUZLOCKE_RUN_LOG === "off" ? null
 const RUN_GAME = gameOfRom(process.env.NUZLOCKE_ROM);
 
 async function saveMilestones(entry) {
-  for (const id of Object.keys(objectivesOf([entry], RUN_GAME))) {
+  // One call at a time: the milestones saved before count as reached for one that needs them first.
+  for (const id of Object.keys(objectivesOf([entry], RUN_GAME, milestonesSaved))) {
     if (milestonesSaved.has(id)) continue;
     milestonesSaved.add(id);
     await call("milestone_save", { id });
