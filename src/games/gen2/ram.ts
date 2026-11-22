@@ -4,6 +4,7 @@
 // emulator offers it (MemoryReader.readWram).
 
 import type { BattleMonState, BattlerHp, GameState, MemoryReader, MonState, Position } from "../types";
+import { battleTypes } from "../battle-types";
 import { charFor, decodeText } from "./text";
 import { MAP_CONSTANTS_CRYSTAL } from "./map-constants";
 import { currentBoxCount, currentBoxNewest, readPcMons } from "./boxes";
@@ -121,6 +122,7 @@ function readBattleMon(mem: MemoryReader, base: number, nickAddr: number, statLe
     stats: { atk: w(20), def: w(22), spd: w(24), spc: w(26), spdef: w(28) },
     exp: 0,
     stages: [l[0], l[1], l[2], l[3], l[5], l[6], l[4]],
+    types: battleTypes(b[30], b[31]),
   };
 }
 

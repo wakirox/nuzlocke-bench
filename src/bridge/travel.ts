@@ -14,6 +14,9 @@ export { seenSteps };
 const FRAMES_PER_TILE = 16;
 /** How long a walk waits out a scene that has taken the controls (30 s of game time). */
 const SCENE_FRAMES = 1800;
+/** A walk_to through unseen squares stops after this many times the straight distance (and at least GUESS_MIN_SQUARES). */
+const GUESS_TIMES_STRAIGHT = 3;
+const GUESS_MIN_SQUARES = 20;
 /** One square each way, for counting a walk's squares on the downhill road (walkStraight). */
 const SLOPE_STEP: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 /** hunt, when no square seen has a neighbour of the same kind to pace back and forth to. */
@@ -63,6 +66,17 @@ export function huntableIn(note: string): { land: boolean; water: boolean } {
 export function flyPlace(lines: string[]): string {
   const line = lines.find((l) => /[A-Z]/.test(l) && !/^\W*Where\?\W*$/i.test(l)) ?? "";
   return line.replace(/^\W*To\W+/, "").replace(/^[^A-Za-z0-9]+/, "").replace(/[^A-Za-z0-9.é']+$/, "").trim();
+}
+
+/**
+ * Whether going from `from` to `to` (same map), after a walk `dir`, was a warp: more than a step off
+ * the line walked, or back along it. A slide on ice or a ledge hop only goes on along it.
+ */
+export function warpedOnMap(dir: Dir, from: { x: number; y: number }, to: { x: number; y: number }): boolean {
+  const [sx, sy] = SLOPE_STEP[dir];
+  const along = (to.x - from.x) * sx + (to.y - from.y) * sy;
+  const across = Math.abs((to.x - from.x) * sy) + Math.abs((to.y - from.y) * sx);
+  return across > 1 || along < -1;
 }
 
 export class Travel {
@@ -624,6 +638,31 @@ export class Travel {
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
+    // A door that leads elsewhere on the same map (a locked door in a Crystal underpass) moves
+    // the player there with the map unchanged: "up 1/1 — arrived" hid a move of some 25 squares (a
+    // playtest, 2026-11-22). A jump off the line walked, or back along it, is that; a slide on
+    // and a ledge hop go on along it.
+    let landed = this.core.host.position();
+    // The game warps a little after the step onto the door has settled: on a door square, wait for it.
+    if (stopped === "arrived" && landed.map === last.map && !landed.battle && this.core.rawView(true).doors?.some((d) => d.x === landed.x && d.y === landed.y)) {
+      try {
+        for (let f = 0; f < 90; f += 6) {
+          await this.core.slopeFrames(6, 6);
+          const p = this.core.host.position();
+          if (p.map !== landed.map) {
+            stopped = "entered a new map";
+            break;
+          }
+          if (p.x !== landed.x || p.y !== landed.y || p.battle) break;
+        }
+      } finally {
+        this.core.letGoOfSlope();
+      }
+      landed = this.core.host.position();
+    }
+    if (stopped === "arrived" && landed.map === last.map && !landed.battle && warpedOnMap(dir, last, landed)) {
+      stopped = `went through a door/warp to ${this.core.at(landed.x, landed.y)}, on this map`;
+    }
     // On ice the slide goes on after the squares asked for: say how far past them the player went
     // that way ("down 2/2" hid a slide of 8 squares, a playtest, 2026-11-21). Only from an ice
     // square and on a walk that arrived: a ledge hop the settle finished, or a scene that moved the
@@ -723,13 +762,25 @@ export class Travel {
     // A guessed way is walked only as far as the squares already seen (`route.legDirs`), then re-planned
     // with what that walk showed (the screen reaches 4-5 squares ahead): never blind into an unseen
     // trainer's sight, a warp, a hole or a ledge. Advancing that frontier has its own (larger) cap.
+    // A guess can lead far round, wall after wall: past a few times the straight way there, it stops
+    // and says so (a door 5 squares away took a walk of some 150 across a city and ended further off
+    // than it began, a playtest, 2026-11-22). Never for a way through seen squares.
+    const straight = Math.abs(x - here.x) + Math.abs(y - here.y);
+    const budget = Math.max(GUESS_MIN_SQUARES, GUESS_TIMES_STRAIGHT * straight);
+    let guessedSteps = 0;
+    let guessGaveUp = false;
     for (let attempt = 0, legs = 0; route && route.dirs.length && attempt < 4;) {
       report = await this.walkSegments(toSegments(route.legDirs, planned));
       walked.push(report);
+      if (route.guessed) guessedSteps += route.legDirs.length;
       here = this.core.host.position();
       if (here.battle || here.map !== startMap) break;
       // A leg that ran from a wild battle on the way still arrived where it was going.
       if (route.partial && ARRIVED.test(report) && legs++ < 30) {
+        if (route.guessed && guessedSteps >= budget) {
+          guessGaveUp = true;
+          break;
+        }
         route = replan();
         continue;
       }
@@ -781,7 +832,12 @@ export class Travel {
       if (out) {
         await this.core.tap(out, 16, 50);
         await this.core.requireGb().runFrames(120, 30);
-        if (this.core.host.position().map !== startMap) return this.core.result({ walk: `${legsSoFar}, then ${out} through the door, now on ${this.core.mapName()}`, map: this.core.mapText() });
+        const through = this.core.host.position();
+        if (through.map !== startMap) return this.core.result({ walk: `${legsSoFar}, then ${out} through the door, now on ${this.core.mapName()}`, map: this.core.mapText() });
+        // A door to elsewhere on this same map moves you there instead.
+        if (!through.battle && (through.x !== x || through.y !== y) && warpedOnMap(out, { x, y }, through)) {
+          return this.core.result({ walk: `${legsSoFar}, then ${out} through the door/warp to ${this.core.at(through.x, through.y)}, on this map`, map: this.core.mapText() });
+        }
       }
       const still = this.core.host.position();
       if (onDoor && report === "already there" && !still.battle && still.map === startMap && still.x === x && still.y === y) {
@@ -807,7 +863,9 @@ export class Travel {
     let said = legsSoFar;
     if (!reached && walked.length && ARRIVED.test(said) && !end.battle && end.map === startMap) {
       said = said.replace(ARRIVED, (m) => m.replace(" — arrived", "")) +
-        ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${route ? "" : ": no way on there through squares you've seen"}`;
+        ` — stopped at ${this.core.at(end.x, end.y)}, short of ${this.core.at(x, y)}${
+          guessGaveUp ? `: the way it was trying through squares you hadn't seen had taken ${guessedSteps} squares (${straight} in a straight line from where you started), so it stopped`
+          : route ? "" : ": no way on there through squares you've seen"}`;
     }
     let messages: string[] | undefined;
     if (reached) {

@@ -75,6 +75,22 @@ describe("walk_to through the fog", () => {
     expect(r.walk).not.toMatch(/arrived/);
   });
 
+  it("stops a guessed way that has gone a long way round, and says how far", async () => {
+    // A wall down column 5, open only 44 rows down: the target is 6 squares away, the way round
+    // about 90. The run has seen the screens around the start and the target only.
+    const tall = Array.from({ length: 46 }, (_, r) => (r < 44 ? ".....#......" : "............"));
+    const seen = seenFrom0();
+    seen.sawScreen(MAP, 2, 1);
+    seen.sawScreen(MAP, 9, 1);
+    const { core, travel } = fakeWorld(tall, [2, 1], seen);
+    const r = (await travel.walkTo(8, 1, false)) as { walk: string };
+    expect(core.host.position().x).toBeLessThan(5); // never got round
+    expect(r.walk).toMatch(/short of \(8, 1\): the way it was trying through squares you hadn't seen had taken \d+ squares \(6 in a straight line from where you started\), so it stopped/);
+    const taken = Number(/had taken (\d+) squares/.exec(r.walk)![1]);
+    expect(taken).toBeGreaterThanOrEqual(20);
+    expect(taken).toBeLessThan(40);
+  });
+
   it("refuses a ? target, which the guess never walks to", async () => {
     const { travel } = fakeWorld(corridor, [2, 1], seenWithGap());
     await expect(travel.walkTo(9, 1, false)).rejects.toThrow(/you haven't seen that square yet/);

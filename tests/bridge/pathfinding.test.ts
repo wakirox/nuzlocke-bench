@@ -156,6 +156,19 @@ describe("trainers' sight is the player's call", () => {
     expect(p.dirs).toEqual(["right"]);
   });
 
+  it("counts a trainer that turns by itself as looking every way it can, not just the way it faces now", () => {
+    const v = view([".....", ".....", "..T..", ".....", "..@.."]);
+    // On screen, facing up right now, but spinning: all four ways.
+    markWatched(v, [{ index: 1, x: OX + 2, y: OY + 2, dx: 0, dy: -1, onScreen: true, sight: true, facings: [[0, 1], [0, -1], [-1, 0], [1, 0]] }], [], 5);
+    const W = 5;
+    expect(v.watched!.has(3 * W + 2)).toBe(true); // below it, though it faces up
+    expect(v.watched!.has(2 * W + 0)).toBe(true); // to its left
+    expect(v.watched!.has(0 * W + 2)).toBe(true); // above it
+    // Without facings: only the way it faces.
+    markWatched(v, [{ index: 1, x: OX + 2, y: OY + 2, dx: 0, dy: -1, onScreen: true, sight: true }], [], 5);
+    expect(v.watched!.has(3 * W + 2)).toBe(false);
+  });
+
   describe("heading for a trainer to fight", () => {
     // Two trainers: A at (OX+1, OY+3) looking up its column, B at (OX+4, OY+0) looking down its
     // column (the only way from the player to A crosses B's column), as on a floor in a playtest, 2026-11-22.

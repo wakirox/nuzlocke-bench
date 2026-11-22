@@ -4,6 +4,7 @@
 
 import type { GameVersion } from "../../rom/types";
 import type { BattleMonState, BattlerHp, GameState, MemoryReader, MonState, Position } from "../types";
+import { battleTypes } from "../battle-types";
 import { currentBoxNewest, readPcMons } from "./boxes";
 import { decodeText, charFor } from "./data";
 import { MAP_CONSTANTS_RB, MAP_CONSTANTS_Y } from "./map-constants";
@@ -122,6 +123,7 @@ function readBattleMon(mem: MemoryReader, base: number, nickAddr: number, statMo
     pp: [b[25] & 0x3f, b[26] & 0x3f, b[27] & 0x3f, b[28] & 0x3f],
     exp: 0,
     stages: Array.from(mods, (m) => m - 7),
+    types: battleTypes(b[5], b[6]),
   };
 }
 
