@@ -54,6 +54,17 @@ export function huntableIn(note: string): { land: boolean; water: boolean } {
   };
 }
 
+/**
+ * The place FLY's town map shows (`lines`: the screen). Gen 1's line reads "To·<TOWN>    ▶▼": the
+ * place's name between the two. Crystal's has the question on a line of its own above it ("Where?"
+ * / "<TOWN>"), which isn't a place (it said "the places you can fly to are ··Where.", a playtest,
+ * 2026-11-22).
+ */
+export function flyPlace(lines: string[]): string {
+  const line = lines.find((l) => /[A-Z]/.test(l) && !/^\W*Where\?\W*$/i.test(l)) ?? "";
+  return line.replace(/^\W*To\W+/, "").replace(/^[^A-Za-z0-9]+/, "").replace(/[^A-Za-z0-9.é']+$/, "").trim();
+}
+
 export class Travel {
   /**
    * Poisoned Pokémon (by uid) the model has acknowledged with ack_poison: walks go on through their
@@ -128,11 +139,7 @@ export class Travel {
   private async flyTo(to: string, messages: string[]): Promise<unknown> {
     const norm = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
     const want = norm(to);
-    // The town map's line reads "To·PALLET TOWN    ▶▼": the place's name between the two.
-    const place = async () => {
-      const line = (await this.core.settledScreen()).find((l) => /[A-Z]/.test(l)) ?? "";
-      return line.replace(/^\W*To\W+/, "").replace(/[^A-Za-z0-9.é']+$/, "").trim();
-    };
+    const place = async () => flyPlace(await this.core.settledScreen());
     const seenPlaces: string[] = [];
     let here = await place();
     for (let i = 0; i < 16 && !norm(here).includes(want); i++) {

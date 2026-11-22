@@ -156,6 +156,69 @@ describe("trainers' sight is the player's call", () => {
     expect(p.dirs).toEqual(["right"]);
   });
 
+  describe("heading for a trainer to fight", () => {
+    // Two trainers: A at (OX+1, OY+3) looking up its column, B at (OX+4, OY+0) looking down its
+    // column (the only way from the player to A crosses B's column), as on a floor in a playtest, 2026-11-22.
+    const two = () => {
+      const v = view([
+        "#...T@#",
+        "#.....#",
+        "#.....#",
+        "#T##.##",
+      ]);
+      markWatched(v, [
+        { index: 1, x: OX + 1, y: OY + 3, dx: 0, dy: -1, onScreen: true, sight: true },
+        { index: 2, x: OX + 4, y: OY, dx: 0, dy: 1, onScreen: true, sight: true },
+      ], [], 5);
+      return v;
+    };
+
+    it("doesn't stand beside it on a square another trainer watches (review of #100)", () => {
+      // A at (OX+2, OY) looks up, out of the map; B at (OX, OY+1) looks right along row 1, which
+      // holds the square below A and every way up to A's sides.
+      const v = view([
+        "#.T.##",
+        "T....#",
+        "#...@#",
+      ]);
+      markWatched(v, [
+        { index: 1, x: OX + 2, y: OY, dx: 0, dy: -1, onScreen: true, sight: true },
+        { index: 2, x: OX, y: OY + 1, dx: 1, dy: 0, onScreen: true, sight: true },
+      ], [], 5);
+      const p = findPath(v, OX + 2, OY)!;
+      expect(p.sightStop).toBeDefined();
+      const W = 6;
+      expect(follow(v, p.dirs).some(([c, r]) => v.watched!.has(r * W + c))).toBe(false);
+    });
+
+    it("walks into that trainer's own sight", () => {
+      const v = view(["#T###", "#...#", "#..@#"]);
+      markWatched(v, [{ index: 1, x: OX + 1, y: OY, dx: 0, dy: 1, onScreen: true, sight: true }], [], 5);
+      const p = findPath(v, OX + 1, OY)!;
+      expect(p.sightStop).toBeUndefined();
+      expect(follow(v, p.dirs).at(-1)).toEqual([1, 1]);
+      expect(p.face).toBe("up");
+    });
+
+    it("stops short of another trainer's sight on the way, and says where", () => {
+      const p = findPath(two(), OX + 1, OY + 3)!;
+      expect(p.sightStop).toEqual([OX + 4, OY + 2]);
+      expect(p.dirs).toEqual(["down", "down"]);
+    });
+
+    it("goes around another trainer's sight when it can", () => {
+      // B now looks right, along the wall: the way down past it is clear.
+      const v = two();
+      markWatched(v, [
+        { index: 1, x: OX + 1, y: OY + 3, dx: 0, dy: -1, onScreen: true, sight: true },
+        { index: 2, x: OX + 4, y: OY, dx: 1, dy: 0, onScreen: true, sight: true },
+      ], [], 5);
+      const p = findPath(v, OX + 1, OY + 3)!;
+      expect(p.sightStop).toBeUndefined();
+      expect(follow(v, p.dirs).at(-1)).toEqual([1, 2]);
+    });
+  });
+
   it("names the trainer once even if the path walks along its line of sight", () => {
     const v = field();
     expect(sightCrossings(v, ["right", "right", "down", "down"])).toEqual([[OX + 3, OY]]);

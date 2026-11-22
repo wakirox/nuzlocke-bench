@@ -11,7 +11,7 @@ import {
   keysClearedWithRun,
   unpackMilestone,
 } from "../src/run-artifacts";
-import { RunSession, runScore } from "../src/run-session";
+import { RunSession, engagedSprite, runScore } from "../src/run-session";
 import { decodeSave, encodeSave } from "../src/save-codec";
 import { trackerData } from "./games/gen1/fixture";
 
@@ -210,5 +210,34 @@ describe("RunSession", () => {
       { x: 5, y: 3, name: "GUARD", beaten: true },
       { x: 16, y: 10, name: "SAILOR", beaten: false },
     ]);
+  });
+});
+
+describe("the trainer a battle is against", () => {
+  const near = { index: 3, x: 17, y: 2, trainerClass: 10, number: 13 };
+  const far = { index: 1, x: 9, y: 12, trainerClass: 20, number: 1 };
+
+  it("is the sprite with the opponent's class and number", () => {
+    expect(engagedSprite({ trainerClass: 20, number: 1 }, [near, far], { x: 17, y: 3 })).toBe(1);
+  });
+
+  it("is none in a story battle: no sprite of the opponent's class and number, even one right beside you", () => {
+    // The rival, who came by script, three squares from another trainer.
+    expect(engagedSprite({ trainerClass: 9, number: 4 }, [near, far], { x: 19, y: 4 })).toBeNull();
+  });
+
+  it("is the nearest sprite (6 squares at most) only when the trainers can't be read", () => {
+    const unread = [{ ...near, trainerClass: 0, number: 0 }, { ...far, trainerClass: 0, number: 0 }];
+    expect(engagedSprite({ trainerClass: 9, number: 4 }, unread, { x: 19, y: 4 })).toBe(3);
+    expect(engagedSprite(null, [near], { x: 19, y: 4 })).toBe(3);
+    expect(engagedSprite(null, [near], { x: 30, y: 30 })).toBeNull();
+  });
+
+  it("takes an opponent read as class 0 for no reading (review of #100)", () => {
+    const unread = [{ ...near, trainerClass: 0, number: 0 }];
+    // The nearest stays the fallback: it doesn't rule out a readable sprite beside you.
+    expect(engagedSprite({ trainerClass: 0, number: 0 }, [far], { x: 9, y: 13 })).toBe(1);
+    // Nor is an unread sprite "the same (0, 0)" when another is nearer.
+    expect(engagedSprite({ trainerClass: 0, number: 0 }, [{ ...far, trainerClass: 0, number: 0 }, ...unread], { x: 17, y: 3 })).toBe(3);
   });
 });

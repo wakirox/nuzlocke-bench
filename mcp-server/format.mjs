@@ -427,7 +427,10 @@ export function sentences(lines = []) {
   const out = [];
   for (const line of lines) {
     // An HP note ("(MONA: 85% → 63% HP.)") stands on its own.
-    if (out.length && !line.startsWith("(") && !/[.!?…]["'”)]*$/.test(out[out.length - 1])) out[out.length - 1] += ` ${line}`;
+    const last = out[out.length - 1];
+    // A word broken over the two lines with a hyphen ("It's super-" / "effective!", Crystal) joins
+    // without a space: "super- effective" read as a misprint (a playtest, 2026-11-22).
+    if (out.length && !line.startsWith("(") && !/[.!?…]["'”)]*$/.test(last)) out[out.length - 1] += /[A-Za-z]-$/.test(last) ? line : ` ${line}`;
     else out.push(line);
   }
   return out.map(missNote);

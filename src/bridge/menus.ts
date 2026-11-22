@@ -23,6 +23,7 @@ import {
   isNamingKeyboardScreen,
   isPartyScreenOpen,
   isSafariMenuScreen,
+  isScreenBetweenMenus,
   isScreenFaded,
   isStartMenuShown,
   isTargetMoveListOpen,
@@ -60,6 +61,8 @@ export class Menus {
    * opening backs out of it.
    */
   private bagLeftOpen = false;
+  /** The description Crystal's bag showed for the item behind that question (its text box's lines). */
+  private bagDescription: string[] = [];
 
   constructor(private core: BridgeCore) {}
 
@@ -259,18 +262,23 @@ export class Menus {
     if (!found) throw new Error(`Couldn't put the cursor on "${option}". Screen:\n${this.core.screenText().join("\n")}`);
     await this.core.tap("a", 4, 20);
     const after = await this.advanceText(30);
-    await this.closeBagAfterMoveQuestion(after.messages);
+    if (await this.closeBagAfterMoveQuestion(after.messages)) {
+      // Back in the bag, Crystal's shows the item's description in its box: not a message.
+      return this.core.result({ chose: option, messages: withoutDescription(after.messages, this.bagDescription), stopped: "no text on screen" });
+    }
     return this.core.result({ chose: option, messages: after.messages, stopped: after.stopped });
   }
 
   /**
    * Once the move question a candy or TM left open is answered (learned, or chose not to), the game
    * is back in the bag: close it and the start menu, so the next walk isn't pressing into the bag.
+   * Says whether it did.
    */
-  private async closeBagAfterMoveQuestion(messages: string[]): Promise<void> {
-    if (!this.bagLeftOpen || this.moveQuestionOpen() || !/\blearned\b|did not learn/i.test(messages.join(" "))) return;
+  private async closeBagAfterMoveQuestion(messages: string[]): Promise<boolean> {
+    if (!this.bagLeftOpen || this.moveQuestionOpen() || !/\blearned\b|did not learn/i.test(messages.join(" "))) return false;
     this.bagLeftOpen = false;
     await this.closeMenus();
+    return true;
   }
 
   /** The buttons were pressed by hand (press): whatever's on screen is the player's to handle now. */
@@ -405,6 +413,10 @@ export class Menus {
     if (mon.level >= target) return this.core.result({ messages: [`${mon.nickname} is already Lv${mon.level} (target Lv${target}).`] });
 
     const log: string[] = [];
+    // Crystal's bag shows the candy's description in its text box, and it was read back as a message
+    // between level-ups ("Raises level of a POKéMON by one.", a playtest, 2026-11-22): left out, as
+    // for use_item.
+    let description: string[] = [];
     await this.openStartMenu();
     await this.choose(this.core.layout.startMenu.bag);
     for (let i = 0; i < 100; i++) {
@@ -412,6 +424,8 @@ export class Menus {
       if (level >= target) break;
       // The bag remembers where it was scrolled (and which pocket): search it for the candies.
       await this.chooseInBag("RARE CANDY");
+      const box = this.core.textBox(this.core.screenText()).lines;
+      if (box.length) description = box;
       await this.choose("USE");
       // The party screen fades in after USE, and presses during the fade are dropped (USE can return
       // before it's drawn: once the run has ended, reading text stops at once). Steer by the ▶ on
@@ -427,7 +441,8 @@ export class Menus {
       log.push(...after.messages);
       if (this.cursorOn("YES") || after.messages.some((m) => this.core.layout.texts.moveQuestion.test(m))) {
         this.bagLeftOpen = true;
-        return this.core.result({ messages: log, stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
+        this.bagDescription = description;
+        return this.core.result({ messages: withoutDescription(log, description), stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
       }
     }
     // Close the bag and the start menu (as many B presses as it takes: Crystal's needs one more).
@@ -652,7 +667,7 @@ export class Menus {
     for (let i = 0, clear = 0; i < 12 && clear < 2; i++) {
       await this.core.requireGb().runFrames(10, 8);
       // Mid-fade no menu shows, but one may come back when it ends (the bag, after the party screen).
-      if (isScreenFaded(this.core.screenText())) {
+      if (isScreenFaded(this.core.screenText()) || isScreenBetweenMenus(this.core.screenText())) {
         clear = 0;
         continue;
       }
@@ -713,7 +728,8 @@ export class Menus {
       // A TM into a full moveset asks which move to delete: leave that choice open.
       if (this.cursorOn("YES") && this.core.layout.texts.moveQuestion.test(messages.join(" "))) {
         this.bagLeftOpen = true;
-        return this.core.result({ used: it.item, on: mon?.nickname, messages, stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
+        this.bagDescription = descriptionBox;
+        return this.core.result({ used: it.item, on: mon?.nickname, messages: withoutDescription(messages, descriptionBox), stopped: "a move-learning question is open: answer with choose (YES, then the move to forget, or NO)" });
       }
       // An item for one move (ETHER, PP UP) opens the Pokémon's moves: pick the one asked for.
       if (isTargetMoveListOpen(this.core.screenText(), monMoves)) {

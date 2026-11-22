@@ -724,8 +724,17 @@ export function findPath(
     const crosses = sightCrossings(v, plain.dirs);
     return crosses.length ? { dirs: plain.dirs, face, crosses } : { dirs: plain.dirs, face };
   }
+  // Heading for a trainer means taking that fight: walking into its gaze is the point. Not into
+  // another unbeaten trainer's: that one starts a fight nobody asked for, unannounced (a walk to one
+  // trainer crossed another's sight and fought that one, a playtest, 2026-11-22). So the square to
+  // stand on beside it mustn't be in another's sight either (review of #100); route around the
+  // others' sight, or stop short of it and say where, as for any walk.
+  const toTrainer = v.grid[tr][tc] === "T";
+  const W = v.grid[0].length;
+  const byOthers = (k: number) => (v.watchers?.get(k) ?? [[-1, -1]]).some(([x, y]) => x !== tc + v.originX || y !== tr + v.originY);
+  const goalHere = toTrainer ? (c: number, r: number) => goal(c, r) && !(v.watched?.has(r * W + c) && byOthers(r * W + c)) : goal;
   // Route around trainers' sight if possible.
-  const found = search(v, goal);
+  const found = search(v, goalHere);
   if (found) {
     const [ec, er] = found.end;
     const face = targetWalkable ? null : toward(ec, er);
@@ -735,8 +744,12 @@ export function findPath(
   // player decides whether to take that fight (walking on would start it unannounced).
   const blind = search(v, goal, false);
   if (!blind) return null;
-  // Heading for a trainer means taking that fight: walking into its gaze is the point.
-  if (v.grid[tr][tc] === "T") {
+  if (toTrainer) {
+    const others = { ...v, watched: new Set([...(v.watched ?? [])].filter(byOthers)) };
+    const around = search(others, goalHere);
+    if (around) return { dirs: around.dirs, face: toward(...around.end) };
+    const cut = stopAtSight(others, blind.dirs, goalHere);
+    if (cut.sightStop) return { ...cut, face: null };
     const [ec, er] = blind.end;
     return { dirs: blind.dirs, face: toward(ec, er) };
   }

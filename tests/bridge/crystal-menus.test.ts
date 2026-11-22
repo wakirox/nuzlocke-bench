@@ -179,3 +179,13 @@ describe("what rare candies did", () => {
     expect(candyEvents(["NOVA grew", "to level 21"])).toEqual(["NOVA grew to level 21"]);
   });
 });
+
+describe("FLY's town map", () => {
+  it("reads the place, not Crystal's question above it, and Gen 1's line between To and the arrows", async () => {
+    const { flyPlace } = await import("../../src/bridge/travel");
+    expect(flyPlace(["··Where?", "·FIRST TOWN"])).toBe("FIRST TOWN");
+    expect(flyPlace(["Where?", "BIG CITY"])).toBe("BIG CITY");
+    expect(flyPlace(["To·FIRST TOWN    ▶▼"])).toBe("FIRST TOWN");
+    expect(flyPlace([])).toBe("");
+  });
+});

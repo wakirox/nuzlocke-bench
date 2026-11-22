@@ -61,6 +61,31 @@ export interface RunSessionOptions {
   onPoll?: (info: { justEnded: boolean }) => void;
 }
 
+/**
+ * The map sprite of the trainer a battle that just started is against: the one whose class and
+ * number (wMapSpriteExtraData / its trainer header) are the opponent's. A story battle (the rival,
+ * who comes by script) has an opponent but no trainer sprite of its class and number: then none
+ * (the nearest was marked beaten, another trainer beside the rival, a playtest, 2026-11-22). The nearest sprite (within 6 squares of `at`) only when the opponent or the
+ * sprites' trainers can't be read.
+ */
+export function engagedSprite(
+  foe: { trainerClass: number; number: number } | null | undefined,
+  sprites: { index: number; x: number; y: number; trainerClass: number; number: number }[],
+  at: { x: number; y: number },
+): number | null {
+  // An opponent read as class 0 is no reading at all (review of #100): it neither matches an
+  // unread sprite (0, 0) nor rules out the nearest.
+  const known = foe && foe.trainerClass > 0 ? foe : null;
+  const exact = known && sprites.find((s) => s.trainerClass === known.trainerClass && s.number === known.number);
+  if (exact) return exact.index;
+  const unreadable = sprites.every((s) => !(s.trainerClass > 0));
+  if (known && !unreadable) return null;
+  const near = sprites
+    .map((s) => ({ s, d: Math.abs(s.x - at.x) + Math.abs(s.y - at.y) }))
+    .sort((a, b) => a.d - b.d)[0];
+  return near && near.d <= 6 ? near.s.index : null;
+}
+
 export class RunSession {
   readonly run: CurrentRun;
   /** Exact ROM the run executes on (recorded into `SavedReplay` for deterministic playback). */
@@ -131,18 +156,10 @@ export class RunSession {
     // Trainer battles: find the sprite whose trainer class + number (wMapSpriteExtraData) match
     // the opponent's; fall back to the nearest trainer sprite.
     if (prev && prev.battle === 0 && next.battle === 2) {
-      const foe = next.enemyTrainer;
-      const sprites = this.adapter.trainerSprites(this.gb, prev.x, prev.y);
-      const exact = foe && sprites.find((t) => {
-        const who = this.adapter.spriteTrainer(this.gb, t.index);
-        return who.trainerClass === foe.trainerClass && who.number === foe.number;
-      });
-      const near = sprites
-        .map((t) => ({ t, d: Math.abs(t.x - prev.x) + Math.abs(t.y - prev.y) }))
-        .sort((a, b) => a.d - b.d)[0];
-      this.engagedTrainer = exact
-        ? { map: prev.map, sprite: exact.index }
-        : near && near.d <= 6 ? { map: prev.map, sprite: near.t.index } : null;
+      const sprites = this.adapter.trainerSprites(this.gb, prev.x, prev.y)
+        .map((t) => ({ ...t, ...this.adapter.spriteTrainer(this.gb, t.index) }));
+      const sprite = engagedSprite(next.enemyTrainer, sprites, prev);
+      this.engagedTrainer = sprite == null ? null : { map: prev.map, sprite };
     }
     if (prev && prev.battle === 2 && next.battle === 0) {
       if (this.engagedTrainer && next.party.some((m) => m.hp > 0)) {
