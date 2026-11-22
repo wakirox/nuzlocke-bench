@@ -345,6 +345,13 @@ describe("renderDashboard", () => {
     const html = renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z");
     expect(dataOf(html).current).toBeNull();
   });
+
+  it("gives each game its current version: Red the harness's, Crystal its own, with or without one", () => {
+    const withOne = dataOf(renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z", "0.4.0")).currentByGame;
+    expect(withOne).toMatchObject({ red: "0.4.0", yellow: "0.4.0", crystal: "crystal-0.1.0" });
+    const without = dataOf(renderDashboard("<script>const DATA = /*DATA*/null;</script>", [], "2026-11-06T00:00:00Z")).currentByGame;
+    expect(without).toMatchObject({ red: null, crystal: "crystal-0.1.0" });
+  });
 });
 
 describe("the dashboard page", () => {

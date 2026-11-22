@@ -230,7 +230,7 @@ try {
   throw e;
 }
 
-// A game still being built (Crystal) plays, but its runs aren't scored or ranked: say so up front.
+// A game module marked experimental plays, but its runs aren't scored or ranked: say so up front.
 const version = romVersion(readFileSync(rom));
 const experimental = isExperimental(version);
 if (experimental) console.log(`Experimental game (${version[0].toUpperCase() + version.slice(1)}): the run plays, but it isn't scored or ranked.`);
