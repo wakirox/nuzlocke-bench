@@ -37,6 +37,18 @@ details.rules-fold p { margin: 6px 0 0; }
 .filters select { width: 100%; }
 select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 7px 10px; min-height: 40px; max-width: 100%; }
 select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The games: tabs across the page under the title, the chosen one underlined in the data's blue. */
+.game-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  border-bottom: 1px solid var(--line); margin: -4px 0 20px; }
+.game-bar .filters { padding-bottom: 6px; }
+.game-tabs { display: flex; gap: 4px; overflow-x: auto; align-self: end; }
+.game-tabs button { all: unset; cursor: pointer; display: flex; align-items: baseline; gap: 8px; white-space: nowrap;
+  padding: 10px 18px 11px; margin-bottom: -1px; font-size: 18px; font-weight: 650; letter-spacing: -.01em;
+  color: var(--ink-2); border-bottom: 3px solid transparent; }
+.game-tabs button .n { font-size: 13px; font-weight: 500; color: var(--muted); }
+.game-tabs button:hover { color: var(--ink); }
+.game-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--reach); }
+.game-tabs button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: 6px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0 0 16px; }
 .run-tiles { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-top: 20px; }
 .tile { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; min-width: 0; }
@@ -174,8 +186,14 @@ td.top { vertical-align: top; }
       <h1>Nuzlocke Bench</h1>
       <p class="sub">How far each model gets through a one-attempt, permadeath playthrough, playing through text tools alone.</p>
     </div>
-    <div class="filters"><label>Game <select id="f-game"></select></label><label>Version <select id="f-version"></select></label></div>
   </div>
+  <!-- The games as tabs (owner 2026-11-22: a menu in the corner was easy to miss); #f-game keeps the choice. The
+       version picker sits on the same bar: it belongs to the chosen game. -->
+  <div class="game-bar">
+    <div class="game-tabs" role="tablist" aria-label="Game" id="game-tabs"></div>
+    <div class="filters"><label>Version <select id="f-version"></select></label></div>
+  </div>
+  <select id="f-game" hidden aria-hidden="true" tabindex="-1"></select>
   <section class="board" aria-labelledby="board-h">
     <h2 id="board-h" style="padding-top:10px">Leaderboard</h2>
     <p class="note" id="board-meta"></p>
@@ -224,7 +242,33 @@ const runsAll = DATA.runs.filter((r) => !r.short && !r.notOfficial);
 
 const counts = (key) => { const m = {}; for (const r of runsAll) if (r[key]) m[r[key]] = (m[r[key]] ?? 0) + 1; return m; };
 // One game at a time: scores from different games don't compare. The one with the most runs first.
-$("f-game").innerHTML = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]).map(([g, n]) => `<option value="${esc(g)}">${esc(g[0].toUpperCase() + g.slice(1))} (${n})</option>`).join("");
+const games = Object.entries(counts("game")).sort((a, b) => b[1] - a[1]);
+const gameName = (g) => g[0].toUpperCase() + g.slice(1);
+$("f-game").innerHTML = games.map(([g, n]) => `<option value="${esc(g)}">${esc(gameName(g))} (${n})</option>`).join("");
+// The tabs show and change #f-game (a tablist: the arrow keys move between games).
+$("game-tabs").innerHTML = games.map(([g, n]) =>
+  `<button type="button" role="tab" data-game="${esc(g)}">${esc(gameName(g))}<span class="n">${n} run${n === 1 ? "" : "s"}</span></button>`).join("");
+const gameTabs = () => [...$("game-tabs").querySelectorAll("button")];
+const markGameTab = () => gameTabs().forEach((b) => {
+  const on = b.dataset.game === $("f-game").value;
+  b.setAttribute("aria-selected", String(on));
+  b.tabIndex = on ? 0 : -1;
+});
+const pickGame = (g) => {
+  if ($("f-game").value === g) return;
+  $("f-game").value = g;
+  $("f-game").dispatchEvent(new Event("change"));
+};
+$("game-tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) pickGame(b.dataset.game); });
+$("game-tabs").addEventListener("keydown", (e) => {
+  const tabs = gameTabs(), i = tabs.indexOf(document.activeElement);
+  if (i < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  e.preventDefault();
+  const j = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[j].focus();
+  pickGame(tabs[j].dataset.game);
+});
+markGameTab();
 
 // One benchmark version at a time (results/<version>/): what the model is shown changes between versions,
 // so a run on one isn't the same test as a run on another. The version is the harness's, before "@commit",
@@ -469,7 +513,7 @@ function draw() {
   board(rows, all); heat(rows, all); runs(rows);
 }
 
-$("f-game").addEventListener("change", () => { filterGroup = null; versionOptions(); draw(); });
+$("f-game").addEventListener("change", () => { filterGroup = null; markGameTab(); versionOptions(); draw(); });
 $("f-version").addEventListener("change", () => { filterGroup = null; draw(); });
 $("board").addEventListener("click", (e) => {
   const g = e.target.closest("[data-filter]")?.dataset.filter;
