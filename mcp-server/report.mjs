@@ -488,7 +488,8 @@ function reachedBy(calls, game, value) {
     const passed = [...(c.maps ?? []), map].filter(Boolean);
     for (const o of game.objectives) {
       if (reached[o.id] !== undefined) continue;
-      const beatRival = o.rival === map && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
+      // A rival fought on one map, or one of a few (a floor that gives way: the fight ends below).
+      const beatRival = !!o.rival && !!map && [o.rival].flat().includes(map) && c.fight?.result === "won" && game.rivalClasses.has(c.fight.trainerClass) && (!o.rivalClass || c.fight.trainerClass === o.rivalClass);
       if ((o.badges && (c.badges ?? 0) >= o.badges) || (o.maps && passed.some((m) => o.maps.includes(m))) || beatRival) reached[o.id] = value(c, i);
     }
   });

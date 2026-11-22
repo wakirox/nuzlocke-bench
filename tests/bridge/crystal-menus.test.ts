@@ -9,7 +9,7 @@ vi.mock("../../src/storage", () => ({
 }));
 
 import { AiBridge } from "../../src/bridge/ai-bridge";
-import { NAMING_KEYBOARD_OPEN } from "../../src/bridge/menus";
+import { candyEvents, hpChanges, NAMING_KEYBOARD_OPEN, withoutDescription } from "../../src/bridge/menus";
 import { gen2Adapter } from "../../src/games/gen2";
 import { FakeHost, screenRows, textBoxScreen, type FakeHostOptions, type ScriptScreen } from "../harness/fake-bridge";
 
@@ -141,5 +141,41 @@ describe("Each game's wording", () => {
     expect(crystal.caught.test("was caught!")).toBe(true);
     expect(red.caught.test("SENTRET was")).toBe(false);
     expect(crystal.teachQuestion.test("to a POKéMON?")).toBe(true);
+  });
+});
+
+describe("HP notes between battle messages", () => {
+  const mon = (name: string, hp: number, maxHp = 27) => ({ name, species: 16, hp, maxHp });
+  const you = mon("CHOMP", 20, 29);
+  it("says a hit on the Pokémon that stayed out", () => {
+    expect(hpChanges({ you, foe: mon("PIDGEY", 27) }, { you, foe: mon("PIDGEY", 13) })).toEqual(["(PIDGEY: 100% → 48% HP.)"]);
+  });
+  it("says nothing when a fainted foe is followed by another alike (not a heal to 100%)", () => {
+    expect(hpChanges({ you, foe: mon("PIDGEY", 0) }, { you, foe: mon("PIDGEY", 27) })).toEqual([]);
+  });
+});
+
+describe("the bag's item description isn't a message", () => {
+  // Crystal's bag shows it in the text box with the item picked, and again once the bag reopens after use.
+  const box = ["Restores POKéMON", "HP by 20."];
+  it("leaves out the description, whole or by line, and keeps what the game said", () => {
+    expect(withoutDescription(["Restores POKéMON HP by 20.", "BIRDY recovered 20HP!", "Restores POKéMON  HP by 20."], box)).toEqual(["BIRDY recovered 20HP!"]);
+    expect(withoutDescription(["HP by 20.", "BIRDY recovered 20HP!"], box)).toEqual(["BIRDY recovered 20HP!"]);
+  });
+  it("keeps everything when there's no description (Gen 1's bag) or a message only resembles it", () => {
+    expect(withoutDescription(["BIRDY recovered 20HP!"], [])).toEqual(["BIRDY recovered 20HP!"]);
+    expect(withoutDescription(["Restores POKéMON HP by 20 or more."], box)).toEqual(["Restores POKéMON HP by 20 or more."]);
+  });
+});
+
+describe("what rare candies did", () => {
+  it("keeps each level-up with the game's '!', one message each, also several candies (both games)", () => {
+    // One text-box line at a time, as advance_text reads them.
+    const log = ["NOVA grew", "to level 21!", "NOVA grew", "to level 22!", "NOVA learned", "BITE!"];
+    expect(candyEvents(log)).toEqual(["NOVA grew to level 21!", "NOVA grew to level 22!", "NOVA learned BITE!"]);
+  });
+
+  it("still reads a level-up whose '!' didn't come through", () => {
+    expect(candyEvents(["NOVA grew", "to level 21"])).toEqual(["NOVA grew to level 21"]);
   });
 });

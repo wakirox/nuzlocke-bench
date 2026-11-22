@@ -75,7 +75,8 @@ describe("Crystal story data", () => {
   });
   it("names only maps the game has", () => {
     const known = new Set(MAP_CONSTANTS_CRYSTAL.filter(Boolean));
-    const named = [...GEN2.home, ...GEN2.objectives.flatMap((o: { maps?: string[]; rival?: string }) => [...(o.maps ?? []), ...(o.rival ? [o.rival] : [])])];
+    // A rival can be on one map or a few (a floor that gives way).
+    const named = [...GEN2.home, ...GEN2.objectives.flatMap((o: { maps?: string[]; rival?: string | string[] }) => [...(o.maps ?? []), ...(o.rival ? [o.rival].flat() : [])])];
     expect(named.filter((m) => !known.has(m))).toEqual([]);
   });
 

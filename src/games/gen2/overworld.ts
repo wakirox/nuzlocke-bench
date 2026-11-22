@@ -74,6 +74,36 @@ const HOPS: Record<number, { ch: string; dx: number; dy: number }> = {
 const SPRITE = { NURSE: 0x37, CLERK: 0x39, POKE_BALL: 0x54, ROCK: 0x59, BOULDER: 0x5a };
 /** MAPOBJECT_TYPE (the low nibble of MAPOBJECT_PALETTE). */
 const OBJECTTYPE = { ITEMBALL: 1, TRAINER: 2 };
+/**
+ * The gym leaders and the League's five: people whose own script starts the fight (OBJECTTYPE_SCRIPT,
+ * not TRAINER), so they read as plain people, and fight_trainer couldn't find the first gym's leader
+ * (a playtest, 2026-11-21). Known by their sprite on their own room's map (some of them stand
+ * elsewhere without a fight), with their class, party and beaten flag: pokecrystal's
+ * constants/sprite_constants.asm, trainer_constants.asm and event_flags.asm, and the
+ * `loadtrainer` in maps/<gym or room>.asm.
+ */
+const LEADERS: Record<string, { sprite: number; trainerClass: number; number: number; beaten: number }> = {
+  VIOLET_GYM: { sprite: 0x12, trainerClass: 0x01, number: 1, beaten: 0x4bd },
+  AZALEA_GYM: { sprite: 0x14, trainerClass: 0x03, number: 1, beaten: 0x4be },
+  GOLDENROD_GYM: { sprite: 0x13, trainerClass: 0x02, number: 1, beaten: 0x4bf },
+  ECRUTEAK_GYM: { sprite: 0x15, trainerClass: 0x04, number: 1, beaten: 0x4c0 },
+  OLIVINE_GYM: { sprite: 0x17, trainerClass: 0x06, number: 1, beaten: 0x4c1 },
+  CIANWOOD_GYM: { sprite: 0x16, trainerClass: 0x07, number: 1, beaten: 0x4c2 },
+  MAHOGANY_GYM: { sprite: 0x18, trainerClass: 0x05, number: 1, beaten: 0x4c3 },
+  BLACKTHORN_GYM_1F: { sprite: 0x19, trainerClass: 0x08, number: 1, beaten: 0x4c4 },
+  WILLS_ROOM: { sprite: 0x11, trainerClass: 0x0b, number: 1, beaten: 0x5b8 },
+  KOGAS_ROOM: { sprite: 0x21, trainerClass: 0x0f, number: 1, beaten: 0x5b9 },
+  BRUNOS_ROOM: { sprite: 0x1c, trainerClass: 0x0d, number: 1, beaten: 0x5ba },
+  KARENS_ROOM: { sprite: 0x1b, trainerClass: 0x0e, number: 1, beaten: 0x5bb },
+  LANCES_ROOM: { sprite: 0x1e, trainerClass: 0x10, number: 1, beaten: 0x5bc },
+};
+/** The leader a map object is, on this map (null for anyone else). */
+const leaderOf = (mem: MemoryReader, o: { sprite: number }) => {
+  const l = LEADERS[MAP_CONSTANTS_CRYSTAL[currentMap(mem)] ?? ""];
+  return l && l.sprite === o.sprite ? l : null;
+};
+/** A trainer to the text map and the tools: a trainer object, or a leader in their own room. */
+const isTrainer = (mem: MemoryReader, o: { type: number; sprite: number }) => o.type === OBJECTTYPE.TRAINER || !!leaderOf(mem, o);
 /** BGEVENT_ITEM: a hidden item (never shown). */
 const BGEVENT_ITEM = 7;
 /** wPlayerState while surfing (PLAYER_SURF and PLAYER_SURF_PIKA). */
@@ -160,6 +190,8 @@ export function hideUnloadedOnScreen<T extends { x: number; y: number; hidden: b
 
 /** A trainer object's header (in the map's script bank): its event flag, class and number. */
 function trainerHeader(mem: MemoryReader, rom: Uint8Array, o: MapObject): { flag: number; trainerClass: number; number: number } | null {
+  const leader = leaderOf(mem, o);
+  if (leader) return { flag: leader.beaten, trainerClass: leader.trainerClass, number: leader.number };
   if (o.type !== OBJECTTYPE.TRAINER) return null;
   const at = romOff(rd(mem, OW.mapScriptsBank), o.script);
   if (at + 4 > rom.length) return null;
@@ -179,13 +211,15 @@ export function beatenTrainers(mem: MemoryReader, rom: Uint8Array): number[] {
 /** Trainer people on the current map (map coordinates). */
 export function trainerSprites(mem: MemoryReader, playerX: number, playerY: number): TrainerSprite[] {
   return mapObjects(mem)
-    .filter((o) => o.type === OBJECTTYPE.TRAINER && !o.hidden)
+    .filter((o) => isTrainer(mem, o) && !o.hidden)
     .map((o) => {
       const [dx, dy] = FACING[o.facing ?? 0] ?? [0, 1];
       const onScreen = o.facing !== null
         && o.x >= playerX - PLAYER_COL && o.x < playerX - PLAYER_COL + VIEW_W
         && o.y >= playerY - PLAYER_ROW && o.y < playerY - PLAYER_ROW + VIEW_H;
-      return { index: o.index, x: o.x, y: o.y, dx, dy, onScreen, sight: o.sightRange > 0 };
+      // A leader waits to be talked to (no line of sight), and is beaten once the game's flag says so.
+      const leader = leaderOf(mem, o);
+      return { index: o.index, x: o.x, y: o.y, dx, dy, onScreen, sight: o.sightRange > 0 && !leader, ...(leader && eventSet(mem, leader.beaten) ? { beaten: true } : {}) };
     });
 }
 
@@ -369,7 +403,7 @@ function decorate(mem: MemoryReader, rom: Uint8Array, grid: string[][], ox: numb
   for (const o of mapObjects(mem)) {
     if (o.hidden) continue;
     const ch = o.type === OBJECTTYPE.ITEMBALL || o.sprite === SPRITE.POKE_BALL ? "I"
-      : o.type === OBJECTTYPE.TRAINER ? "T"
+      : isTrainer(mem, o) ? "T"
       : o.sprite === SPRITE.BOULDER ? "B"
       : o.sprite === SPRITE.ROCK ? "#"
       : o.sprite === SPRITE.NURSE ? "H"

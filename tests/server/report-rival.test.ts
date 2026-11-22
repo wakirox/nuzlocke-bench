@@ -3,6 +3,8 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without type declarations
 import { hardAreasOf, objectivesOf } from "../../mcp-server/report.mjs";
+// @ts-expect-error plain ESM module without type declarations
+import { GEN2 } from "../../mcp-server/games/gen2.mjs";
 
 const call = (map: string, trainerClass: number, result?: string) => ({
   where: `SOMEWHERE [${map}] x1 y1 | battle: none`, playTime: "1:00:00", fight: { trainerClass, result },
@@ -22,6 +24,23 @@ describe("rival milestones", () => {
   it("counts only the later fight on the route with two", () => {
     expect(objectivesOf([call("ROUTE_22", 0x19, "won")]).rival6).toBeUndefined();
     expect(objectivesOf([call("ROUTE_22", 0x2a, "won")]).rival6).toBe("1:00:00");
+  });
+});
+
+describe("Crystal's rival milestones", () => {
+  // RIVAL1 = class 9 (pokecrystal trainer_constants).
+  it("counts the fight where the floor gives way, on either floor (the win's call can end below)", () => {
+    expect(objectivesOf([call("BURNED_TOWER_B1F", 9, "won")], GEN2).rival3).toBe("1:00:00");
+    expect(objectivesOf([call("BURNED_TOWER_1F", 9, "won")], GEN2).rival3).toBe("1:00:00");
+  });
+
+  it("counts the underground fight in the switch room's entrances, where it is", () => {
+    expect(objectivesOf([call("GOLDENROD_UNDERGROUND_SWITCH_ROOM_ENTRANCES", 9, "won")], GEN2).rival4).toBe("1:00:00");
+    expect(objectivesOf([call("GOLDENROD_UNDERGROUND", 9, "won")], GEN2).rival4).toBeUndefined();
+  });
+
+  it("doesn't count a won fight on a call with no map", () => {
+    expect(objectivesOf([{ where: "", playTime: "1:00:00", fight: { trainerClass: 9, result: "won" } }], GEN2).rival1).toBeUndefined();
   });
 });
 

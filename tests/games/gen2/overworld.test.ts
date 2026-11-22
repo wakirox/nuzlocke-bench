@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { trainerFacing } from "../../../src/bridge/overworld";
-import { carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, isOutdoorMap, mapDoors, OW, sideWallBlocks, onAtThisTime, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
+import { beatenTrainers, carpetPush, classify, classifyAt, hideUnloadedOnScreen, isDoorCollision, isOutdoorMap, mapDoors, OW, sideWallBlocks, onAtThisTime, spriteTrainer, trainerParty, trainerSprites } from "../../../src/games/gen2/overworld";
 import { A } from "../../../src/games/gen2/ram";
 
 /** A ROM with CollisionPermissionTable (bank $13) saying water for $29 and wall for $07, land otherwise. */
@@ -258,5 +258,47 @@ describe("Crystal people on screen", () => {
       { x: 16, onScreen: false, facing: undefined },
       { x: 30, onScreen: false, facing: undefined },
     ]);
+  });
+});
+
+describe("gym leaders (people whose own script starts the fight)", () => {
+  /** The first gym (map group $0a, number $07) or another map, with its leader's sprite ($12) as a script person. */
+  function onMap(group: number, number: number, beaten = false) {
+    const ram = new Uint8Array(0x10000);
+    ram[A.mapGroup] = group;
+    ram[A.mapNumber] = number;
+    ram[A.xCoord] = 5;
+    ram[A.yCoord] = 10;
+    ram[OW.objectEventCount] = 1;
+    const m = OW.mapObjects + 16;
+    ram[m] = 0xff; // not loaded: its place from the map data
+    ram[m + 1] = 0x12; // SPRITE_FALKNER
+    ram[m + 2] = 1 + 4;
+    ram[m + 3] = 5 + 4;
+    ram[m + 6] = 0xff; ram[m + 7] = 0xff;
+    ram[m + 8] = 0; // OBJECTTYPE_SCRIPT
+    ram[m + 12] = 0xff; ram[m + 13] = 0xff;
+    // EVENT_BEAT_FALKNER ($4bd) in wEventFlags.
+    if (beaten) ram[A.eventFlags + (0x4bd >> 3)] |= 1 << (0x4bd & 7);
+    return { read8: (a: number) => ram[a], read16be: () => 0, readBytes: () => new Uint8Array() };
+  }
+  const rom = new Uint8Array(0x200000);
+
+  it("are trainers in their own gym, waiting to be talked to (no line of sight)", () => {
+    expect(trainerSprites(onMap(0x0a, 0x07), 5, 10)).toEqual([expect.objectContaining({ index: 1, x: 5, y: 1, sight: false })]);
+    expect(spriteTrainer(onMap(0x0a, 0x07), rom, 1)).toEqual({ trainerClass: 0x01, number: 1 });
+  });
+
+  it("are beaten once the game's flag for it is set", () => {
+    expect(beatenTrainers(onMap(0x0a, 0x07), rom)).toEqual([]);
+    expect(beatenTrainers(onMap(0x0a, 0x07, true), rom)).toEqual([1]);
+    // The trainer list's [beaten] reads this too: the tracker never names a leader's fight.
+    expect(trainerSprites(onMap(0x0a, 0x07), 5, 10)[0].beaten).toBeUndefined();
+    expect(trainerSprites(onMap(0x0a, 0x07, true), 5, 10)[0].beaten).toBe(true);
+  });
+
+  it("aren't trainers anywhere else (the same people stand elsewhere without a fight)", () => {
+    expect(trainerSprites(onMap(0x0a, 0x01), 5, 10)).toEqual([]);
+    expect(spriteTrainer(onMap(0x0a, 0x01), rom, 1)).toEqual({ trainerClass: 0, number: 0 });
   });
 });

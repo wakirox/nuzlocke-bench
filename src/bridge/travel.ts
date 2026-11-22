@@ -278,7 +278,8 @@ export class Travel {
       }
       // A slide downhill that landed as the walk began takes a square off (walkStraight): one that
       // stopped before making it up is no squares the way asked, not fewer than none.
-      done.push(`${dir} ${Math.max(0, moved)}/${n}`);
+      // A slide is the whole leg's way that way, also across auto-runs (moved counts the leg).
+      done.push(`${dir} ${Math.max(0, moved)}/${n}${r.slidPast ? ` (slid on: ${moved + r.slidPast} squares ${dir})` : ""}`);
       if (r.stopped !== "arrived") return `${done.join(", ")} — stopped: ${r.stopped}${ran()}`;
     }
     return `${done.join(", ")} — arrived${ran()}`;
@@ -496,12 +497,13 @@ export class Travel {
    * `tiles` squares (a ledge hop is two), at a wall (no movement for a while),
    * on a map change, or when a battle starts.
    */
-  private async walkStraight(dir: Dir, tiles: number): Promise<{ moved: number; stopped: string }> {
+  private async walkStraight(dir: Dir, tiles: number): Promise<{ moved: number; stopped: string; slidPast?: number }> {
     // On the naming keyboard a held direction moves its cursor off "A", where press name: starts
     // typing (it can't home the cursor: the keyboard wraps). Don't press anything there.
     if (isNamingKeyboardScreen(this.core.screenText())) return { moved: 0, stopped: NAMING_KEYBOARD_OPEN };
     const gb = this.core.requireGb();
     let last = this.core.host.position();
+    const start = last;
     let moved = 0;
     let idle = 0;
     let stopped = "arrived";
@@ -615,7 +617,14 @@ export class Travel {
     // A wild battle can start as the last step lands, after the loop's last look: the leg said
     // "arrived", so nothing ran from it (travel stopped in one under flee_uncounted, 2026-11-19).
     if (stopped === "arrived" && this.core.host.position().battle) stopped = "a battle started";
-    return { moved, stopped };
+    // On ice the slide goes on after the squares asked for: say how far past them the player went
+    // that way ("down 2/2" hid a slide of 8 squares, a playtest, 2026-11-21). Only from an ice
+    // square and on a walk that arrived: a ledge hop the settle finished, or a scene that moved the
+    // player, isn't a slide (review of #97).
+    const end = this.core.host.position();
+    const went = end.map === start.map && !end.battle ? (end.x - start.x) * SLOPE_STEP[dir][0] + (end.y - start.y) * SLOPE_STEP[dir][1] : 0;
+    const onIce = () => this.core.rawView(true).grid[last.y]?.[last.x] === "*";
+    return stopped === "arrived" && went > moved && onIce() ? { moved, stopped, slidPast: went - moved } : { moved, stopped };
   }
 
   /**
