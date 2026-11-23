@@ -15,7 +15,7 @@ export type ViewStage = "raw" | "known" | "guessed";
 
 export interface OverworldView<S extends ViewStage | undefined = undefined> {
   readonly stage?: S;
-  /** grid[row][col]: @ you, N person, $ shop clerk, H nurse, B boulder, b boulder on a floor switch, o floor switch, O hole in the floor, D door/warp, S something to use by facing it, P a PC, # blocked, . walkable, " tall grass, v<> ledge, * ice (you slide on it) */
+  /** grid[row][col]: @ you, N person, $ shop clerk, H nurse, B boulder, W whirlpool (Crystal), b boulder on a floor switch, o floor switch, O hole in the floor, D door/warp, S something to use by facing it, P a PC, # blocked, . walkable, " tall grass, v<> ledge, * ice (you slide on it) */
   grid: string[][];
   /** Map coordinates of grid[0][0]. */
   originX: number;
@@ -629,6 +629,7 @@ export function wayBlocker(v: AnyOverworldView, tx: number, ty: number): { x: nu
   const kinds: [string, string, (x: number, y: number) => string][] = [
     ["NT$H", ".", (x, y) => `the ${v.grid[y - v.originY][x - v.originX] === "T" ? "trainer" : "person"} standing at (${x},${y})`],
     ["Bb", ".", (x, y) => `the boulder at (${x},${y})`],
+    ["W", "~", (x, y) => `the whirlpool at (${x},${y})`],
   ];
   for (const [chars, as, say] of kinds) {
     const grid = v.grid.map((row) => row.map((ch) => (chars.includes(ch) ? as : ch)));

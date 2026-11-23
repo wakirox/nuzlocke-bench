@@ -317,7 +317,7 @@ export function classify(rom: Uint8Array, coll: number | null): string {
   if (coll === COLL.PC) return "P";
   if (FACE_TO_USE.has(coll)) return "S";
   if (coll === COLL.PIT) return "O";
-  if (coll === COLL.WHIRLPOOL) return "#";
+  if (coll === COLL.WHIRLPOOL) return "W";
   const perm = rom[COLLISION_PERMISSIONS + coll] & 0x0f;
   return perm === WATER_TILE ? "~" : perm === WALL_TILE ? "#" : ".";
 }

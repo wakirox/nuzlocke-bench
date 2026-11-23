@@ -776,6 +776,7 @@ export class Travel {
       const why = unseenOutside || at === "?" ? "you haven't seen that square yet (? on the map): go closer and look"
         : at == null ? "it's outside this map"
         : at === "#" ? "that square is solid"
+        : at === "W" ? "that square is a whirlpool: surf up to it, face it, then field_move WHIRLPOOL"
         : at === "~" && !full.surfing ? "that square is water"
         : `it's on this map, but no walk from where you stand reaches it${by ? `: ${by.what} is in the way` : ""}`;
       // The screen, grown to take in the target and what's in the way when they're off it: a map

@@ -870,3 +870,22 @@ describe("PCs are used from below, facing up (as the game requires)", () => {
     expect(route.face).toBe("up");
   });
 });
+
+describe("a whirlpool in the water", () => {
+  // Surfing along a channel with a whirlpool across it, and open water behind.
+  const channel = (surfing: boolean) => ({ ...view(["@~W~~"]), surfing });
+
+  it("blocks the way, and is named as what's in the way", () => {
+    const v = channel(true);
+    expect(findPath(v, OX + 4, OY)).toBeNull();
+    expect(wayBlockedBy(v, OX + 4, OY)).toBe(`the whirlpool at (${OX + 2},${OY})`);
+  });
+
+  it("is never named for someone who couldn't swim past it anyway", () => {
+    expect(wayBlockedBy(channel(false), OX + 4, OY)).toBeNull();
+  });
+
+  it("is drawn as W", () => {
+    expect(renderView(channel(true))).toContain("W");
+  });
+});

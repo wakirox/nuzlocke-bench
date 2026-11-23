@@ -18,7 +18,7 @@ describe("Crystal squares", () => {
   const rom = romWithPermissions();
   it.each([
     [0x00, "."], [0x07, "#"], [0x29, "~"], [0x18, '"'], [0x14, '"'], [0x12, "C"],
-    [0xa0, "."], [0xa3, "."], [0x90, "="], [0x93, "P"], [0x91, "S"], [0x60, "O"], [0x71, "."],
+    [0x24, "W"], [0xa0, "."], [0xa3, "."], [0x90, "="], [0x93, "P"], [0x91, "S"], [0x60, "O"], [0x71, "."],
   ])("collision $%s is %s", (coll, ch) => {
     expect(classify(rom, coll)).toBe(ch);
   });
