@@ -78,6 +78,6 @@ describe("the tools the model is offered", () => {
     const both = await toolsUnder("hardcore-nuzlocke+firstrival+hardcap", { NUZLOCKE_GRID: "compact", NUZLOCKE_BOULDER_SWITCH: "1" });
     const bothDesc = both.find((t) => t.name === "get_map")?.description ?? "";
     expect(bothDesc).toContain("b boulder on a floor switch");
-    expect(bothDesc).toContain("I C S P $ H B b o O");
+    expect(bothDesc).toContain("I C W S P $ H B b o O");
   }, 30_000);
 });

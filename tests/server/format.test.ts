@@ -367,7 +367,7 @@ describe("legendFor", () => {
     expect(MAP_LEGEND).not.toContain("b boulder on a floor switch");
     expect(mapLegend({ boulderSwitch: true })).toContain("B boulder, b boulder on a floor switch, o floor switch");
     expect(COMPACT_GRID_NOTE).not.toContain("B b o O");
-    expect(compactGridNote({ boulderSwitch: true })).toContain("I C S P $ H B b o O");
+    expect(compactGridNote({ boulderSwitch: true })).toContain("I C W S P $ H B b o O");
 
     const map = ["       0  1  2  3", "y  5   #  b  B  o"].join("\n");
     expect(legendFor(map)).toBe("Legend: B boulder, o floor switch, # blocked.");

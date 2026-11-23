@@ -22,6 +22,7 @@ const LEGEND = [
   ["S", "S something you read or use by facing it and pressing A (a sign, a switch…)"],
   ["P", "P a PC (used only from the square below it, facing up: stand there and press A)"],
   ["C", "C tree you can Cut (face it, then field_move CUT)"],
+  ["W", "W whirlpool in the water (face it from the water, then field_move WHIRLPOOL; until then it blocks like a wall)"],
   ["=", "= counter (a person behind it is talked to across it)"],
   ["#", "# blocked"],
   [".", ". walkable"],
@@ -196,11 +197,11 @@ export const NARROW_GRID_NOTE = " The x header is two rows: the x row gives the 
 
 /** With compact grids (NUZLOCKE_GRID=compact), said once in get_map's description. */
 export function compactGridNote({ boulderSwitch = false } = {}) {
-  const syms = boulderSwitch ? "I C S P $ H B b o O" : "I C S P $ H B o O";
+  const syms = boulderSwitch ? "I C W S P $ H B b o O" : "I C W S P $ H B o O";
   return (
     " Squares are grouped in 5-column blocks (a space before every x divisible by 5, marked on the x ruler); " +
     "identical plain rows collapse as y14-17, all-# outer margins are trimmed, " +
-    `Points lists exact (x,y) coordinates of items, trees, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (${syms}), ` +
+    `Points lists exact (x,y) coordinates of items, trees, whirlpools, signs/switches, PCs, clerks/nurses, boulders, floor switches and holes (${syms}), ` +
     "and Cliffs lists edges between walkable-looking squares you can't step across (e.g. y8|9 x5–7 is between rows 8 and 9 along x 5–7; x27|28 y22 is between columns 27 and 28 at y 22)."
   );
 }
@@ -208,9 +209,9 @@ export const COMPACT_GRID_NOTE = compactGridNote();
 
 // `b` (a boulder on a seen floor switch) reaches the grid only with NUZLOCKE_BOULDER_SWITCH=1
 // (the bridge turns it back into `B` otherwise), so listing it here changes nothing by default.
-const MAP_POINT_KINDS = ["I", "C", "S", "P", "$", "H", "B", "b", "o", "O"];
+const MAP_POINT_KINDS = ["I", "C", "W", "S", "P", "$", "H", "B", "b", "o", "O"];
 const TALL_MAP_ROWS = 16;
-const INTERACTIVE = /[@TN$HFIDGSPCBboO]/;
+const INTERACTIVE = /[@TN$HFIDGSPCWBboO]/;
 const CLIFF_PREFIX = "Cliff edges (both sides look walkable, but you can't step across): ";
 const mod5 = (x) => ((x % 5) + 5) % 5;
 
